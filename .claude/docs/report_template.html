@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 모터 이상 진단 및 에이전트 자동 대응 리포트</title>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-light: #3b82f6;
+            --danger: #dc2626;
+            --danger-bg: #fef2f2;
+            --warning: #d97706;
+            --warning-bg: #fffbeb;
+            --success: #16a34a;
+            --bg-gray: #f8fafc;
+            --border-color: #e2e8f0;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        body {
+            font-family: 'Pretendard', 'Malgun Gothic', -apple-system, sans-serif;
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 30px 15px;
+            background-color: var(--bg-gray);
+        }
+
+        .report-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            border: 1px solid var(--border-color);
+        }
+
+        /* Header Area */
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+        }
+
+        .report-header h1 {
+            color: var(--primary);
+            font-size: 24px;
+            margin: 0 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin: 0;
+        }
+
+        .status-badge {
+            background-color: var(--danger-bg);
+            color: var(--danger);
+            border: 1px solid #fecaca;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-badge::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--danger);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* Section Styling */
+        h2 {
+            color: var(--primary);
+            font-size: 17px;
+            margin-top: 35px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-left: 4px solid var(--primary-light);
+            padding-left: 10px;
+        }
+
+        /* Grid Meta Info Table */
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--bg-gray);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .meta-table td {
+            padding: 10px 15px;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .meta-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .meta-table td.label {
+            font-weight: 600;
+            color: var(--text-muted);
+            background-color: #edf2f7;
+            width: 18%;
+        }
+
+        .meta-table td.value {
+            width: 32%;
+            font-weight: 500;
+        }
+
+        /* Tables for Sensors and Logs */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .data-table th {
+            background-color: #f1f5f9;
+            color: #334155;
+            font-weight: 600;
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .data-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .text-danger { color: var(--danger); font-weight: 700; }
+        .text-warning { color: var(--warning); font-weight: 600; }
+        .text-success { color: var(--success); font-weight: 600; }
+
+        /* Card Box Container */
+        .card-box {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 18px 20px;
+            margin-top: 10px;
+        }
+
+        /* Diagnostic Gauge/Progress Bar */
+        .confidence-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background-color: var(--danger-bg);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #f87171;
+            margin-bottom: 15px;
+        }
+
+        .confidence-score {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--danger);
+            line-height: 1;
+        }
+
+        .progress-bar-bg {
+            flex-grow: 1;
+            height: 10px;
+            background-color: #e2e8f0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: var(--danger);
+            width: 96.8%;
+        }
+
+        /* Ordered List with SOP design */
+        .sop-list {
+            padding-left: 0;
+            list-style: none;
+            margin: 0;
+        }
+
+        .sop-list li {
+            position: relative;
+            padding-left: 32px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .sop-list li::before {
+            content: attr(data-step);
+            position: absolute;
+            left: 0;
+            top: 2px;
+            width: 22px;
+            height: 22px;
+            background-color: var(--primary-light);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Timeline for Agent Execution */
+        .timeline {
+            border-left: 2px solid var(--border-color);
+            padding-left: 20px;
+            margin-left: 10px;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -26px;
+            top: 5px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--primary-light);
+            border: 2px solid #ffffff;
+        }
+
+        .timeline-time {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .timeline-content {
+            font-size: 13px;
+            margin-top: 2px;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+
+        @media print {
+            body { padding: 0; background: #fff; }
+            .report-container { box-shadow: none; border: none; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="report-container">
+
+    <!-- Header Section -->
+    <div class="report-header">
+        <div>
+            <h1>⚙️ AI 모터 이상 진단 및 에이전트 리포트</h1>
+            <p class="subtitle">Predictive Maintenance & Automated Agent Dispatch System</p>
+        </div>
+        <div>
+            <span class="status-badge">CRITICAL (긴급 점검)</span>
+        </div>
+    </div>
+
+    <!-- 1. 기본 자산 및 세션 정보 -->
+    <table class="meta-table">
+        <tr>
+            <td class="label">대상 설비 ID</td>
+            <td class="value">MTR-001 (프레스 메인 구동 모터)</td>
+            <td class="label">설치 위치</td>
+            <td class="value">제2공장 A라인 #3 프레스 구간</td>
+        </tr>
+        <tr>
+            <td class="label">모터 규격/모델</td>
+            <td class="value">3-Phase Inductor / HYUNDAI 75kW</td>
+            <td class="label">정격 속도/전압</td>
+            <td class="value">1,780 RPM / 380V (60Hz)</td>
+        </tr>
+        <tr>
+            <td class="label">이벤트 감지 시각</td>
+            <td class="value">2026-07-30 17:10:00</td>
+            <td class="label">에이전트 세션 ID</td>
+            <td class="value"><code>motor_MTR-001_20260730_171000</code></td>
+        </tr>
+    </table>
+
+    <!-- 2. 실시간 센서 측정 데이터 & 기준치 비교 -->
+    <h2>1. 실시간 센서 측정 데이터 상세 분석</h2>
+    <div class="card-box">
+        <p style="margin-top: 0; font-size: 13px; color: var(--text-muted);">
+            실시간 진동, 열화상, 전류 고속 샘플링(10kHz) 데이터를 바탕으로 수집된 주요 물리적 인자 지표입니다.
+        </p>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>측정 항목 (Metric)</th>
+                    <th>현재 측정값</th>
+                    <th>정상 기준 범위</th>
+                    <th>임계치 대비 오차</th>
+                    <th>상태 평가</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>베어링 하우징 온도</strong></td>
+                    <td class="text-danger">85.4 °C</td>
+                    <td>≤ 65.0 °C</td>
+                    <td class="text-danger">+20.4 °C (+31.3%)</td>
+                    <td><span class="text-danger">위험 (Danger)</span></td>
+                </tr>
+                <tr>
+                    <td><strong>진동 속도 RMS (X축)</strong></td>
+                    <td class="text-danger">7.2 mm/s</td>
+                    <td>≤ 2.8 mm/s</td>
+                    <td class="text-danger">+4.4 mm/s (+157%)</td>
+                    <td><span class="text-danger">초과 (ISO 10816 Class III)</span></td>
+                </tr>
+                <tr>
+                    <td><strong>진동 가속도 Peak (Y축)</strong></td>
+                    <td class="text-warning">3.8 g</td>
+                    <td>≤ 1.5 g</td>
+                    <td class="text-warning">+2.3 g</td>
+                    <td><span class="text-warning">경고 (Warning)</span></td>
+                </tr>
+                <tr>
+                    <td><strong>3상 전류 불평형률</strong></td>
+                    <td class="text-danger">6.8 %</td>
+                    <td>≤ 2.0 %</td>
+                    <td class="text-danger">+4.8 %p</td>
+                    <td><span class="text-danger">고정자 열화 의심</span></td>
+                </tr>
+                <tr>
+                    <td><strong>음향 주파수 (FFT Peak)</strong></td>
+                    <td class="text-danger">3,420 Hz (BPFO Peak)</td>
+                    <td>기저 소음 주파수</td>
+                    <td>특정 고주파 스파이크</td>
+                    <td><span class="text-danger">베어링 외륜 손상 신호</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 3. AI 진단 및 추론 결과 (Root Cause Analysis) -->
+    <h2>2. AI 멀티 에이전트 진단 및 근본 원인 분석 (RCA)</h2>
+    <div class="card-box">
+        <div class="confidence-container">
+            <div>
+                <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">AI 종합 진단 신뢰도</div>
+                <div class="confidence-score">96.8%</div>
+            </div>
+            <div style="flex-grow: 1;">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill"></div>
+                </div>
+                <div style="font-size: 12px; color: #7f1d1d; margin-top: 5px; font-weight: 500;">
+                    진단 모델: Vibration-FFT & Current Unbalance Ensemble Agent v2.4
+                </div>
+            </div>
+        </div>
+
+        <p style="font-size: 14px; margin-bottom: 8px;"><strong>[추론 엔진 분석 결과 요약]</strong></p>
+        <ul style="font-size: 13.5px; padding-left: 20px; margin-top: 0; color: #334155;">
+            <li><strong>주요 원인:</strong> <code>6215-C3</code> 드라이브 단 베어링 외륜(Outer Race)에 물리적 피팅(Pitting) 및 윤활유 결핍으로 인한 마찰열 과다 발생.</li>
+            <li><strong>연쇄 영향 분석:</strong> 베어링 온도가 $85.4^\circ\text{C}$까지 상승함에 따라 샤프트 미세 변형 유발 $\rightarrow$ 공극(Air Gap) 불균형 $\rightarrow$ 3상 전류 불평형률($6.8\%$) 상승으로 전력 효율 급감.</li>
+            <li><strong>방치 시 예상 결과:</strong> 잔여 수명(RUL) 약 <strong>18시간 이내</strong> 구동축 융착(Seizure) 및 모터 권선 소손으로 완전 정지 위험.</li>
+        </ul>
+    </div>
+
+    <!-- 4. 표준 정비 가이드 및 스페어 파트 (SOP) -->
+    <h2>3. 매뉴얼 기반 맞춤형 정비 가이드 (SOP) & 부품 정보</h2>
+    <div class="card-box">
+        <p style="font-size: 14px; margin-top: 0;"><strong>[긴급 표준 조치 절차]</strong></p>
+        <ol class="sop-list">
+            <li data-step="1">
+                <strong>설비 안심 정지 및 안전 조치 (LOTO):</strong><br>
+                A라인 메인 제어반(PLC-A01)에서 프레스 모터 인터락 정지 명령 수행 후, <code>LOTO (Lockout/Tagout)</code> 안전 락을 체결하십시오.
+            </li>
+            <li data-step="2">
+                <strong>냉각 및 베어링 하우징 점검:</strong><br>
+                표면 온도가 $40^\circ\text{C}$ 이하로 하강할 때까지 대기 후, 베어링 커버를 탈거하고 Grease 탄화 상태 및 커플링 휠 어라인먼트를 측정하십시오.
+            </li>
+            <li data-step="3">
+                <strong>교체 및 윤활유 재주입:</strong><br>
+                외륜 손상 베어링을 교체하고, 규격 내열 그리스(Mobilith SHC 220) $35\text{g}$을 주입하십시오. 체결 토크는 $45\text{Nm}$ 준수.
+            </li>
+            <li data-step="4">
+                <strong>시운전 및 세션 초기화:</strong><br>
+                무부하 시운전(10분)을 통해 진동 수치($\le 2.0\text{mm/s}$) 복구를 확인한 후, AI 에이전트 세션을 리셋(<code>Thread Reset</code>)하십시오.
+            </li>
+        </ol>
+
+        <div style="background-color: #f8fafc; border: 1px dashed var(--border-color); padding: 12px 15px; border-radius: 6px; margin-top: 15px;">
+            <p style="font-size: 13px; font-weight: bold; margin: 0 0 5px 0; color: var(--primary);">📦 자재 창고 예비 부품 재고 현황 (CMMS 연동)</p>
+            <table style="width: 100%; font-size: 12px;">
+                <tr>
+                    <td>• <strong>베어링 품번:</strong> SKF 6215-2Z/C3 (보유: <span class="text-success">4 EA</span> / 창고 위치: B-03-12)</td>
+                </tr>
+                <tr>
+                    <td>• <strong>권장 윤활유:</strong> Mobilith SHC 220 Synthetic Grease (보유: <span class="text-success">2 Can</span>)</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- 5. 에이전트 자동 대응 및 전파 이력 -->
+    <h2>4. AI 에이전트 자동 대응 및 통보 이력</h2>
+    <div class="card-box">
+        <div class="timeline">
+            <div class="timeline-item">
+                <div class="timeline-time">17:10:00.120</div>
+                <div class="timeline-content"><strong>[이상 감지]</strong> 실시간 IoT 센서로부터 온도/진동 Threshold 초과 이벤트 수신 (Triggered)</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">17:10:00.450</div>
+                <div class="timeline-content"><strong>[AI 분석 완료]</strong> Vibration FFT 알고리즘 실행 및 RCA 모델 분석 완료 (결함 유형: 베어링 외륜 결함)</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">17:10:01.000</div>
+                <div class="timeline-content"><strong>[자동 인터락]</strong> 안전 표준에 따라 PLC에 A라인 연동 속도 감속 및 정지 제어 신호 송신 요청</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">17:10:02.150</div>
+                <div class="timeline-content"><strong>[긴급 알림 발송]</strong> 설비 담당자 SMS/Slack 알림 발송 및 ERP/CMMS 자동 자재 예약(WO #20260730-089) 생성</div>
+            </div>
+        </div>
+
+        <div style="background-color: var(--bg-gray); padding: 12px 15px; border-radius: 6px; font-size: 13px; margin-top: 15px;">
+            <table style="width: 100%;">
+                <tr>
+                    <td style="font-weight: bold; width: 20%;">수신 담당자</td>
+                    <td>김철수 부장 (제2공장 설비관리팀 / 010-****-5678)</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold;">발송 전송 문구</td>
+                    <td style="color: #475569;">"[긴급] MTR-001 모터 위험(DANGER) 감지! 외륜 베어링 과열($85.4^\circ\text{C}$). CMMS 작업지시서 #089 생성됨. 리포트를 확인하세요."</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>
+            본 보고서는 AI Predictive Maintenance Agent 시스템에 의해 자동 생성된 보고서입니다.<br>
+            문의 사항: CREOT AI 서비스 개발팀
+        </p>
+    </div>
+
+</div>
+
+</body>
+</html>
