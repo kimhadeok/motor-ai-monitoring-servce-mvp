@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 모터 이상 진단 리포트 (MVP 샘플)</title>
+    <!--
+        06_report_spec.md 기준 MVP 샘플 템플릿 (v2 — 타이틀 페이지 분리 + 콘텐츠 보강)
+        - 원본 .claude/docs/report_template.html 대비 제외된 항목: 신뢰도(%) 게이지, CMMS 부품 재고, PLC 자동 인터락, ERP 자재 예약(WO)
+        - 색상 팔레트: 05_ui_screens.md §5-3 확정값 (NORMAL 녹색 / WARNING 주황 / DANGER 적색 / FAULT 짙은 회색)
+        - 이미지: 실제 사진/로고 없이 inline SVG 아이콘/일러스트로 구성 (오프라인 PDF 변환 시에도 깨지지 않도록 외부 리소스 미사용)
+        - 실제 구현 시 Jinja2로 {{ }} 변수 바인딩 예정. 데이터 출처는 각 섹션 HTML 주석에 표기 (06_report_spec.md §2 매핑)
+    -->
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-light: #3b82f6;
+            --danger: #dc2626;
+            --danger-bg: #fef2f2;
+            --warning: #d97706;
+            --warning-bg: #fffbeb;
+            --success: #16a34a;
+            --success-bg: #f0fdf4;
+            --fault: #1e293b;
+            --fault-bg: #f1f5f9;
+            --bg-gray: #f8fafc;
+            --border-color: #e2e8f0;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Pretendard', 'Malgun Gothic', -apple-system, sans-serif;
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 30px 15px;
+            background-color: var(--bg-gray);
+        }
+
+        .page {
+            max-width: 900px;
+            margin: 0 auto 24px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        /* ===== 표지(타이틀) 페이지 ===== */
+        .title-page {
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 700px;
+        }
+        .title-ribbon { height: 10px; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); }
+        .title-ribbon.status-danger { background: linear-gradient(90deg, #991b1b 0%, var(--danger) 100%); }
+        .title-ribbon.status-fault { background: linear-gradient(90deg, #0f172a 0%, var(--fault) 100%); }
+
+        .title-top-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 24px 44px 0; font-size: 12px; color: var(--text-muted);
+        }
+        .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--primary); font-size: 13px; }
+        .doc-tag {
+            border: 1px solid var(--border-color); border-radius: 20px; padding: 4px 12px;
+            font-weight: 600; letter-spacing: 0.03em;
+        }
+
+        .title-hero {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 20px 44px 30px;
+        }
+        .title-hero .motor-icon { color: var(--primary); margin-bottom: 18px; }
+        .title-hero h1 { font-size: 30px; color: var(--primary); margin: 0 0 8px; }
+        .title-hero .subtitle-en { font-size: 13px; color: var(--text-muted); letter-spacing: 0.04em; margin: 0 0 22px; }
+
+        .title-status-badge {
+            padding: 10px 22px; border-radius: 24px; font-weight: 800; font-size: 16px;
+            display: inline-flex; align-items: center; gap: 8px; margin-bottom: 26px;
+        }
+        .title-status-badge::before { content: ''; width: 10px; height: 10px; border-radius: 50%; }
+        .title-status-badge.status-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecaca; }
+        .title-status-badge.status-danger::before { background: var(--danger); }
+        .title-status-badge.status-fault { background: var(--fault-bg); color: var(--fault); border: 1px solid #cbd5e1; }
+        .title-status-badge.status-fault::before { background: var(--fault); }
+
+        .title-info-grid {
+            display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 560px;
+        }
+        .title-info-block {
+            flex: 1; background: var(--bg-gray); border: 1px solid var(--border-color);
+            border-radius: 10px; padding: 16px 20px; text-align: left;
+        }
+        .info-block-title {
+            font-size: 11px; font-weight: 800; color: var(--primary); letter-spacing: 0.05em;
+            text-transform: uppercase; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color);
+        }
+        .title-info-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; font-size: 13px; border-bottom: 1px dashed var(--border-color); }
+        .title-info-row:last-child { border-bottom: none; }
+        .title-info-row .k { color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+        .title-info-row .v { font-weight: 600; text-align: right; }
+
+        .title-footer {
+            border-top: 1px solid var(--border-color); padding: 18px 44px; text-align: center;
+            font-size: 12px; color: var(--text-muted);
+        }
+
+        /* ===== 내용 페이지 공통 ===== */
+        .content-page { padding: 40px; }
+
+        .content-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-bottom: 14px; margin-bottom: 20px; border-bottom: 2px solid var(--primary);
+        }
+        .content-header .doc-title { font-size: 13px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+        .content-header .motor-pill { font-size: 12px; color: var(--text-muted); }
+        .content-header .status-badge-sm {
+            font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px;
+        }
+        .status-badge-sm.status-danger { background: var(--danger-bg); color: var(--danger); }
+        .status-badge-sm.status-fault { background: var(--fault-bg); color: var(--fault); }
+
+        /* 처리 흐름 요약 */
+        .flow-summary {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            background: var(--bg-gray); border: 1px solid var(--border-color); border-radius: 10px;
+            padding: 16px 10px; margin-bottom: 30px;
+        }
+        .flow-node { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 110px; }
+        .flow-node .icon-circle {
+            width: 44px; height: 44px; border-radius: 50%; background: #fff; border: 2px solid var(--primary-light);
+            display: flex; align-items: center; justify-content: center; color: var(--primary);
+        }
+        .flow-node span { font-size: 11px; font-weight: 600; color: var(--text-main); text-align: center; }
+        .flow-arrow { color: var(--border-color); font-size: 20px; }
+        .flow-arrow svg { display: block; }
+
+        /* 이벤트 감지 시각 강조 표시 */
+        .event-time-banner { text-align: center; margin-bottom: 28px; }
+        .event-time-banner .label {
+            font-size: 11px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.06em;
+            margin-bottom: 6px; text-transform: uppercase;
+        }
+        .event-time-banner .value {
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 21px; font-weight: 800; color: var(--text-main);
+            padding: 8px 20px; border-radius: 10px; background: var(--bg-gray); border: 1px solid var(--border-color);
+        }
+        .event-time-banner .value svg { color: var(--primary); flex-shrink: 0; }
+
+        h2 {
+            color: var(--primary); font-size: 17px; margin-top: 34px; margin-bottom: 15px;
+            display: flex; align-items: center; gap: 9px;
+        }
+        h2 .h2-icon {
+            width: 30px; height: 30px; border-radius: 8px; background: var(--bg-gray);
+            display: flex; align-items: center; justify-content: center; color: var(--primary); flex-shrink: 0;
+        }
+
+        /* 센서 카드 그리드 */
+        .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .sensor-card {
+            background: #fff; border: 1px solid var(--border-color); border-left: 4px solid var(--border-color);
+            border-radius: 8px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start;
+        }
+        .sensor-card.status-danger { border-left-color: var(--danger); }
+        .sensor-card.status-warning { border-left-color: var(--warning); }
+        .sensor-card.status-normal { border-left-color: var(--success); }
+        .sensor-card.status-fault { border-left-color: var(--fault); }
+        .sensor-card .icon-box {
+            width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .sensor-card.status-danger .icon-box { background: var(--danger-bg); color: var(--danger); }
+        .sensor-card.status-warning .icon-box { background: var(--warning-bg); color: var(--warning); }
+        .sensor-card.status-normal .icon-box { background: var(--success-bg); color: var(--success); }
+        .sensor-card.status-fault .icon-box { background: var(--fault-bg); color: var(--fault); }
+        .sensor-card .metric-name { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+        .sensor-card .metric-value { font-size: 19px; font-weight: 800; margin: 2px 0; }
+        .sensor-card .metric-range { font-size: 11px; color: var(--text-muted); }
+        .sensor-card .pill {
+            display: inline-block; margin-top: 6px; font-size: 10.5px; font-weight: 700;
+            padding: 2px 8px; border-radius: 10px;
+        }
+        .sensor-card.status-danger .pill { background: var(--danger-bg); color: var(--danger); }
+        .sensor-card.status-warning .pill { background: var(--warning-bg); color: var(--warning); }
+        .sensor-card.status-normal .pill { background: var(--success-bg); color: var(--success); }
+        .sensor-card.status-fault .pill { background: var(--fault-bg); color: var(--fault); }
+
+        .card-box { background: #ffffff; border: 1px solid var(--border-color); border-radius: 8px; padding: 18px 20px; margin-top: 10px; }
+
+        .severity-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .severity-badge { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 12px; }
+        .severity-badge.high { background: var(--danger-bg); color: var(--danger); }
+        .model-tag { font-size: 12px; color: var(--text-muted); }
+
+        .sop-list { padding-left: 0; list-style: none; margin: 0; }
+        .sop-list li { position: relative; padding-left: 34px; margin-bottom: 13px; font-size: 14px; }
+        .sop-list li::before {
+            content: attr(data-step); position: absolute; left: 0; top: 1px;
+            width: 24px; height: 24px; background-color: var(--primary-light); color: #ffffff;
+            font-size: 11px; font-weight: 700; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .timeline { border-left: 2px solid var(--border-color); padding-left: 22px; margin-left: 12px; }
+        .timeline-item { position: relative; margin-bottom: 16px; }
+        .timeline-item .icon-dot {
+            position: absolute; left: -33px; top: -2px; width: 22px; height: 22px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; color: #fff; border: 2px solid #fff;
+        }
+        .timeline-item.detect .icon-dot { background: var(--danger); }
+        .timeline-item.diagnose .icon-dot { background: var(--primary); }
+        .timeline-item.notify .icon-dot { background: var(--success); }
+        .timeline-time { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+        .timeline-content { font-size: 13px; margin-top: 2px; }
+
+        .footer { margin-top: 40px; text-align: center; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border-color); padding-top: 20px; }
+
+        @media print {
+            body { padding: 0; background: #fff; }
+            .page { box-shadow: none; border: none; border-radius: 0; margin: 0 auto; page-break-after: always; break-after: page; }
+            .page:last-child { page-break-after: auto; break-after: auto; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- PAGE 1 — 표지 (고객 전달용 타이틀 페이지) -->
+<!-- ============================================================ -->
+<div class="page title-page">
+    <!-- event.status 기준 색상 리본 -->
+    <div class="title-ribbon status-danger"></div>
+
+    <div class="title-top-row">
+        <div class="brand">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="2"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            CREOT AI 서비스 개발팀
+        </div>
+        <div class="doc-tag">예지보전 진단 리포트</div>
+    </div>
+
+    <div class="title-hero">
+        <!-- 모터 일러스트 (inline SVG) -->
+        <svg class="motor-icon" width="150" height="150" viewBox="0 0 140 120" fill="none">
+            <rect x="10" y="20" width="15" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="3"/>
+            <rect x="25" y="38" width="70" height="52" rx="7" fill="none" stroke="currentColor" stroke-width="4"/>
+            <line x1="37" y1="38" x2="37" y2="90" stroke="currentColor" stroke-width="2"/>
+            <line x1="49" y1="38" x2="49" y2="90" stroke="currentColor" stroke-width="2"/>
+            <line x1="61" y1="38" x2="61" y2="90" stroke="currentColor" stroke-width="2"/>
+            <line x1="73" y1="38" x2="73" y2="90" stroke="currentColor" stroke-width="2"/>
+            <line x1="85" y1="38" x2="85" y2="90" stroke="currentColor" stroke-width="2"/>
+            <rect x="95" y="56" width="26" height="16" fill="currentColor"/>
+            <circle cx="128" cy="64" r="8" fill="none" stroke="currentColor" stroke-width="4"/>
+            <rect x="20" y="90" width="80" height="9" rx="2" fill="currentColor"/>
+            <rect x="30" y="99" width="10" height="10" fill="currentColor"/>
+            <rect x="80" y="99" width="10" height="10" fill="currentColor"/>
+        </svg>
+
+        <h1>AI 모터 이상 진단 리포트</h1>
+        <p class="subtitle-en">Predictive Maintenance Diagnostic Report</p>
+
+        <!-- event.status: DANGER → status-danger, FAULT → status-fault -->
+        <span class="title-status-badge status-danger">DANGER · 위험 단계 감지</span>
+
+        <!-- 기본 정보 요약: companies + motors + motor_status_logs.created_at -->
+        <div class="title-info-grid">
+            <div class="title-info-block">
+                <div class="info-block-title">회사 정보</div>
+                <div class="title-info-row"><span class="k">고객사명</span><span class="v">(주)한국모터스</span></div>
+                <div class="title-info-row"><span class="k">업체 코드</span><span class="v">COMP-001</span></div>
+            </div>
+            <div class="title-info-block">
+                <div class="info-block-title">모터 정보</div>
+                <div class="title-info-row"><span class="k">대상 설비</span><span class="v">MTR-002 · 2호기 메인 송풍기</span></div>
+                <div class="title-info-row"><span class="k">설치 위치</span><span class="v">제1공장 지하 1층 기계실</span></div>
+                <div class="title-info-row"><span class="k">모터 모델</span><span class="v">HYUN-37KW-4P</span></div>
+                <div class="title-info-row"><span class="k">감지 시각</span><span class="v">2026-08-03 14:30:00</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="title-footer">
+        발행일 2026-08-03 · 본 문서는 AI 예지보전 에이전트가 자동 생성한 진단 리포트입니다.
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- PAGE 2 — 내용 페이지 -->
+<!-- ============================================================ -->
+<div class="page content-page">
+
+    <div class="content-header">
+        <div class="doc-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="2"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            AI 모터 이상 진단 리포트
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <span class="motor-pill">MTR-002 · 2호기 메인 송풍기</span>
+            <span class="status-badge-sm status-danger">DANGER</span>
+        </div>
+    </div>
+
+    <!-- 처리 흐름 요약 (02_architecture.md 파이프라인 시각화) -->
+    <div class="flow-summary">
+        <div class="flow-node">
+            <div class="icon-circle">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="10" y="3" width="4" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="4" fill="currentColor"/></svg>
+            </div>
+            <span>센서 데이터 수집</span>
+        </div>
+        <div class="flow-arrow">
+            <svg width="22" height="14" viewBox="0 0 22 14"><path d="M0 7h18M13 1l7 6-7 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="flow-node">
+            <div class="icon-circle">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg>
+            </div>
+            <span>AI 에이전트 진단</span>
+        </div>
+        <div class="flow-arrow">
+            <svg width="22" height="14" viewBox="0 0 22 14"><path d="M0 7h18M13 1l7 6-7 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="flow-node">
+            <div class="icon-circle">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+            </div>
+            <span>리포트 발행 및 알림</span>
+        </div>
+    </div>
+
+    <!-- 이벤트 감지 시각 강조 표시: motor_status_logs.created_at -->
+    <div class="event-time-banner">
+        <div class="label">이벤트 감지 시각</div>
+        <div class="value">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            2026-08-03 14:30:00
+        </div>
+    </div>
+
+    <!-- 센서 측정 데이터: 06_report_spec.md §2.2 (4개 지표, motor_telemetry + motor_thresholds) -->
+    <h2>
+        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="10" y="3" width="4" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="4" fill="currentColor"/></svg></span>
+        1. 실시간 센서 측정 데이터
+    </h2>
+    <div class="sensor-grid">
+        <div class="sensor-card status-danger">
+            <div class="icon-box">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="10" y="3" width="4" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="4" fill="currentColor"/></svg>
+            </div>
+            <div>
+                <div class="metric-name">온도</div>
+                <div class="metric-value">78.2 °C</div>
+                <div class="metric-range">정상 기준 ≤ 60.0 °C</div>
+                <span class="pill">DANGER</span>
+            </div>
+        </div>
+        <div class="sensor-card status-warning">
+            <div class="icon-box">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M2 12h3l2-7 3 14 3-14 2 7h3l2-4h2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+                <div class="metric-name">진동</div>
+                <div class="metric-value">3.1 mm/s</div>
+                <div class="metric-range">정상 기준 ≤ 2.5 mm/s</div>
+                <span class="pill">WARNING</span>
+            </div>
+        </div>
+        <div class="sensor-card status-normal">
+            <div class="icon-box">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg>
+            </div>
+            <div>
+                <div class="metric-name">전류</div>
+                <div class="metric-value">12.4 A</div>
+                <div class="metric-range">정상 기준 ≤ 15.0 A</div>
+                <span class="pill">NORMAL</span>
+            </div>
+        </div>
+        <div class="sensor-card status-warning">
+            <div class="icon-box">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 9v6h4l5 5V4L8 9H4z" fill="currentColor"/><path d="M16 8a5 5 0 010 8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+                <div class="metric-name">소음</div>
+                <div class="metric-value">82 dB</div>
+                <div class="metric-range">정상 기준 ≤ 75 dB</div>
+                <span class="pill">WARNING</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI 진단: 06_report_spec.md §2.3 (신뢰도% 게이지 제외 — 정성적 심각도 배지는 event.status 기반 규칙이라 별도 LLM 출력 불필요) -->
+    <h2>
+        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg></span>
+        2. AI 진단 및 근본 원인 분석
+    </h2>
+    <div class="card-box">
+        <div class="severity-row">
+            <span class="severity-badge high">심각도 높음</span>
+            <span class="model-tag">진단 모델: GPT-4o 기반 진단 에이전트</span>
+        </div>
+        <p style="font-size: 14px; margin-bottom: 8px;"><strong>[분석 결과 요약]</strong></p>
+        <ul style="font-size: 13.5px; padding-left: 20px; margin-top: 0; color: #334155;">
+            <li><strong>주요 원인:</strong> 베어링 하우징 온도 상승 및 진동 수치 증가 패턴으로 볼 때 베어링 윤활유 부족 또는 마모가 의심됨.</li>
+            <li><strong>연쇄 영향 분석:</strong> 온도 상승이 지속되면서 소음 수치도 함께 증가하는 추세 — 단기(2시간) 버퍼 기준 점진적 악화 패턴으로 판단됨.</li>
+            <li><strong>방치 시 예상 결과:</strong> 지속 방치 시 베어링 손상 심화로 FAULT(고장/정지) 단계로 진행될 가능성 있음. 조속한 점검 권장.</li>
+        </ul>
+    </div>
+
+    <!-- 정비 가이드: 06_report_spec.md §2.4 (RAG 매뉴얼 검색 결과, 부품 재고 제외) -->
+    <h2>
+        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 005.4-5.4l-2.8 2.8-2-2 2.8-2.8z" fill="currentColor"/></svg></span>
+        3. 매뉴얼 기반 정비 가이드 (SOP)
+    </h2>
+    <div class="card-box">
+        <ol class="sop-list">
+            <li data-step="1"><strong>설비 안전 정지:</strong> 담당자 확인 후 안전 절차에 따라 모터를 정지하십시오.</li>
+            <li data-step="2"><strong>베어링 하우징 점검:</strong> 표면 온도 하강 후 베어링 커버를 열어 그리스 상태를 확인하십시오.</li>
+            <li data-step="3"><strong>윤활유 재주입 또는 부품 교체:</strong> 매뉴얼 규격에 맞는 윤활유를 주입하거나 손상 부품을 교체하십시오.</li>
+            <li data-step="4"><strong>시운전 확인:</strong> 무부하 시운전으로 수치 정상화를 확인한 뒤, 대시보드에서 "정비 완료" 처리를 진행하십시오 (05_ui_screens.md §4.3).</li>
+        </ol>
+    </div>
+
+    <!-- 대응/통보 이력: 06_report_spec.md §2.5 (PLC 인터락·ERP 자재예약 제외) -->
+    <h2>
+        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg></span>
+        4. 자동 대응 및 통보 이력
+    </h2>
+    <div class="card-box">
+        <div class="timeline">
+            <div class="timeline-item detect">
+                <div class="icon-dot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg></div>
+                <div class="timeline-time">14:30:00</div>
+                <div class="timeline-content"><strong>이상 감지</strong> — 온도/진동 지표가 DANGER 임계치 초과 (상태 전이 감지)</div>
+            </div>
+            <div class="timeline-item diagnose">
+                <div class="icon-dot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg></div>
+                <div class="timeline-time">14:30:12</div>
+                <div class="timeline-content"><strong>AI 진단 완료</strong> — 단기(2h)+장기(6h) 데이터 및 RAG 매뉴얼 결합 분석 완료, 본 리포트 생성</div>
+            </div>
+            <div class="timeline-item notify">
+                <div class="icon-dot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/></svg></div>
+                <div class="timeline-time">14:30:15</div>
+                <div class="timeline-content"><strong>알림 발송</strong> — 담당자 SMS/이메일로 리포트 다운로드 링크 발송</div>
+            </div>
+        </div>
+
+        <div style="background-color: var(--bg-gray); padding: 12px 15px; border-radius: 6px; font-size: 13px; margin-top: 15px;">
+            <table style="width: 100%;">
+                <tr>
+                    <td style="font-weight: bold; width: 20%;">수신 담당자</td>
+                    <td>김철수 (제1공장 설비관리팀)</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold; width: 20%;">담당자 연락처</td>
+                    <td>010-****-5678</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold;">발송 문구</td>
+                    <td style="color: #475569;">"[DANGER] MTR-002 모터 위험 감지 (베어링 과열 의심). 리포트를 확인하세요."</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>본 리포트는 AI Predictive Maintenance Agent 시스템에 의해 자동 생성된 리포트입니다 (MVP 샘플).</p>
+    </div>
+</div>
+
+</body>
+</html>

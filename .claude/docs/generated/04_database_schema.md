@@ -2,7 +2,7 @@
 
 > 원본: `.claude/docs/테이블 설계.md`
 > 반영: `01_tech_stack.md`(SQLite 확정), `03_state_event_logic.md`(지표별 임계값, 쿨다운, FAULT 수동 복구, 통신 두절)
-> 작성: coreagent · 상태: 초안 (보강 항목 확인 필요 — §5)
+> 작성: coreagent · 상태: 확정
 
 ## 1. MVP 적용 시 타입 매핑
 
@@ -164,13 +164,22 @@ company_contacts 1─N notification_logs
 company_contacts 1─N motor_status_logs (관리자 수동 조치 시)
 ```
 
-## 5. 보강 항목 (확인 필요)
+## 5. 보강 항목 (확정)
 
-1. **motor_thresholds 신설 (§2)**: 원본 설계 누락 보강 — 지표별(온도/진동/전류/소음) 임계값 분리. 확인 부탁드립니다.
-2. **motors.collection_interval_seconds 추가 (§3.3)**: 통신 두절 판정(§4.4, 연속 3주기 미수신) 계산에 필요. 확인 부탁드립니다.
-3. **motor_status_logs.contact_id 추가 (§3.5)**: FAULT 수동 복구("정비 완료" 확인)를 누가 처리했는지 기록하기 위한 컬럼. 확인 부탁드립니다.
-4. **motor_status_logs.metric_name에 'connectivity' 값 추가 (§3.5)**: 통신 두절 이벤트를 별도 테이블 없이 기존 로그 테이블에 통합 기록하는 방식 제안. 확인 부탁드립니다.
-5. **48시간 초과 데이터 삭제/아카이브 정책**: 원본은 "48시간 범위 데이터만 등록 관리"라고만 되어 있어 구체 정책이 없음. MVP 제안: 매일 1회 배치로 48시간 초과 `motor_telemetry` 행 삭제 (별도 아카이브 없음). 정식 서비스 단계에서 필요 시 별도 아카이브 테이블/파일로 이관 검토.
+5개 항목 모두 coreagent 제안대로 확정 — §3 DDL에 반영 완료:
+
+1. **motor_thresholds 신설 (§2)**: 원본 설계 누락 보강 — 지표별(온도/진동/전류/소음) 임계값 분리.
+2. **motors.collection_interval_seconds 추가 (§3.3)**: 통신 두절 판정(§4.4, 연속 3주기 미수신) 계산에 사용.
+3. **motor_status_logs.contact_id 추가 (§3.5)**: FAULT 수동 복구("정비 완료" 확인) 처리자 기록.
+4. **motor_status_logs.metric_name에 'connectivity' 값 추가 (§3.5)**: 통신 두절 이벤트를 별도 테이블 없이 기존 로그 테이블에 통합 기록.
+5. **48시간 초과 데이터 삭제 정책**: 매일 1회 배치로 48시간 초과 `motor_telemetry` 행 삭제. 아래 쿼리로 구현:
+
+```sql
+DELETE FROM motor_telemetry
+WHERE time < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-48 hours');
+```
+
+MVP 실행 방식: 별도 스케줄러(APScheduler, `02_architecture.md` §3 참고) 잡으로 1일 1회 실행. 정식 서비스 단계에서 필요 시 별도 아카이브 테이블/파일로 이관 검토.
 
 ---
 승인해주시면 다음 문서(`05_ui_screens.md`) 작성을 진행하겠습니다.

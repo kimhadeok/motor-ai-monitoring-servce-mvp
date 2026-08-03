@@ -54,8 +54,9 @@
 | `st.components.v1.html` | 커스텀 HTML/CSS/JS 삽입 (흐름 애니메이션 등) | Streamlit 내장 기능, 추가 패키지 불필요 |
 | `streamlit-extras` | 배지, 카드, 스타일 메트릭 등 UI 컴포넌트 모음 | 선택 — 커뮤니티 패키지, 개발 속도 향상 목적 |
 | `streamlit-lottie` | 모터→API→AI Agent 흐름의 매끄러운 애니메이션 효과 | 선택 — GIF보다 가볍고 반복 재생 안정적 |
+| `st.fragment(run_every=...)` | 실시간 그래프/상태 자동 갱신 (10/20/30초 주기) | 확정 — `05_ui_screens.md` §5-2. Streamlit 1.33+ 내장 기능, 추가 패키지 불필요. 지정 함수(차트/카드 영역)만 부분 재실행되어 전체 스크립트 리런보다 가볍고 빠름 |
 
-MVP 기준: `streamlit-extras`, `streamlit-lottie`는 선택 적용(개발 중 필요 시 추가)하고, 컬러 코딩 등 핵심 요구사항은 커스텀 CSS로 우선 구현.
+MVP 기준: `streamlit-extras`, `streamlit-lottie`는 선택 적용(개발 중 필요 시 추가)하고, 실시간 갱신은 `st.fragment(run_every=...)`로 확정 적용 (전체 리런 방식인 `streamlit-autorefresh`는 채택하지 않음 — 성능상 불리). 컬러 코딩 등 핵심 요구사항은 커스텀 CSS로 우선 구현.
 
 ## 3. MVP 범위 관련 참고
 
