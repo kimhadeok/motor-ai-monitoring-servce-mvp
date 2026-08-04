@@ -1,0 +1,117 @@
+"""데모 데이터 런타임 부트스트랩 (02_architecture.md §6 확정).
+
+Streamlit Community Cloud는 재배포/재시작 시 로컬 파일시스템이 초기화된다. 시드 산출물을
+git에 커밋하는 대신 앱 부팅 시 실행 환경에서 직접 생성해, 배포본이 항상 "지금 기준 최근
+48시간" 데이터를 갖도록 한다.
+
+동시 진입 차단이 중요하다. 시드는 기존 DB를 지우고 새로 만들 수 있으므로, 한 세션이
+삭제하는 동안 다른 세션이 읽으면 깨진 상태를 보게 된다. 파일 락 + 완료 마커로 막는다.
+"""
+
+import os
+import time
+
+from app.config import (
+    BOOTSTRAP_LOCK_PATH,
+    BOOTSTRAP_LOCK_TIMEOUT_SECONDS,
+    BOOTSTRAP_MARKER_PATH,
+    DB_PATH,
+)
+from app.db.connection import connection_scope
+from app.db.init_db import ensure_schema
+from app.rag.ingest import ingest_rag_sources
+from app.reports.service import generate_missing_report_html
+from app.services.seeding import seed_demo_data
+
+
+def _has_demo_data(conn) -> bool:
+    return conn.execute("SELECT 1 FROM motors LIMIT 1").fetchone() is not None
+
+
+class _FileLock:
+    """O_EXCL 기반 프로세스 간 락. 락을 못 얻으면 마커가 생길 때까지 대기한다."""
+
+    def __init__(self, path, timeout: float):
+        self.path = path
+        self.timeout = timeout
+        self.acquired = False
+
+    def __enter__(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        deadline = time.monotonic() + self.timeout
+        while True:
+            try:
+                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                self.acquired = True
+                return self
+            except FileExistsError:
+                if BOOTSTRAP_MARKER_PATH.exists() or time.monotonic() > deadline:
+                    # 다른 세션이 끝냈거나(마커 존재) 오래된 락이 남은 경우
+                    if time.monotonic() > deadline:
+                        self.path.unlink(missing_ok=True)
+                        continue
+                    return self
+                time.sleep(0.2)
+
+    def __exit__(self, *exc_info):
+        if self.acquired:
+            self.path.unlink(missing_ok=True)
+        return False
+
+
+def bootstrap_demo_data(force: bool = False) -> dict:
+    """스키마 보장 → (필요 시) 시드 → RAG 인제스트 → 리포트 HTML 생성.
+
+    이미 데이터가 있으면 시드를 건너뛴다(재실행 안전). `force=True`면 DB를 지우고 새로 만든다.
+    각 단계 소요 시간을 함께 반환해 부팅 지연을 관측할 수 있게 한다.
+    """
+    summary: dict = {"seeded": False, "rag_chunks": 0, "reports_html": 0, "timings": {}}
+
+    with _FileLock(BOOTSTRAP_LOCK_PATH, BOOTSTRAP_LOCK_TIMEOUT_SECONDS) as lock:
+        if not lock.acquired:
+            # 다른 세션이 부트스트랩 중이었고 그 사이 완료됨 — 스키마만 확인하고 반환
+            ensure_schema()
+            summary["skipped_concurrent"] = True
+            return summary
+
+        if force:
+            DB_PATH.unlink(missing_ok=True)
+            BOOTSTRAP_MARKER_PATH.unlink(missing_ok=True)
+
+        started = time.monotonic()
+        ensure_schema()
+        summary["timings"]["schema"] = time.monotonic() - started
+
+        with connection_scope() as conn:
+            if not _has_demo_data(conn):
+                started = time.monotonic()
+                summary.update(seed_demo_data(conn))
+                summary["seeded"] = True
+                summary["timings"]["seed"] = time.monotonic() - started
+
+        started = time.monotonic()
+        summary["rag_chunks"] = ingest_rag_sources()
+        summary["timings"]["rag"] = time.monotonic() - started
+
+        started = time.monotonic()
+        with connection_scope() as conn:
+            summary["reports_html"] = generate_missing_report_html(conn)
+        summary["timings"]["report_html"] = time.monotonic() - started
+
+        BOOTSTRAP_MARKER_PATH.parent.mkdir(parents=True, exist_ok=True)
+        BOOTSTRAP_MARKER_PATH.touch()
+
+    summary["timings"]["total"] = sum(summary["timings"].values())
+    return summary
+
+
+def ensure_demo_data() -> dict:
+    """Streamlit 진입점용 래퍼 — 프로세스당 1회만 실행한다."""
+    import streamlit as st
+
+    @st.cache_resource(show_spinner="시연용 데이터를 준비하는 중입니다…")
+    def _run() -> dict:
+        return bootstrap_demo_data()
+
+    return _run()

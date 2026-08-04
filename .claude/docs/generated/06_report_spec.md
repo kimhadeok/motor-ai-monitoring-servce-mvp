@@ -6,14 +6,31 @@
 
 ## 1. 렌더링 파이프라인
 
+파이프라인은 **진단 시점**과 **리포트 요청 시점**의 두 구간으로 나뉜다 (2026-08-04 확정).
+
+**① 진단 시점 — HTML 생성 (항상 수행)**
+
 ```
 DANGER/FAULT 이벤트 발생 (03_state_event_logic.md)
   → AI 에이전트 진단 결과(텍스트/수치) 생성
   → Jinja2로 report_template.html에 데이터 바인딩
-  → WeasyPrint로 HTML → PDF 변환
-  → PDF 바이너리를 motor_status_logs.report_pdf(BLOB)에 직접 저장 (파일시스템 미사용, 메모리에서 바로 DB 기록 — 2026-08-04 확정)
-  → notification_logs로 담당자에게 다운로드 링크 포함 알림 발송
+  → 렌더된 HTML을 motor_status_logs.report_html(TEXT)에 저장
+  → notification_logs로 담당자에게 알림 발송
 ```
+
+**② 리포트 요청 시점 — PDF 생성 (요청 시 1회, 이후 캐시)**
+
+```
+사용자가 리포트 버튼 클릭 (05_ui_screens.md §3.3)
+  → report_pdf에 캐시가 있으면 그대로 제공
+  → 없으면 저장된 report_html을 WeasyPrint로 PDF 변환 시도
+       성공 → PDF 바이너리를 report_pdf(BLOB)에 캐시 후 다운로드 제공
+       실패 → 저장된 report_html을 화면에 표시 (폴백)
+```
+
+**분리 근거**: Jinja2 HTML 렌더는 순수 Python이라 어떤 환경에서도 성공하지만, WeasyPrint PDF 변환은 Pango 등 네이티브 라이브러리가 설치된 환경에서만 동작한다(`01_tech_stack.md` §2.1). 이벤트 처리 경로가 PDF 생성 가능 여부에 의존하면 네이티브 의존이 없는 개발 환경에서 리포트가 통째로 누락되므로, HTML 생성을 진단 경로에 두고 PDF를 요청 경로로 분리했다. 부팅 시 전건 PDF 생성을 하지 않는 이유이기도 하다 — 건당 약 0.5초로 전건 생성 시 부팅이 약 8초 늘어나는데, PDF 생성이 불가한 환경에서는 그 시간이 전량 실패로 낭비된다.
+
+어느 경로든 **파일시스템에 저장하거나 조회하지 않는다** (메모리 내 처리 후 DB 기록).
 
 ## 2. 섹션별 명세 및 MVP 데이터 매핑
 
@@ -55,14 +72,14 @@ DANGER/FAULT 이벤트 발생 (03_state_event_logic.md)
 
 | 템플릿 항목 | MVP 데이터 소스 |
 |---|---|
-| 정비 조치 절차 (SOP 리스트) | RAG 대응 매뉴얼 조회 툴 출력 (`02_architecture.md` §2.4, ChromaDB 검색 결과) |
+| 정비 조치 절차 (SOP 리스트) | RAG 대응 매뉴얼 조회 툴 출력 (`02_architecture.md` §2.4, ChromaDB 검색 결과). **RAG 이용 불가 시**(API 키 부재·호출 실패·타임아웃) 원본 텍스트 키워드 매칭으로 폴백하며, 그마저 결과가 없으면 안전 기본 문구를 표시한다 — `02_architecture.md` §2.2 |
 | 자재 창고 예비 부품 재고 현황 (CMMS 연동) | **MVP 범위 밖 — 제외 확정**. CMMS 연동 시스템이 `01_tech_stack.md`에 없음 |
 
 ### 2.5 자동 대응 및 통보 이력 (원본 §4)
 
 | 템플릿 항목 | MVP 데이터 소스 |
 |---|---|
-| 이상 감지 / AI 분석 완료 타임스탬프 | `motor_status_logs.created_at`(이상 감지) + 리포트 생성 완료 시각(PDF 저장 시점, 확정) — 에이전트 시작/종료 시각 별도 기록은 생략 |
+| 이상 감지 / AI 분석 완료 타임스탬프 | `motor_status_logs.created_at`(이상 감지) + 리포트 생성 완료 시각(**HTML 렌더 시점** — PDF는 요청 시 생성되므로 기준으로 삼지 않는다, 2026-08-04 확정) — 에이전트 시작/종료 시각 별도 기록은 생략 |
 | 자동 인터락(PLC 정지 제어) | **MVP 범위 밖 — 제외 확정**. PLC 연동 시스템 없음 (`01_tech_stack.md`) |
 | 긴급 알림 발송 + ERP/CMMS 자재 예약(WO 생성) | 알림 부분만 유지: `notification_logs` 발송 이력. ERP/CMMS 자재 예약은 **MVP 범위 밖 — 제외 확정** |
 | 수신 담당자 / 발송 문구 | `notification_logs.contact_id`(→ `company_contacts.contact_name`), `notification_logs.message_content` |
@@ -74,7 +91,7 @@ DANGER/FAULT 이벤트 발생 (03_state_event_logic.md)
 1. 헤더/메타 정보
 2. 센서 측정 데이터 (4개 지표)
 3. AI 진단 및 근본 원인 분석 (신뢰도 게이지 제외, 텍스트 위주)
-4. 정비 가이드(SOP) — RAG 매뉴얼 기반 (부품 재고 제외)
+4. 정비 가이드(SOP) — RAG 매뉴얼 기반, 이용 불가 시 키워드 매칭 폴백 (부품 재고 제외)
 5. 자동 대응 이력 — 이상감지/AI분석/알림발송만 (PLC 인터락 제외)
 
 ## 4. 확정 사항 (coreagent 제안대로 확정)

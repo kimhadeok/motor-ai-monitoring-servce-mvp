@@ -67,7 +67,8 @@ CREATE TABLE IF NOT EXISTS motor_status_logs (
   previous_status TEXT NOT NULL,                -- NORMAL/WARNING/DANGER/FAULT (connectivity는 OK/NO_DATA)
   new_status      TEXT NOT NULL,
   trigger_reason  TEXT,                         -- 예: "진동 임계치 초과", "급변(단계 스킵)", "센서 점검 권장"
-  report_pdf      BLOB,                         -- AI 에이전트 생성 PDF 리포트 바이너리 (파일시스템 미사용, DB에 직접 저장)
+  report_html     TEXT,                         -- 리포트 HTML 원문. 진단 시 항상 생성 (Jinja2는 순수 Python이라 환경 무관 성공)
+  report_pdf      BLOB,                         -- 리포트 PDF 바이너리. 요청 시 생성 후 캐시 (WeasyPrint 불가 환경에선 NULL 유지)
   contact_id      INTEGER REFERENCES company_contacts(contact_id),  -- 관리자 수동 조치자(정비완료 확인 등)
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );

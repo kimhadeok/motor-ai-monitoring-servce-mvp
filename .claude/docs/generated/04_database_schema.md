@@ -116,13 +116,25 @@ CREATE TABLE motor_status_logs (
   previous_status TEXT NOT NULL,                -- NORMAL/WARNING/DANGER/FAULT (connectivity는 OK/NO_DATA)
   new_status      TEXT NOT NULL,
   trigger_reason  TEXT,                         -- 예: "진동 임계치 초과", "급변(단계 스킵)", "센서 점검 권장"
-  report_pdf      BLOB,                         -- AI 에이전트 생성 PDF 리포트 바이너리 (파일시스템 미사용, DB에 직접 저장 — 2026-08-04 확정)
+  report_html     TEXT,                         -- 리포트 HTML 원문 (진단 시 생성·저장 — 2026-08-04 확정)
+  report_pdf      BLOB,                         -- 리포트 PDF 바이너리 (요청 시 생성 후 캐시, 파일시스템 미사용 — 2026-08-04 확정)
   contact_id      INTEGER REFERENCES company_contacts(contact_id),  -- 보강: 관리자 수동 조치자(정비완료 확인 등)
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE INDEX idx_motor_status_logs_lookup ON motor_status_logs (motor_id, metric_name, created_at DESC);
 ```
+
+**리포트 컬럼 2종 운용 (2026-08-04 확정)**
+
+| 컬럼 | 타입 | 생성 시점 | 비고 |
+|---|---|---|---|
+| `report_html` | TEXT | DANGER/FAULT 진단 시 **항상** | Jinja2 렌더는 순수 Python이라 환경과 무관하게 성공 |
+| `report_pdf` | BLOB | 사용자가 리포트를 요청할 때 | WeasyPrint 성공 시 저장해 캐시. 이후 요청은 즉시 응답 |
+
+`report_html`을 BLOB이 아닌 **TEXT**로 두는 이유: HTML은 UTF-8 텍스트이고 렌더 함수가 `str`을 반환하므로 encode/decode 변환이 불필요하며, `sqlite3` CLI로 내용을 직접 확인할 수 있다. 반면 PDF는 바이너리이므로 BLOB이 맞다.
+
+PDF 생성이 불가한 환경(네이티브 라이브러리 미설치)에서는 `report_pdf`가 계속 NULL로 남고 저장된 `report_html`이 대신 제공된다 — `05_ui_screens.md` §3.3.
 
 ### 3.6 login_logs
 
