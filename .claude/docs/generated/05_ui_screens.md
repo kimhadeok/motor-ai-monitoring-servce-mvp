@@ -1,6 +1,6 @@
 # 05. 화면/UI 명세
 
-> 원본: `.claude/docs/화면구성.md`
+> 원본: `.claude/docs/user/화면구성.md`
 > 반영: `01_tech_stack.md`(화면 스타일링), `03_state_event_logic.md`(FAULT 수동 복구, 통신 두절), `04_database_schema.md`(테이블 구조)
 > 작성: coreagent · 상태: 확정
 

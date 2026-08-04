@@ -1,6 +1,6 @@
 # 06. 리포트(PDF) 생성 명세
 
-> 원본: `.claude/docs/report_template.html`
+> 원본: `.claude/docs/user/report_template.html`
 > 반영: `01_tech_stack.md`(Jinja2/WeasyPrint), `03_state_event_logic.md`(DANGER/FAULT 자동 리포트 생성), `04_database_schema.md`(테이블 구조)
 > 작성: coreagent · 상태: 확정
 

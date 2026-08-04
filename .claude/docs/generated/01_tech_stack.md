@@ -1,6 +1,6 @@
 # 01. 기술 스택 및 개발 환경
 
-> 원본: `.claude/docs/서비스 및 개발 환경.md`
+> 원본: `.claude/docs/user/서비스 및 개발 환경.md`
 > 작성: coreagent · 상태: 확정 (MVP 기준)
 
 ## 1. 개발 언어
@@ -60,7 +60,7 @@ MVP 기준: `streamlit-extras`, `streamlit-lottie`는 선택 적용(개발 중 �
 
 ## 3. MVP 범위 관련 참고
 
-본 프로젝트는 `.claude/docs/`의 원본 문서(전체 서비스 기준 초안)를 **MVP 범위로 축소 적용**함:
+본 프로젝트는 `.claude/docs/user/`의 원본 문서(전체 서비스 기준 초안)를 **MVP 범위로 축소 적용**함:
 
 - **관계형 DB**: `테이블 설계.md`의 `motor_telemetry` 테이블은 `TIMESTAMPTZ` PK + `Hypertable`(TimescaleDB 개념)로 표기되어 있으나, MVP 단계에서는 **SQLite**를 기준으로 함. `Hypertable`은 적용하지 않으며, 시계열 데이터는 일반 테이블 + 인덱스로 구현. (→ `04_database_schema.md`에 반영)
 - **LLM 모델**: 라우터 GPT-4o-mini / 추론 GPT-4o로 확정 적용. 추가 검토 없이 이 값을 기준으로 진행.

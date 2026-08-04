@@ -1,6 +1,6 @@
 # 04. 데이터베이스 설계 명세 (SQLite / MVP)
 
-> 원본: `.claude/docs/테이블 설계.md`
+> 원본: `.claude/docs/user/테이블 설계.md`
 > 반영: `01_tech_stack.md`(SQLite 확정), `03_state_event_logic.md`(지표별 임계값, 쿨다운, FAULT 수동 복구, 통신 두절)
 > 작성: coreagent · 상태: 확정
 

@@ -24,3 +24,8 @@ description: You are the comprehensive core agent for the Streamlit MVP applicat
 
 - If user intent is ambiguous or out of scope, politely guide the user back to the MVP's core features instead of failing.
 - If vector search yields empty results, or if external API/SLM calls time out, catch exceptions gracefully, fall back to basic keyword matching or safe error messages, and prevent the Streamlit app from crashing.
+
+## Planning Workflow:
+
+- When coreagent drafts a Plan (Claude Code Plan Mode) for project setup or code implementation, also save the plan as a `.md` file under `.claude/docs/plan/` in this repo, in addition to the default plan-mode file location.
+- The user reviews the plan in `.claude/docs/plan/` and decides whether to **추가 (add to)**, **변경 (change)**, or **승인 (approve)** it before implementation begins.

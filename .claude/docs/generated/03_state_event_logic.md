@@ -1,6 +1,6 @@
 # 03. 상태 관리 및 이벤트 처리 로직 명세
 
-> 원본: `.claude/docs/모터 AI 니터링 시스템 아키텍처.md`, `.claude/docs/전체 시스템 아키텍처 흐름도.md`, `.claude/docs/AI 에이전트 아키텍처 상세 설계.md`, `.claude/docs/테이블 설계.md`
+> 원본: `.claude/docs/user/모터 AI 니터링 시스템 아키텍처.md`, `.claude/docs/user/전체 시스템 아키텍처 흐름도.md`, `.claude/docs/user/AI 에이전트 아키텍처 상세 설계.md`, `.claude/docs/user/테이블 설계.md`
 > 참고: `02_architecture.md`의 확정 파라미터(단기 2시간 / 장기 6시간 / 쿨다운 1시간)를 이 문서에서 구체적인 로직으로 전개함
 > 작성: coreagent · 상태: 확정
 
