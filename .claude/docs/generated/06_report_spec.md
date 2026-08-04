@@ -11,7 +11,7 @@ DANGER/FAULT 이벤트 발생 (03_state_event_logic.md)
   → AI 에이전트 진단 결과(텍스트/수치) 생성
   → Jinja2로 report_template.html에 데이터 바인딩
   → WeasyPrint로 HTML → PDF 변환
-  → PDF 파일 저장 후 URL을 motor_status_logs.agent_diagnosis에 기록
+  → PDF 바이너리를 motor_status_logs.report_pdf(BLOB)에 직접 저장 (파일시스템 미사용, 메모리에서 바로 DB 기록 — 2026-08-04 확정)
   → notification_logs로 담당자에게 다운로드 링크 포함 알림 발송
 ```
 

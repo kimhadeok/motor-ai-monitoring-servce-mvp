@@ -1,0 +1,27 @@
+[project]
+name = "motor-ai-monitoring-service-mvp"
+version = "0.1.0"
+description = "모터 AI 모니터링 서비스 MVP (Streamlit + LangChain/LangGraph + ChromaDB + SQLite)"
+requires-python = ">=3.14"
+dependencies = [
+    "streamlit",
+    "plotly",
+    "jinja2",
+    "weasyprint",
+    "langchain",
+    "langchain-openai",
+    "langgraph",
+    "chromadb",
+    "pysqlite3-binary; sys_platform == 'linux'",
+    "openai",
+    "python-dotenv",
+    "bcrypt",
+    "apscheduler",
+    "pandas",
+]
+
+[dependency-groups]
+dev = [
+    "streamlit-extras",
+    "streamlit-lottie",
+]

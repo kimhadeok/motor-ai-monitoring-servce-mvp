@@ -116,7 +116,7 @@ CREATE TABLE motor_status_logs (
   previous_status TEXT NOT NULL,                -- NORMAL/WARNING/DANGER/FAULT (connectivity는 OK/NO_DATA)
   new_status      TEXT NOT NULL,
   trigger_reason  TEXT,                         -- 예: "진동 임계치 초과", "급변(단계 스킵)", "센서 점검 권장"
-  agent_diagnosis TEXT,                         -- AI 에이전트 생성 PDF 리포트 URL
+  report_pdf      BLOB,                         -- AI 에이전트 생성 PDF 리포트 바이너리 (파일시스템 미사용, DB에 직접 저장 — 2026-08-04 확정)
   contact_id      INTEGER REFERENCES company_contacts(contact_id),  -- 보강: 관리자 수동 조치자(정비완료 확인 등)
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
