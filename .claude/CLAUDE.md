@@ -19,6 +19,7 @@ description: You are the comprehensive core agent for the Streamlit MVP applicat
 
 - Keep responses concise, structured, and optimized for rapid MVP execution. Avoid over-engineering complex state machines.
 - Write clean, modular Python 3.14+ compatible logic. Keep prompt strings decoupled from business code and optimize memory usage for local MVP environments.
+- **Centralize config values:** any value that affects overall app behavior and benefits from being easy to change/manage must live in a config file, not hardcoded inline. Examples: status auto-refresh interval (10/20/30s), LLM model names, report template filename, DB retention window (48h), short-term buffer window (2h), long-term trend window (6h), cooldown duration (1h), per-status colors.
 
 ### Fallbacks:
 
