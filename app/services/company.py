@@ -13,6 +13,19 @@ def get_company(conn, company_id: str) -> sqlite3.Row | None:
     ).fetchone()
 
 
+def list_demo_accounts(conn) -> list[sqlite3.Row]:
+    """시연용 계정 목록 (05 §2 로그인 화면 안내).
+
+    MVP의 계정은 전부 부트스트랩이 만든 데모 계정이므로 전건을 그대로 보여준다.
+    화면에 하드코딩하면 시드 구성이 바뀔 때 안내와 실제가 어긋난다.
+    """
+    return conn.execute(
+        "SELECT ct.email, ct.contact_name, co.company_name "
+        "FROM company_contacts ct JOIN companies co ON co.company_id = ct.company_id "
+        "ORDER BY ct.email"
+    ).fetchall()
+
+
 def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
 

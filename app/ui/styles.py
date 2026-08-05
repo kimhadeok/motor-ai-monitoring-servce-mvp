@@ -194,6 +194,50 @@ def inject_global_styles() -> None:
         .event-reason {{ font-size: 12px; color: #475569; line-height: 1.4; }}
         .event-reason.worse {{ color: {STATUS_COLORS["DANGER"]}; font-weight: 600; }}
         .event-reason.recover {{ color: {STATUS_COLORS["NORMAL"]}; }}
+
+        /* --- 상단 헤더 (05 §5-4) — 사이드바 대신 일반 웹 서비스 형태 --- */
+        .app-brand {{ display: flex; align-items: center; gap: 8px; }}
+        .app-brand .icon {{ font-size: 22px; line-height: 1; }}
+        .app-brand .name {{
+            font-size: 19px; font-weight: 800; color: {BRAND_PRIMARY_COLOR};
+            letter-spacing: -0.3px;
+        }}
+        .app-user {{
+            display: flex; flex-direction: column; align-items: flex-end;
+            line-height: 1.3; text-align: right;
+        }}
+        .app-user .company {{ font-size: 13px; font-weight: 700; color: #334155; }}
+        .app-user .contact {{ font-size: 11px; color: #94a3b8; }}
+        .app-header-rule {{
+            height: 1px; margin: 10px 0 18px;
+            background: linear-gradient(
+                90deg,
+                {BRAND_PRIMARY_COLOR} 0%,
+                color-mix(in srgb, {BRAND_PRIMARY_COLOR} 15%, transparent) 45%,
+                #e2e8f0 100%
+            );
+        }}
+
+        /* --- 로그인 화면 (05 §2) --- */
+        .login-hero {{ text-align: center; margin: 24px 0 22px; }}
+        .login-hero .icon {{ font-size: 44px; line-height: 1; }}
+        .login-hero h1 {{
+            margin: 10px 0 6px; font-size: 30px; font-weight: 800;
+            color: {BRAND_PRIMARY_COLOR}; letter-spacing: -0.5px;
+        }}
+        .login-hero .tagline {{ margin: 0; font-size: 14px; color: #64748b; }}
+
+        .login-highlights {{
+            display: flex; gap: 10px; margin-top: 26px;
+            padding-top: 20px; border-top: 1px solid #e2e8f0;
+        }}
+        .login-highlights .item {{
+            flex: 1 1 0; display: flex; flex-direction: column; align-items: center;
+            gap: 3px; text-align: center;
+        }}
+        .login-highlights .icon {{ font-size: 20px; line-height: 1.2; }}
+        .login-highlights .title {{ font-size: 12.5px; font-weight: 700; color: #334155; }}
+        .login-highlights .desc {{ font-size: 10.5px; color: #94a3b8; line-height: 1.4; }}
         /* 설명 줄은 모든 지표에 있다(높이 균일). 정상은 회색, 이상만 상태색으로 강조 */
         .metric-note {{ font-size: 10.5px; color: #94a3b8; margin-top: 3px; }}
         .metric-block.abnormal .metric-note {{ color: var(--metric-color); font-weight: 600; }}

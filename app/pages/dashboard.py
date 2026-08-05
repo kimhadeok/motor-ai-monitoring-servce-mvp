@@ -2,7 +2,6 @@
 
 import streamlit as st
 
-from app.auth.session import end_session
 from app.config import (
     DASHBOARD_EVENT_LIST_LIMIT,
     DASHBOARD_RECENT_WINDOW_HOURS,
@@ -19,17 +18,12 @@ from app.ui.components import (
     event_list_header,
     event_row,
     motor_card,
+    page_header,
     render_maintenance_dialog,
     render_report_dialog,
 )
 
-st.title("메인 대시보드")
-
-with st.sidebar:
-    st.write(f"담당자: {st.session_state.get('contact_name', '')}")
-    if st.button("로그아웃"):
-        end_session()
-        st.rerun()
+page_header()
 
 _company_id = st.session_state.get("company_id")
 
@@ -40,9 +34,9 @@ with connection_scope() as conn:
 
 # --- §3.1 상단 요약 ---
 if summary:
-    # 계약 정보(회사·모터 수·서비스 시작일)는 매일 확인할 값이 아니므로 한 줄로 내린다.
+    # 계약 정보는 매일 확인할 값이 아니므로 한 줄로 내린다. 회사명은 상단 헤더에 있어 뺀다.
     st.caption(
-        f"{summary['company_name']} · 모터 {summary['motor_count']}대 · "
+        f"모터 {summary['motor_count']}대 · "
         f"서비스 시작 {format_display(summary['started_at'], SUMMARY_DATE_FORMAT)}"
         f" ({summary['operating_days']:,}일째)"
     )

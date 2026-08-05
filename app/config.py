@@ -72,7 +72,7 @@ EVENT_COLUMN_WIDTHS = (1.6, 2.4, 2.6, 1.1)
 
 # --- 모터 카드 그리드 (05_ui_screens.md §3.2) ---
 # 문서 미확정 — MVP 제안값
-MOTOR_CARD_COLUMNS = 3
+MOTOR_CARD_COLUMNS = 5
 # 모터 → API → AI Agent 데이터 흐름 애니메이션 1주기 (초). 값이 작을수록 빠르게 흐른다.
 DATA_FLOW_ANIMATION_SECONDS = 2.4
 # 흐름 각 단계의 아이콘과 라벨
@@ -154,6 +154,17 @@ STATUS_BG_COLORS = {
 }
 BRAND_PRIMARY_COLOR = "#1e3a8a"
 BRAND_PRIMARY_LIGHT_COLOR = "#3b82f6"
+
+# --- 서비스 소개 (05_ui_screens.md §2 로그인 화면) ---
+# 고객이 서비스를 처음 마주하는 화면이라 "무엇을 해주는 서비스인지"가 드러나야 한다.
+SERVICE_NAME = "모터 AI 모니터링"
+SERVICE_ICON = "⚙️"
+SERVICE_TAGLINE = "설비 이상을 미리 감지하고, AI가 원인과 조치를 진단합니다"
+SERVICE_HIGHLIGHTS = (
+    ("📡", "실시간 감시", "온도 · 진동 · 전류 · 소음"),
+    ("🤖", "AI 진단", "원인 · 연쇄 영향 · 방치 시 결과"),
+    ("📄", "리포트 자동 생성", "정비 절차(SOP)까지 포함"),
+)
 
 # --- 알림 채널 (04_database_schema.md §3.7 확정) ---
 NOTIFICATION_CHANNELS = ("KAKAO_ALIMTALK", "SMS", "EMAIL")

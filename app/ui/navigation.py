@@ -26,5 +26,7 @@ def run() -> None:
     else:
         pages = [st.Page(str(_PAGES_DIR / "login.py"), title="로그인", default=True)]
 
-    navigation = st.navigation(pages, position="hidden" if not is_authenticated() else "sidebar")
+    # 사이드바를 쓰지 않는다 — 로그인 정보와 로그아웃은 상단 헤더가 담당하고,
+    # 페이지 이동은 모터 카드의 [상세 보기]와 상세 페이지의 [← 대시보드]로 이뤄진다.
+    navigation = st.navigation(pages, position="hidden")
     navigation.run()

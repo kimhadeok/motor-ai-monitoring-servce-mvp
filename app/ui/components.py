@@ -14,6 +14,8 @@ from app.config import (
     REPORT_SESSION_ID_FORMAT,
     REPORT_TIME_FORMAT,
     REPORT_VIEWER_HEIGHT_PX,
+    SERVICE_ICON,
+    SERVICE_NAME,
     SPARKLINE_HEIGHT_PX,
     SPARKLINE_WIDTH_PX,
     STATUS_COLORS,
@@ -29,6 +31,36 @@ from app.services.events import FLAT, RECOVER, WORSE, transition_direction
 from app.services.motors import confirm_maintenance
 
 _REPORT_VIEW_KEY = "report_view"
+
+
+def page_header() -> None:
+    """상단 헤더 — 좌측 서비스명, 우측 로그인 정보와 로그아웃 (05 §5-4).
+
+    사이드바 대신 일반 웹 서비스처럼 상단에 둔다. 로그인 화면에서 세운 브랜드가
+    로그인 후에도 이어지고, 담당자는 지금 어느 회사 계정으로 보고 있는지 늘 확인할 수 있다.
+    """
+    from app.auth.session import end_session  # 순환 import 방지를 위한 지연 import
+
+    brand_col, user_col, action_col = st.columns([5, 3, 1.2], vertical_alignment="center")
+
+    brand_col.markdown(
+        f'<div class="app-brand"><span class="icon">{SERVICE_ICON}</span>'
+        f'<span class="name">{SERVICE_NAME}</span></div>',
+        unsafe_allow_html=True,
+    )
+    user_col.markdown(
+        f'<div class="app-user">'
+        f'<span class="company">{st.session_state.get("company_name", "")}</span>'
+        f'<span class="contact">{st.session_state.get("contact_name", "")}</span>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    with action_col:
+        if st.button("로그아웃", use_container_width=True):
+            end_session()
+            st.rerun()
+
+    st.markdown('<div class="app-header-rule"></div>', unsafe_allow_html=True)
 
 
 def status_badge(status: str) -> None:
@@ -166,6 +198,9 @@ def motor_card(motor: dict) -> None:
 
     카드 본문은 마크다운 한 번으로 렌더한다. Streamlit은 `st.markdown`으로 연 `<div>`가
     다음 요소를 감싸도록 두지 않으므로, 여러 번 나눠 부르면 상태색 테두리를 입힐 수 없다.
+
+    상세 이동은 카드 아래 [상세 보기] 버튼으로 한다. 카드 전체를 클릭 영역으로 만드는 두
+    방법을 시도했으나 모두 문제가 있었다 (05 §3.2 "카드 클릭 영역" 참고).
     """
     from app.ui.navigation import MOTOR_DETAIL_PAGE  # 순환 import 방지를 위한 지연 import
 
@@ -208,9 +243,7 @@ def motor_card(motor: dict) -> None:
     if motor.get("fault_metrics"):
         action_col, detail_col = st.columns(2)
         with action_col:
-            maintenance_button(
-                motor, key_prefix="card", type="primary", use_container_width=True
-            )
+            maintenance_button(motor, key_prefix="card", type="primary", use_container_width=True)
         detail_slot = detail_col
     else:
         detail_slot = st.container()

@@ -3,7 +3,6 @@
 import pandas as pd
 import streamlit as st
 
-from app.auth.session import end_session
 from app.config import (
     DETAIL_EVENT_PAGE_SIZE,
     METRIC_LABELS,
@@ -23,6 +22,7 @@ from app.ui.components import (
     event_list_header,
     event_row,
     maintenance_button,
+    page_header,
     render_maintenance_dialog,
     render_report_dialog,
     status_badge,
@@ -31,11 +31,7 @@ from app.ui.navigation import DASHBOARD_PAGE
 
 _PAGE_KEY = "detail_event_page"
 
-with st.sidebar:
-    st.write(f"담당자: {st.session_state.get('contact_name', '')}")
-    if st.button("로그아웃"):
-        end_session()
-        st.rerun()
+page_header()
 
 motor_id = st.session_state.get("selected_motor_id")
 company_id = st.session_state.get("company_id")
