@@ -60,12 +60,33 @@
 | 기술 | 용도 | 비고 |
 |---|---|---|
 | 커스텀 CSS (`st.markdown(unsafe_allow_html=True)`) | 상태별 컬러 코딩, 배지/카드 스타일 | 추가 패키지 불필요 |
-| `st.components.v1.html` | 커스텀 HTML/CSS/JS 삽입 (흐름 애니메이션 등) | Streamlit 내장 기능, 추가 패키지 불필요 |
+| `st.html` | `<style>` 블록 주입 (전역 CSS) | **확정 — 이 컴포넌트만 DOMPurify 허용 목록에 `<style>`을 명시적으로 추가한다.** `st.markdown` 경로는 `<style>` 처리가 보장되지 않는다 |
+| `st.iframe` | 리포트 HTML 인앱 표시 | 확정 — HTML 문자열을 넘기면 `srcdoc`으로 렌더해 파일시스템을 경유하지 않는다. `st.components.v1.html`은 2026-06-01자로 제거가 예고돼 사용하지 않는다 |
 | `streamlit-extras` | 배지, 카드, 스타일 메트릭 등 UI 컴포넌트 모음 | 선택 — 커뮤니티 패키지, 개발 속도 향상 목적 |
 | `streamlit-lottie` | 모터→API→AI Agent 흐름의 매끄러운 애니메이션 효과 | 선택 — GIF보다 가볍고 반복 재생 안정적 |
 | `st.fragment(run_every=...)` | 실시간 그래프/상태 자동 갱신 (10/20/30초 주기) | 확정 — `05_ui_screens.md` §5-2. Streamlit 1.33+ 내장 기능, 추가 패키지 불필요. 지정 함수(차트/카드 영역)만 부분 재실행되어 전체 스크립트 리런보다 가볍고 빠름 |
 
 MVP 기준: `streamlit-extras`, `streamlit-lottie`는 선택 적용(개발 중 필요 시 추가)하고, 실시간 갱신은 `st.fragment(run_every=...)`로 확정 적용 (전체 리런 방식인 `streamlit-autorefresh`는 채택하지 않음 — 성능상 불리). 컬러 코딩 등 핵심 요구사항은 커스텀 CSS로 우선 구현.
+
+**흐름 애니메이션은 `streamlit-lottie` 대신 커스텀 CSS 키프레임으로 확정** (`05_ui_screens.md` §3.2). Lottie는 애니메이션 JSON을 외부에서 받아와야 해 오프라인·CSP 제약이 있는 반면, CSS 키프레임은 추가 의존성과 네트워크 요청이 전혀 없다.
+
+### 2.5-1 화면 검증 도구 (2026-08-05 추가)
+
+| 기술 | 용도 | 비고 |
+|---|---|---|
+| `playwright` (dev 의존성) | 실행 중인 앱을 헤드리스 Chromium으로 열어 **화면을 캡처**. `scripts/screenshot.py` | dev 전용이라 배포용 `requirements.txt`(`--no-dev` export)에는 포함되지 않는다 |
+
+**필요한 이유**: Streamlit의 `AppTest`는 어떤 위젯이 만들어졌고 어떤 HTML/CSS 문자열이 나갔는지만 검증한다. **레이아웃 붕괴, 색 대비, 요소 겹침 같은 렌더 결과는 보지 못한다.** 실제로 이 공백 때문에 화면이 깨진 채 전달된 사례가 반복됐다.
+
+```bash
+uv run streamlit run main.py --server.port 8501 --server.headless true   # 앱 먼저 실행
+uv run python scripts/screenshot.py --out <디렉터리> --theme dark --detail
+```
+
+- 로그인 → 대시보드 → 상세까지 실제로 클릭하며 진행하고 단계별로 캡처한다.
+- 테마는 `prefers-color-scheme` 에뮬레이션(`color_scheme`)으로 바꾼다. Streamlit 기본값이 "Use system setting"이라 저장된 선택이 없으면 이 값을 따른다. **localStorage 키를 직접 조작하는 방식은 키 이름이 내부 구현이라 버전에 따라 깨진다** (실제로 시도했다가 실패했다).
+
+**한계**: 헤드리스 Chromium은 실제 브라우저와 폰트 렌더링이 달라 글자 줄바꿈·잘림이 완전히 같지 않다. 레이아웃 붕괴와 색 문제는 잡히지만 **최종 확인은 실제 브라우저가 기준**이다.
 
 ### 2.6 배포 환경 및 의존성 관리 (2026-08-04 확정)
 
