@@ -8,8 +8,22 @@
 """
 
 import sqlite3
+from datetime import datetime, timedelta, timezone
 
-from app.config import METRIC_NAMES, STATUS_SEVERITY_RANK
+from app.config import (
+    METRIC_LABELS,
+    METRIC_NAMES,
+    METRIC_THRESHOLDS,
+    METRIC_UNITS,
+    STATUS_SEVERITY_RANK,
+    TREND_BUCKETS,
+    TREND_WINDOW_HOURS,
+)
+
+
+def _iso(dt: datetime) -> str:
+    """DB 저장 포맷과 동일한 ISO8601 문자열 (schema.sql의 strftime 포맷)."""
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
 
 # 지표명 → motor_telemetry의 상태 컬럼
 _TELEMETRY_STATUS_COLUMN = {
@@ -36,15 +50,73 @@ def get_motor(conn, motor_id: str, company_id: str) -> sqlite3.Row | None:
     ).fetchone()
 
 
-def get_latest_metric_statuses(conn, motor_id: str) -> dict[str, str]:
-    """최신 텔레메트리 1행 기준 지표별 상태. 데이터가 없으면 빈 dict."""
-    row = conn.execute(
+def get_latest_telemetry(conn, motor_id: str) -> sqlite3.Row | None:
+    """최신 텔레메트리 1행. (motor_id, time DESC) 인덱스를 탄다."""
+    return conn.execute(
         "SELECT * FROM motor_telemetry WHERE motor_id = ? ORDER BY time DESC LIMIT 1",
         (motor_id,),
     ).fetchone()
+
+
+def get_latest_metric_statuses(conn, motor_id: str) -> dict[str, str]:
+    """최신 텔레메트리 1행 기준 지표별 상태. 데이터가 없으면 빈 dict."""
+    row = get_latest_telemetry(conn, motor_id)
     if row is None:
         return {}
     return {metric: row[_TELEMETRY_STATUS_COLUMN[metric]] for metric in METRIC_NAMES}
+
+
+def build_metric_readings(row: sqlite3.Row | None) -> list[dict]:
+    """카드·상세용 지표 요약. 심각도가 높은 순으로 정렬해서 돌려준다 (05 §3.2).
+
+    각 항목: metric, label, unit, value, status, ratio(고장 임계 대비 0~1),
+    warning_at / danger_at (게이지 눈금 위치 0~1).
+    """
+    if row is None:
+        return []
+
+    readings = []
+    for metric in METRIC_NAMES:
+        _, warning, danger, fault = METRIC_THRESHOLDS[metric]
+        value = row[metric]
+        readings.append(
+            {
+                "metric": metric,
+                "label": METRIC_LABELS[metric],
+                "unit": METRIC_UNITS[metric],
+                "value": value,
+                "status": row[_TELEMETRY_STATUS_COLUMN[metric]],
+                # 고장 임계를 100%로 본 위치. 임계를 넘어선 값은 100%에서 멈춘다.
+                "ratio": min(value / fault, 1.0) if fault else 0.0,
+                "warning_at": warning / fault if fault else 0.0,
+                "danger_at": danger / fault if fault else 0.0,
+                "remaining": fault - value,
+            }
+        )
+
+    readings.sort(key=lambda r: (STATUS_SEVERITY_RANK.get(r["status"], 0), r["ratio"]), reverse=True)
+    return readings
+
+
+def get_metric_trend(conn, motor_id: str, metric: str, hours: int, buckets: int) -> list[float]:
+    """최근 `hours`시간 추이를 `buckets`개 구간 평균으로 다운샘플링한다 (카드 스파크라인용).
+
+    원 데이터는 모터당 수천 행이라 그대로 그리면 낭비다. 구간 평균은 노이즈도 눌러준다.
+    """
+    if metric not in METRIC_NAMES:  # 컬럼명을 그대로 넣으므로 화이트리스트로 막는다
+        return []
+
+    window_start = _iso(datetime.now(timezone.utc) - timedelta(hours=hours))
+    bucket_span_days = (hours / 24) / buckets
+
+    rows = conn.execute(
+        f"SELECT AVG({metric}) AS v FROM motor_telemetry "
+        "WHERE motor_id = ? AND time >= ? "
+        "GROUP BY CAST((julianday(time) - julianday(?)) / ? AS INT) "
+        "ORDER BY MIN(time)",
+        (motor_id, window_start, window_start, bucket_span_days),
+    ).fetchall()
+    return [r["v"] for r in rows if r["v"] is not None]
 
 
 def find_unconfirmed_fault_metrics(conn, motor_id: str) -> list[str]:
@@ -70,7 +142,13 @@ def get_representative_status(conn, motor_id: str) -> str:
 
 
 def list_company_motors(conn, company_id: str) -> list[dict]:
-    """대시보드 카드용 목록 (05 §3.2) — 모터 정보 + 대표 상태 + 최근 상태 변경 일시."""
+    """대시보드 카드용 목록 (05 §3.2).
+
+    모터 정보 + 대표 상태 + 최근 상태 변경 일시 + 지표별 최신 수치, 그리고 가장 심각한
+    지표의 추이를 담는다. 추이는 카드마다 한 지표만 그리므로 모터당 쿼리 1회로 끝난다.
+    카드 순서는 등록 순(motor_id)을 유지한다 — 설비가 늘 같은 자리에 있어야 담당자가
+    위치로 기억할 수 있기 때문이다. 위험 여부는 정렬이 아니라 색으로 드러낸다.
+    """
     motors = conn.execute(
         "SELECT * FROM motors WHERE company_id = ? ORDER BY motor_id",
         (company_id,),
@@ -78,15 +156,26 @@ def list_company_motors(conn, company_id: str) -> list[dict]:
 
     cards = []
     for motor in motors:
+        motor_id = motor["motor_id"]
         last_changed = conn.execute(
             "SELECT MAX(created_at) FROM motor_status_logs WHERE motor_id = ?",
-            (motor["motor_id"],),
+            (motor_id,),
         ).fetchone()[0]
+
+        readings = build_metric_readings(get_latest_telemetry(conn, motor_id))
+        trend: list[float] = []
+        if readings:
+            trend = get_metric_trend(
+                conn, motor_id, readings[0]["metric"], TREND_WINDOW_HOURS, TREND_BUCKETS
+            )
+
         cards.append(
             {
                 **dict(motor),
-                "status": get_representative_status(conn, motor["motor_id"]),
+                "status": get_representative_status(conn, motor_id),
                 "last_changed_at": last_changed,
+                "readings": readings,
+                "trend": trend,
             }
         )
     return cards

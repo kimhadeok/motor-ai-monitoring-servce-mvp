@@ -71,6 +71,16 @@ DATA_FLOW_ANIMATION_SECONDS = 2.4
 # 흐름 각 단계의 아이콘과 라벨
 DATA_FLOW_NODES = (("⚙️", "모터"), ("🔌", "API"), ("🤖", "AI Agent"))
 
+# 카드에 개별 게이지로 펼쳐 보여줄 상태 (나머지는 한 줄로 접는다)
+CARD_HIGHLIGHT_STATUSES = ("WARNING", "DANGER", "FAULT")
+# 카드 추이 스파크라인 — 장기 트렌드 창(6h)을 그대로 쓴다
+TREND_WINDOW_HOURS = LONG_TERM_TREND_HOURS
+TREND_BUCKETS = 24
+SPARKLINE_WIDTH_PX = 132
+SPARKLINE_HEIGHT_PX = 28
+# 추세 판정 — 마지막 구간 평균이 첫 구간 평균 대비 이 비율 이상 변하면 상승/하락으로 본다
+TREND_CHANGE_THRESHOLD = 0.03
+
 # --- 리포트 뷰어 (05_ui_screens.md §3.3 인앱 표시) ---
 REPORT_VIEWER_HEIGHT_PX = 600
 
@@ -179,6 +189,23 @@ def to_display_tz(dt: datetime) -> datetime:
 def format_display(dt: datetime, fmt: str = DISPLAY_DATETIME_FORMAT) -> str:
     """표시용 타임존 기준으로 포맷팅. 하드코딩된 UTC 오프셋 대신 이 함수를 사용한다."""
     return to_display_tz(dt).strftime(fmt)
+
+
+def format_relative(dt: datetime) -> str:
+    """"5분 전"처럼 현재 기준 경과 시간. 하루가 넘으면 날짜로 표기한다.
+
+    운영 화면에서는 절대 시각보다 "얼마나 최근인가"가 먼저 읽혀야 한다.
+    """
+    seconds = (datetime.now(timezone.utc) - dt).total_seconds()
+    if seconds < 60:
+        return "방금 전"
+    if seconds < 3600:
+        return f"{int(seconds // 60)}분 전"
+    if seconds < 86400:
+        return f"{int(seconds // 3600)}시간 전"
+    if seconds < 86400 * 7:
+        return f"{int(seconds // 86400)}일 전"
+    return format_display(dt, SUMMARY_DATE_FORMAT)
 
 
 # --- 보관 정책 배치 (04_database_schema.md §5-5) ---

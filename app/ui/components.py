@@ -3,12 +3,20 @@
 import streamlit as st
 
 from app.config import (
+    CARD_HIGHLIGHT_STATUSES,
     DATA_FLOW_NODES,
+    METRIC_NAMES,
     REPORT_DATE_FORMAT,
     REPORT_SESSION_ID_FORMAT,
     REPORT_TIME_FORMAT,
     REPORT_VIEWER_HEIGHT_PX,
+    SPARKLINE_HEIGHT_PX,
+    SPARKLINE_WIDTH_PX,
+    STATUS_COLORS,
+    TREND_CHANGE_THRESHOLD,
+    TREND_WINDOW_HOURS,
     format_display,
+    format_relative,
     parse_utc,
 )
 from app.reports.service import REPORTABLE_STATUSES, get_report
@@ -23,8 +31,8 @@ def status_badge(status: str) -> None:
     )
 
 
-def data_flow(status: str) -> None:
-    """모터 → API → AI Agent 데이터 흐름 표시 (05_ui_screens.md §3.2).
+def _data_flow_html(status: str) -> str:
+    """모터 → API → AI Agent 데이터 흐름 (05_ui_screens.md §3.2).
 
     연결선의 그라데이션을 흘려보내 데이터가 이동하는 것처럼 보이게 한다. 색상은 모터
     대표 상태를 따른다. 외부 라이브러리(streamlit-lottie)나 네트워크 자산 없이 CSS만
@@ -42,35 +50,155 @@ def data_flow(status: str) -> None:
         parts.append(links[i % len(links)])
         parts.append(node)
 
-    st.markdown(
-        f'<div class="data-flow status-{status.lower()}">{"".join(parts)}</div>',
-        unsafe_allow_html=True,
+    return f'<div class="data-flow status-{status.lower()}">{"".join(parts)}</div>'
+
+
+def _sparkline_svg(values: list[float], status: str) -> str:
+    """추이 스파크라인. 외부 차트 라이브러리 없이 인라인 SVG로 그린다.
+
+    카드마다 하나씩 들어가므로 plotly를 띄우면 렌더 비용이 카드 수만큼 붙는다.
+    """
+    width, height = SPARKLINE_WIDTH_PX, SPARKLINE_HEIGHT_PX
+    pad = 3
+    low, high = min(values), max(values)
+    span = high - low or 1.0  # 값이 모두 같으면 가운데 수평선
+
+    step = (width - pad * 2) / max(len(values) - 1, 1)
+    points = " ".join(
+        f"{pad + i * step:.1f},{pad + (height - pad * 2) * (1 - (v - low) / span):.1f}"
+        for i, v in enumerate(values)
+    )
+    color = STATUS_COLORS.get(status, STATUS_COLORS["NORMAL"])
+    return (
+        f'<svg class="sparkline" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" preserveAspectRatio="none" aria-hidden="true">'
+        f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="1.6" '
+        f'stroke-linejoin="round" stroke-linecap="round"/></svg>'
+    )
+
+
+def _trend_direction(values: list[float]) -> tuple[str, str]:
+    """추세 방향 (기호, 설명). 앞 1/3 평균과 뒤 1/3 평균을 비교한다."""
+    if len(values) < 4:
+        return "", ""
+    third = max(len(values) // 3, 1)
+    head = sum(values[:third]) / third
+    tail = sum(values[-third:]) / third
+    if head == 0:
+        return "", ""
+
+    change = (tail - head) / abs(head)
+    if change > TREND_CHANGE_THRESHOLD:
+        return "↑", "상승"
+    if change < -TREND_CHANGE_THRESHOLD:
+        return "↓", "하락"
+    return "→", "유지"
+
+
+def _metric_gauge(reading: dict) -> str:
+    """고장 임계를 100%로 둔 게이지. 주의·위험 임계 위치에 눈금을 찍는다."""
+    return (
+        f'<div class="metric-gauge status-{reading["status"].lower()}">'
+        f'<div class="fill" style="width:{reading["ratio"] * 100:.1f}%"></div>'
+        f'<div class="tick" style="left:{reading["warning_at"] * 100:.1f}%"></div>'
+        f'<div class="tick" style="left:{reading["danger_at"] * 100:.1f}%"></div>'
+        f"</div>"
+    )
+
+
+def _metric_html(reading: dict) -> str:
+    """지표 1건 — 이름, 값, 게이지, (이상일 때만) 고장까지 남은 여유.
+
+    모든 카드가 4개 지표를 같은 순서로 담아 높이가 일정해진다. 이상 지표는 위치가 아니라
+    색·굵기와 여유 문구로 구분한다.
+    """
+    abnormal = reading["status"] in CARD_HIGHLIGHT_STATUSES
+    remaining = reading["remaining"]
+
+    # 설명 줄은 모든 지표에 둔다. 이상일 때만 넣으면 카드마다 줄 수가 달라져 높이가 어긋난다.
+    if not abnormal:
+        note = f"고장 임계의 {reading['ratio'] * 100:.0f}%"
+    elif remaining > 0:
+        note = f"고장까지 {remaining:,.1f}{reading['unit']} 남음"
+    else:
+        note = "고장 임계 초과"
+
+    return (
+        f'<div class="metric-block status-{reading["status"].lower()}'
+        f'{" abnormal" if abnormal else ""}">'
+        f'<div class="metric-row">'
+        f'<span class="metric-name">{reading["label"]}</span>'
+        f'<span class="metric-value">{reading["value"]:,.1f}'
+        f'<span class="metric-unit">{reading["unit"]}</span></span>'
+        f"</div>"
+        f"{_metric_gauge(reading)}"
+        f'<div class="metric-note">{note}</div>'
+        f"</div>"
+    )
+
+
+def _trend_html(reading: dict, trend: list[float]) -> str:
+    """카드 하단 추이 — 가장 심각한 지표 하나. 정상 카드에도 넣어 높이를 맞춘다."""
+    if not trend:
+        return ""
+    arrow, word = _trend_direction(trend)
+    return (
+        f'<div class="metric-trend">'
+        f'<span class="trend-label">{reading["label"]}</span>'
+        f'{_sparkline_svg(trend, reading["status"])}'
+        f'<span class="trend-note">{TREND_WINDOW_HOURS}시간 {arrow} {word}</span></div>'
     )
 
 
 def motor_card(motor: dict) -> None:
     """05_ui_screens.md §3.2 모터별 카드.
 
-    데이터 흐름 애니메이션, 대표 상태 배지, 최근 상태 변경 일시를 보여주고
-    [상세 보기]를 누르면 상세 페이지로 이동한다.
+    모든 카드가 같은 구조를 갖는다 — 지표 4개를 늘 같은 순서로 두고, 가장 심각한 지표의
+    추이를 하단에 한 번 그린다. 카드마다 항목 수가 달라지면 3열 배치에서 높이가 어긋나
+    화면이 성기게 보이기 때문이다. 이상 지표는 위치가 아니라 색·굵기로 드러낸다.
+
+    카드 본문은 마크다운 한 번으로 렌더한다. Streamlit은 `st.markdown`으로 연 `<div>`가
+    다음 요소를 감싸도록 두지 않으므로, 여러 번 나눠 부르면 상태색 테두리를 입힐 수 없다.
     """
     from app.ui.navigation import MOTOR_DETAIL_PAGE  # 순환 import 방지를 위한 지연 import
 
     motor_id = motor["motor_id"]
-    with st.container(border=True):
-        data_flow(motor["status"])
-        st.write(f"**{motor['motor_name']}**")
-        st.caption(motor["model_name"])
-        status_badge(motor["status"])
+    status = motor["status"]
+    readings = motor.get("readings", [])
 
-        last_changed = motor.get("last_changed_at")
-        st.caption(
-            format_display(parse_utc(last_changed)) if last_changed else "상태 변경 이력 없음"
-        )
+    if readings:
+        # 표시는 늘 같은 순서(온도·진동·전류·소음)로, 추이는 가장 심각한 지표로.
+        worst = readings[0]
+        ordered = sorted(readings, key=lambda r: METRIC_NAMES.index(r["metric"]))
+        body = "".join(_metric_html(reading) for reading in ordered)
+        body += _trend_html(worst, motor.get("trend", []))
+    else:
+        body = '<div class="metric-note">수집된 계측값이 없습니다.</div>'
 
-        if st.button("상세 보기", key=f"motor-{motor_id}", use_container_width=True):
-            st.session_state["selected_motor_id"] = motor_id
-            st.switch_page(MOTOR_DETAIL_PAGE)
+    last_changed = motor.get("last_changed_at")
+    footer = (
+        f"{format_relative(parse_utc(last_changed))} 상태 변경"
+        if last_changed
+        else "상태 변경 이력 없음"
+    )
+
+    st.markdown(
+        f'<div class="motor-card status-{status.lower()}">'
+        f"{_data_flow_html(status)}"
+        f'<div class="motor-head">'
+        f'<span class="motor-name">{motor["motor_name"]}</span>'
+        f'<span class="status-badge status-{status.lower()}">{status}</span>'
+        f"</div>"
+        f'<div class="motor-meta">{motor["model_name"]} · {motor["installation_location"]}</div>'
+        f"{body}"
+        f'<div class="motor-foot">{footer}</div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    if st.button("상세 보기", key=f"motor-{motor_id}", use_container_width=True):
+        st.session_state["selected_motor_id"] = motor_id
+        st.switch_page(MOTOR_DETAIL_PAGE)
 
 
 def _report_basename(log) -> str:
