@@ -14,17 +14,22 @@ from app.config import (
 from app.db.connection import connection_scope
 from app.services.events import count_motor_events, list_motor_events
 from app.services.motors import (
-    confirm_maintenance,
     find_unconfirmed_fault_metrics,
     get_motor,
     get_representative_status,
     get_thresholds,
 )
-from app.ui.components import event_list_header, event_row, render_report_dialog, status_badge
+from app.ui.components import (
+    event_list_header,
+    event_row,
+    maintenance_button,
+    render_maintenance_dialog,
+    render_report_dialog,
+    status_badge,
+)
 from app.ui.navigation import DASHBOARD_PAGE
 
 _PAGE_KEY = "detail_event_page"
-_CONFIRM_KEY = "maintenance_confirm_metric"
 
 with st.sidebar:
     st.write(f"담당자: {st.session_state.get('contact_name', '')}")
@@ -87,37 +92,11 @@ if fault_metrics:
         "정비 완료 확인 전까지 자동 상태 판정이 재개되지 않습니다."
     )
 
-    for metric in fault_metrics:
-        if st.button(f"{METRIC_LABELS.get(metric, metric)} 정비 완료 확인", key=f"fault-{metric}"):
-            st.session_state[_CONFIRM_KEY] = metric
-            st.rerun()
-
-    # 어떤 지표를 확인 중인지 세션에 남겨둔다. 다이얼로그 안의 체크박스를 누르면 rerun이
-    # 일어나는데, 버튼 클릭 여부로만 열면 그 순간 다이얼로그가 닫혀 확인 절차를 마칠 수 없다.
-    _pending = st.session_state.get(_CONFIRM_KEY)
-    if _pending in fault_metrics:
-
-        @st.dialog("정비 완료 확인")
-        def _confirm_dialog(metric: str) -> None:
-            label = METRIC_LABELS.get(metric, metric)
-            st.write(f"**{motor['motor_name']}**의 **{label}** 지표를 정비 완료로 처리합니다.")
-            st.caption("확인 시 담당자 이력이 기록되고 해당 지표의 자동 상태 판정이 재개됩니다.")
-            agreed = st.checkbox("정비가 완료되었음을 확인했습니다.")
-
-            confirm_col, cancel_col = st.columns(2)
-            if confirm_col.button(
-                "정비 완료 처리", type="primary", disabled=not agreed, use_container_width=True
-            ):
-                with connection_scope() as conn:
-                    confirm_maintenance(conn, motor_id, metric, st.session_state.get("contact_id"))
-                st.session_state.pop(_CONFIRM_KEY, None)
-                st.session_state[_PAGE_KEY] = 0
-                st.rerun()
-            if cancel_col.button("취소", use_container_width=True):
-                st.session_state.pop(_CONFIRM_KEY, None)
-                st.rerun()
-
-        _confirm_dialog(_pending)
+    maintenance_button(
+        {"motor_id": motor_id, "motor_name": motor["motor_name"], "fault_metrics": fault_metrics},
+        key_prefix="detail",
+        type="primary",
+    )
 
 # --- §4.2 지표별 임계값 ---
 st.subheader("지표별 임계값")
@@ -175,3 +154,4 @@ else:
             st.rerun()
 
 render_report_dialog()
+render_maintenance_dialog()

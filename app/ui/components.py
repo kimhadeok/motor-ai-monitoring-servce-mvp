@@ -23,8 +23,10 @@ from app.config import (
     format_relative,
     parse_utc,
 )
+from app.db.connection import connection_scope
 from app.reports.service import REPORTABLE_STATUSES, get_report
 from app.services.events import FLAT, RECOVER, WORSE, transition_direction
+from app.services.motors import confirm_maintenance
 
 _REPORT_VIEW_KEY = "report_view"
 
@@ -201,12 +203,85 @@ def motor_card(motor: dict) -> None:
         unsafe_allow_html=True,
     )
 
-    if st.button("상세 보기", key=f"motor-{motor_id}", use_container_width=True):
-        st.session_state["selected_motor_id"] = motor_id
-        st.switch_page(MOTOR_DETAIL_PAGE)
+    # 고장 상태면 가장 급한 조치(정비 완료 확인)를 카드에서 바로 할 수 있게 한다.
+    # 버튼 행은 상태와 무관하게 항상 한 줄이라 카드 높이는 그대로 유지된다.
+    if motor.get("fault_metrics"):
+        action_col, detail_col = st.columns(2)
+        with action_col:
+            maintenance_button(
+                motor, key_prefix="card", type="primary", use_container_width=True
+            )
+        detail_slot = detail_col
+    else:
+        detail_slot = st.container()
+
+    with detail_slot:
+        if st.button("상세 보기", key=f"motor-{motor_id}", use_container_width=True):
+            st.session_state["selected_motor_id"] = motor_id
+            st.switch_page(MOTOR_DETAIL_PAGE)
 
 
 _DIRECTION_MARK = {WORSE: ("▲", "악화"), RECOVER: ("▼", "회복"), FLAT: ("·", "")}
+_MAINTENANCE_KEY = "maintenance_confirm"
+
+
+def maintenance_button(motor: dict, key_prefix: str, **button_kwargs) -> bool:
+    """정비 완료 확인 버튼 (05 §4.3). 미확인 FAULT 지표가 없으면 아무것도 그리지 않는다.
+
+    대시보드 카드와 상세 페이지가 함께 쓴다. 설비가 멈춘 상태에서 가장 급한 조치가
+    상세 페이지 안에만 있으면 담당자가 두 번 이동해야 한다.
+    """
+    fault_metrics = motor.get("fault_metrics") or []
+    if not fault_metrics:
+        return False
+
+    clicked = st.button(
+        "정비 완료 확인", key=f"{key_prefix}-maint-{motor['motor_id']}", **button_kwargs
+    )
+    if clicked:
+        st.session_state[_MAINTENANCE_KEY] = {
+            "motor_id": motor["motor_id"],
+            "motor_name": motor["motor_name"],
+            "metrics": list(fault_metrics),
+        }
+        st.rerun()
+    return True
+
+
+def render_maintenance_dialog() -> None:
+    """정비 완료 확인 다이얼로그. 페이지 끝에서 1회 호출한다.
+
+    확인 대상을 세션에 담아 두는 이유: 버튼 클릭 여부로만 열면 다이얼로그 안의 체크박스를
+    누르는 순간 rerun이 일어나 창이 닫히고 절차를 마칠 수 없다.
+    """
+    pending = st.session_state.get(_MAINTENANCE_KEY)
+    if not pending:
+        return
+
+    @st.dialog("정비 완료 확인")
+    def _dialog() -> None:
+        labels = ", ".join(METRIC_LABELS.get(m, m) for m in pending["metrics"])
+        st.write(f"**{pending['motor_name']}** 의 고장 상태를 정비 완료로 처리합니다.")
+        st.markdown(f"- 대상 지표: **{labels}**")
+        st.caption("확인 시 담당자 이력이 기록되고 해당 지표의 자동 상태 판정이 재개됩니다.")
+
+        agreed = st.checkbox("정비가 완료되었음을 확인했습니다.")
+        confirm_col, cancel_col = st.columns(2)
+        if confirm_col.button(
+            "정비 완료 처리", type="primary", disabled=not agreed, use_container_width=True
+        ):
+            with connection_scope() as conn:
+                for metric in pending["metrics"]:
+                    confirm_maintenance(
+                        conn, pending["motor_id"], metric, st.session_state.get("contact_id")
+                    )
+            st.session_state.pop(_MAINTENANCE_KEY, None)
+            st.rerun()
+        if cancel_col.button("취소", use_container_width=True):
+            st.session_state.pop(_MAINTENANCE_KEY, None)
+            st.rerun()
+
+    _dialog()
 
 
 def event_list_header(show_motor: bool) -> None:

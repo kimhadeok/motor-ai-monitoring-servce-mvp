@@ -5,15 +5,23 @@ import streamlit as st
 from app.auth.session import end_session
 from app.config import (
     DASHBOARD_EVENT_LIST_LIMIT,
+    DASHBOARD_RECENT_WINDOW_HOURS,
     MOTOR_CARD_COLUMNS,
     SUMMARY_DATE_FORMAT,
     format_display,
+    format_relative,
 )
 from app.db.connection import connection_scope
 from app.services.company import build_summary
 from app.services.events import list_company_events
 from app.services.motors import list_company_motors
-from app.ui.components import event_list_header, event_row, motor_card, render_report_dialog
+from app.ui.components import (
+    event_list_header,
+    event_row,
+    motor_card,
+    render_maintenance_dialog,
+    render_report_dialog,
+)
 
 st.title("메인 대시보드")
 
@@ -32,19 +40,63 @@ with connection_scope() as conn:
 
 # --- §3.1 상단 요약 ---
 if summary:
-    st.caption(summary["company_name"])
+    # 계약 정보(회사·모터 수·서비스 시작일)는 매일 확인할 값이 아니므로 한 줄로 내린다.
+    st.caption(
+        f"{summary['company_name']} · 모터 {summary['motor_count']}대 · "
+        f"서비스 시작 {format_display(summary['started_at'], SUMMARY_DATE_FORMAT)}"
+        f" ({summary['operating_days']:,}일째)"
+    )
 
+    counts = summary["status_counts"]
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("등록된 모터 수", f"{summary['motor_count']}대")
-    col2.metric("서비스 시작 일자", format_display(summary["started_at"], SUMMARY_DATE_FORMAT))
-    col3.metric("총 운영 일수", f"{summary['operating_days']:,}일")
-    col4.metric(
-        "주의 이상 모터 수",
-        f"{summary['attention_count']}대",
-        # 상태별 내역 (§3.1 — NORMAL 제외). 값이 0이어도 구성이 보이도록 전 상태를 표기한다.
-        delta=" · ".join(f"{s} {n}" for s, n in summary["status_counts"].items()),
+    col1.metric(
+        "조치 필요",
+        f"{summary['action_required']}대",
+        delta=f"고장 {counts['FAULT']} · 위험 {counts['DANGER']}",
+        delta_color="inverse" if summary["action_required"] else "off",
+    )
+    col2.metric(
+        "주의 관찰",
+        f"{summary['watch_count']}대",
+        delta=f"정상 {summary['normal_count']}대",
         delta_color="off",
     )
+    col3.metric(
+        f"최근 {DASHBOARD_RECENT_WINDOW_HOURS}시간 이벤트",
+        f"{summary['recent_event_count']}건",
+        delta=f"악화 {summary['recent_worsened']} · 회복 {summary['recent_recovered']}",
+        delta_color="off",
+    )
+    col4.metric(
+        "마지막 수집",
+        format_relative(summary["last_collected_at"]) if summary["last_collected_at"] else "-",
+        delta="정상 수집 중" if summary["last_collected_at"] else "데이터 없음",
+        delta_color="off",
+    )
+
+# 조치가 필요한 설비를 화면 맨 위에서 이름으로 알린다 — 카드를 훑어 찾게 하지 않는다.
+# 확인 대기와 "확인은 끝났지만 수치가 여전히 고장 범위"는 담당자가 할 일이 달라 나눠 알린다.
+_needs_confirm = [m for m in motors if m["fault_metrics"]]
+_still_faulted = [m for m in motors if m["status"] == "FAULT" and not m["fault_metrics"]]
+_dangered = [m for m in motors if m["status"] == "DANGER"]
+
+
+def _names(items) -> str:
+    return ", ".join(m["motor_name"] for m in items)
+
+
+if _needs_confirm:
+    st.error(
+        f"**{_names(_needs_confirm)}** 가 고장(FAULT) 상태입니다. "
+        "정비 후 아래 카드에서 완료 확인을 해주세요."
+    )
+if _still_faulted:
+    st.error(
+        f"**{_names(_still_faulted)}** 는 정비 완료 확인을 마쳤지만 "
+        "여전히 고장 임계를 넘는 값이 들어오고 있습니다. 현장 재점검이 필요합니다."
+    )
+if _dangered:
+    st.warning(f"**{_names(_dangered)}** 가 위험(DANGER) 상태입니다. 진단 리포트를 확인해주세요.")
 
 st.subheader("모터 현황")
 
@@ -69,3 +121,4 @@ else:
         event_row(event, show_motor=True)
 
 render_report_dialog()
+render_maintenance_dialog()

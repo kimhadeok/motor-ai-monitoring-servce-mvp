@@ -169,10 +169,18 @@ def list_company_motors(conn, company_id: str) -> list[dict]:
                 conn, motor_id, readings[0]["metric"], TREND_WINDOW_HOURS, TREND_BUCKETS
             )
 
+        # 대표 상태 판정에 이미 쓰이는 값이라 카드에도 함께 실어 보낸다 —
+        # 대시보드에서 정비 완료 확인 버튼을 띄우려면 어떤 지표가 FAULT인지 알아야 한다.
+        fault_metrics = find_unconfirmed_fault_metrics(conn, motor_id)
+        status = "FAULT" if fault_metrics else _worst(
+            r["status"] for r in readings
+        )
+
         cards.append(
             {
                 **dict(motor),
-                "status": get_representative_status(conn, motor_id),
+                "status": status,
+                "fault_metrics": fault_metrics,
                 "last_changed_at": last_changed,
                 "readings": readings,
                 "trend": trend,

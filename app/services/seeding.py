@@ -10,6 +10,7 @@
 - 쿨다운은 로그가 아니라 에이전트/알림에만 적용 (§5)
 """
 
+import math
 import random
 from datetime import datetime, timedelta, timezone
 
@@ -26,7 +27,8 @@ from app.config import (
     SEED_TELEMETRY_HOURS,
     STATUS_LEVELS,
     STATUS_SEVERITY_RANK,
-    TRANSITION_CONFIRM_SAMPLES,
+    TRANSITION_CONFIRM_SECONDS,
+    TRANSITION_DEADBAND_RATIO,
 )
 from app.services.diagnosis import build_notification_message, build_notification_title
 
@@ -94,6 +96,29 @@ def classify(metric: str, value: float) -> str:
     if value >= warning:
         return "WARNING"
     return "NORMAL"
+
+
+def _entry_threshold(metric: str, status: str) -> float | None:
+    """해당 상태로 진입할 때 넘어야 했던 임계값. NORMAL은 진입 임계가 없다."""
+    _, warning, danger, fault = METRIC_THRESHOLDS[metric]
+    return {"WARNING": warning, "DANGER": danger, "FAULT": fault}.get(status)
+
+
+def classify_with_hysteresis(metric: str, value: float, confirmed: str) -> str:
+    """이력폭을 적용한 상태 판정 (02_architecture.md §2.3 핑퐁 방지).
+
+    올라갈 때는 임계값을 그대로 쓰고, 내려올 때만 진입 임계보다 `TRANSITION_DEADBAND_RATIO`
+    만큼 더 낮아지기를 요구한다. 값이 임계선 위에서 미세하게 흔들리는 동안에는 회복으로
+    보지 않으므로 왕복 전이가 생기지 않는다.
+    """
+    observed = classify(metric, value)
+    if STATUS_SEVERITY_RANK[observed] >= STATUS_SEVERITY_RANK[confirmed]:
+        return observed  # 악화 또는 유지 — 임계값 그대로
+
+    entry = _entry_threshold(metric, confirmed)
+    if entry is not None and value > entry * (1 - TRANSITION_DEADBAND_RATIO):
+        return confirmed  # 이력폭 안 — 아직 회복으로 인정하지 않는다
+    return observed
 
 
 def _iso(dt: datetime) -> str:
@@ -213,6 +238,8 @@ def _generate_series(motor: dict, now: datetime, rng: random.Random) -> tuple[li
     window_start = now - timedelta(hours=SEED_TELEMETRY_HOURS)
     total_seconds = (now - window_start).total_seconds()
     baselines = {metric: _baseline(metric, rng) for metric in METRIC_NAMES}
+    # 확정에 필요한 연속 샘플 수 = 확정 시간 / 수집 주기 (주기가 달라도 같은 시간이 걸린다)
+    confirm_samples = max(math.ceil(TRANSITION_CONFIRM_SECONDS / interval), 1)
 
     rows: list[tuple] = []
     transitions: list[dict] = []
@@ -245,7 +272,8 @@ def _generate_series(motor: dict, now: datetime, rng: random.Random) -> tuple[li
         )
 
         for metric in METRIC_NAMES:
-            observed = statuses[metric]
+            # 이력폭을 적용해 판정한다 — 임계선 근처의 미세한 흔들림을 회복으로 보지 않는다.
+            observed = classify_with_hysteresis(metric, values[metric], confirmed[metric])
             if observed == confirmed[metric]:
                 pending[metric] = None
                 pending_count[metric] = 0
@@ -261,7 +289,7 @@ def _generate_series(motor: dict, now: datetime, rng: random.Random) -> tuple[li
                 pending[metric] = observed
                 pending_count[metric] = 1
 
-            if pending_count[metric] >= TRANSITION_CONFIRM_SAMPLES:
+            if pending_count[metric] >= confirm_samples:
                 transitions.append(
                     {
                         "motor": motor,

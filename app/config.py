@@ -59,6 +59,10 @@ COOLDOWN_HOURS = 1
 # 문서 미확정 — MVP 제안값
 DASHBOARD_REFRESH_INTERVAL_SECONDS = 10
 
+# --- 대시보드 상단 요약 (05_ui_screens.md §3.1) ---
+# "밤사이 무슨 일이 있었나"에 답하는 창. 하루 단위로 보는 담당자 습관에 맞춘다.
+DASHBOARD_RECENT_WINDOW_HOURS = 24
+
 # --- 이벤트 리스트 (05_ui_screens.md §3.3 / §4.4 확정) ---
 DASHBOARD_EVENT_LIST_LIMIT = 10  # 대시보드: 최근 최대 10개
 DETAIL_EVENT_PAGE_SIZE = 20  # 상세 페이지: 페이지당 20개
@@ -93,10 +97,16 @@ ALLOWED_COLLECTION_INTERVALS_SECONDS = (10, 20, 30)
 # --- 통신 두절 판정 (03_state_event_logic.md §4.4 확정) ---
 MISSED_CYCLES_THRESHOLD = 3
 
-# --- 상태 전이 확정 샘플 수 (02_architecture.md §2.3 핑퐁 방지 구현값) ---
-# 측정값이 임계선 근처에서 흔들릴 때 전이가 난사되는 것을 막기 위해,
-# 새 상태가 연속 N회 유지될 때만 전이로 확정한다.
-TRANSITION_CONFIRM_SAMPLES = 3
+# --- 상태 전이 확정 (02_architecture.md §2.3 핑퐁 방지 구현값) ---
+# 새 상태가 이 시간만큼 연속으로 유지될 때만 전이로 확정한다. 샘플 "개수"가 아니라
+# "시간" 기준인 이유: 수집 주기가 모터마다 10/20/30초로 달라, 개수 기준이면 확정까지
+# 걸리는 시간이 모터마다 3배씩 차이 난다.
+TRANSITION_CONFIRM_SECONDS = 300
+
+# 회복 방향 이력폭(deadband). 상위 상태로 올라갈 때는 임계값을 그대로 쓰지만, 내려올 때는
+# 진입 임계보다 이 비율만큼 더 낮아져야 회복으로 인정한다. 임계선 근처에서 값이 미세하게
+# 흔들리는 구간(느린 램프 + 노이즈)에서 전이가 왕복 발생하는 것을 막는 표준적인 방법이다.
+TRANSITION_DEADBAND_RATIO = 0.05
 
 # --- 상태/심각도 (03_state_event_logic.md §1~2 확정) ---
 METRIC_NAMES = ("temperature", "vibration", "current", "sound")
