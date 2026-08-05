@@ -1,7 +1,4 @@
-"""메인 대시보드. 05_ui_screens.md §3.
-
-§3.2 모터 카드와 §3.3 이벤트 리스트는 실데이터로 동작한다. §3.1 상단 요약은 이후 작업.
-"""
+"""메인 대시보드. 05_ui_screens.md §3 (상단 요약 / 모터 카드 / 이벤트 리스트)."""
 
 import streamlit as st
 
@@ -10,10 +7,12 @@ from app.config import (
     DASHBOARD_EVENT_LIST_LIMIT,
     DISPLAY_DATETIME_FORMAT,
     MOTOR_CARD_COLUMNS,
+    SUMMARY_DATE_FORMAT,
     format_display,
     parse_utc,
 )
 from app.db.connection import connection_scope
+from app.services.company import build_summary
 from app.services.events import list_company_events
 from app.services.motors import list_company_motors
 from app.ui.components import motor_card, render_report_dialog, report_button, status_badge
@@ -26,17 +25,28 @@ with st.sidebar:
         end_session()
         st.rerun()
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("등록된 모터 수", "구현 예정")
-col2.metric("서비스 시작 일자", "구현 예정")
-col3.metric("총 운영 일수", "구현 예정")
-col4.metric("주의 이상 모터 수", "구현 예정")
-
 _company_id = st.session_state.get("company_id")
 
 with connection_scope() as conn:
     motors = list_company_motors(conn, _company_id)
+    summary = build_summary(conn, _company_id, motors)
     events = list_company_events(conn, _company_id, DASHBOARD_EVENT_LIST_LIMIT)
+
+# --- §3.1 상단 요약 ---
+if summary:
+    st.caption(summary["company_name"])
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("등록된 모터 수", f"{summary['motor_count']}대")
+    col2.metric("서비스 시작 일자", format_display(summary["started_at"], SUMMARY_DATE_FORMAT))
+    col3.metric("총 운영 일수", f"{summary['operating_days']:,}일")
+    col4.metric(
+        "주의 이상 모터 수",
+        f"{summary['attention_count']}대",
+        # 상태별 내역 (§3.1 — NORMAL 제외). 값이 0이어도 구성이 보이도록 전 상태를 표기한다.
+        delta=" · ".join(f"{s} {n}" for s, n in summary["status_counts"].items()),
+        delta_color="off",
+    )
 
 st.subheader("모터 현황")
 

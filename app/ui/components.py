@@ -3,6 +3,7 @@
 import streamlit as st
 
 from app.config import (
+    DATA_FLOW_NODES,
     REPORT_DATE_FORMAT,
     REPORT_SESSION_ID_FORMAT,
     REPORT_TIME_FORMAT,
@@ -22,16 +23,42 @@ def status_badge(status: str) -> None:
     )
 
 
+def data_flow(status: str) -> None:
+    """모터 → API → AI Agent 데이터 흐름 표시 (05_ui_screens.md §3.2).
+
+    연결선의 그라데이션을 흘려보내 데이터가 이동하는 것처럼 보이게 한다. 색상은 모터
+    대표 상태를 따른다. 외부 라이브러리(streamlit-lottie)나 네트워크 자산 없이 CSS만
+    쓰므로 오프라인·배포 환경에서 동일하게 동작한다.
+    """
+    nodes = [
+        f'<div class="node"><span class="icon">{icon}</span>'
+        f'<span class="label">{label}</span></div>'
+        for icon, label in DATA_FLOW_NODES
+    ]
+    # 노드 사이마다 연결선을 끼운다. 두 번째 선은 반 주기 늦게 출발해 흐름 방향이 드러난다.
+    links = ['<div class="link"></div>', '<div class="link delayed"></div>']
+    parts = [nodes[0]]
+    for i, node in enumerate(nodes[1:]):
+        parts.append(links[i % len(links)])
+        parts.append(node)
+
+    st.markdown(
+        f'<div class="data-flow status-{status.lower()}">{"".join(parts)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def motor_card(motor: dict) -> None:
     """05_ui_screens.md §3.2 모터별 카드.
 
-    대표 상태 배지와 최근 상태 변경 일시를 보여주고, 클릭하면 상세 페이지로 이동한다.
-    (모터→API→AI Agent 흐름 애니메이션은 아직 미구현)
+    데이터 흐름 애니메이션, 대표 상태 배지, 최근 상태 변경 일시를 보여주고
+    [상세 보기]를 누르면 상세 페이지로 이동한다.
     """
     from app.ui.navigation import MOTOR_DETAIL_PAGE  # 순환 import 방지를 위한 지연 import
 
     motor_id = motor["motor_id"]
     with st.container(border=True):
+        data_flow(motor["status"])
         st.write(f"**{motor['motor_name']}**")
         st.caption(motor["model_name"])
         status_badge(motor["status"])

@@ -66,6 +66,10 @@ DETAIL_EVENT_PAGE_SIZE = 20  # 상세 페이지: 페이지당 20개
 # --- 모터 카드 그리드 (05_ui_screens.md §3.2) ---
 # 문서 미확정 — MVP 제안값
 MOTOR_CARD_COLUMNS = 3
+# 모터 → API → AI Agent 데이터 흐름 애니메이션 1주기 (초). 값이 작을수록 빠르게 흐른다.
+DATA_FLOW_ANIMATION_SECONDS = 2.4
+# 흐름 각 단계의 아이콘과 라벨
+DATA_FLOW_NODES = (("⚙️", "모터"), ("🔌", "API"), ("🤖", "AI Agent"))
 
 # --- 리포트 뷰어 (05_ui_screens.md §3.3 인앱 표시) ---
 REPORT_VIEWER_HEIGHT_PX = 600
@@ -85,6 +89,8 @@ TRANSITION_CONFIRM_SAMPLES = 3
 METRIC_NAMES = ("temperature", "vibration", "current", "sound")
 STATUS_LEVELS = ("NORMAL", "WARNING", "DANGER", "FAULT")
 STATUS_SEVERITY_RANK = {"NORMAL": 0, "WARNING": 1, "DANGER": 2, "FAULT": 3}
+# 대시보드 상단에서 "주의 이상"으로 집계하는 상태 (05_ui_screens.md §3.1 — NORMAL 제외)
+ATTENTION_STATUSES = ("WARNING", "DANGER", "FAULT")
 
 # 지표별 표시 라벨/단위 — 대시보드, 상세 페이지, 리포트가 공유한다.
 METRIC_LABELS = {
@@ -149,6 +155,7 @@ REPORT_SESSION_ID_FORMAT = "motor_{motor_id}_{date}_{time}"  # 예: motor_MTR-00
 # --- 표시용 포맷 (05_ui_screens.md §3.2 목업 근거) ---
 DISPLAY_TIMEZONE = "Asia/Seoul"
 DISPLAY_DATETIME_FORMAT = "%y/%m/%d %H:%M"
+SUMMARY_DATE_FORMAT = "%Y-%m-%d"  # 대시보드 상단 요약의 날짜 표기 (05 §3.1)
 REPORT_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 REPORT_DATE_FORMAT = "%Y%m%d"
 REPORT_TIME_FORMAT = "%H%M%S"

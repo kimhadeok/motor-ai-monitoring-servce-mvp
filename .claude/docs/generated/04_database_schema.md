@@ -8,12 +8,12 @@
 
 원본은 PostgreSQL/TimescaleDB 스타일 표기(`TIMESTAMPTZ`, `Hypertable`, `BIGSERIAL`)를 사용하나, `01_tech_stack.md`에서 **SQLite**로 확정했으므로 아래 규칙으로 변환:
 
-| 원본 표기 | SQLite 적용 | 비고 |
-|---|---|---|
-| `TIMESTAMPTZ` | `TEXT` (ISO8601 UTC, 예: `2026-08-03T07:15:37.163Z`) | SQLite에 날짜 전용 타입 없음. 문자열 정렬로 시간 비교 가능 |
-| `Hypertable` | 미적용 — 일반 테이블 + 복합 인덱스 | `03_state_event_logic.md` §6에서 확정한 대로 쿼리 시점 조회 방식 사용 |
-| `BIGSERIAL` / `VARCHAR(n)` | `INTEGER PRIMARY KEY AUTOINCREMENT` / `TEXT` | SQLite는 동적 타입 — 길이 제약 대신 애플리케이션 레벨 검증 |
-| `BOOLEAN` | `INTEGER` (0/1) | SQLite 네이티브 BOOLEAN 없음 |
+| 원본 표기                      | SQLite 적용                                              | 비고                                                                     |
+| ------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `TIMESTAMPTZ`                | `TEXT` (ISO8601 UTC, 예: `2026-08-03T07:15:37.163Z`) | SQLite에 날짜 전용 타입 없음. 문자열 정렬로 시간 비교 가능               |
+| `Hypertable`                 | 미적용 — 일반 테이블 + 복합 인덱스                      | `03_state_event_logic.md` §6에서 확정한 대로 쿼리 시점 조회 방식 사용 |
+| `BIGSERIAL` / `VARCHAR(n)` | `INTEGER PRIMARY KEY AUTOINCREMENT` / `TEXT`         | SQLite는 동적 타입 — 길이 제약 대신 애플리케이션 레벨 검증              |
+| `BOOLEAN`                    | `INTEGER` (0/1)                                        | SQLite 네이티브 BOOLEAN 없음                                             |
 
 ## 2. 보강 — motors 테이블 임계값 구조 변경 (중요)
 
@@ -127,10 +127,10 @@ CREATE INDEX idx_motor_status_logs_lookup ON motor_status_logs (motor_id, metric
 
 **리포트 컬럼 2종 운용 (2026-08-04 확정)**
 
-| 컬럼 | 타입 | 생성 시점 | 비고 |
-|---|---|---|---|
-| `report_html` | TEXT | DANGER/FAULT 진단 시 **항상** | Jinja2 렌더는 순수 Python이라 환경과 무관하게 성공 |
-| `report_pdf` | BLOB | 사용자가 리포트를 요청할 때 | WeasyPrint 성공 시 저장해 캐시. 이후 요청은 즉시 응답 |
+| 컬럼            | 타입 | 생성 시점                          | 비고                                                  |
+| --------------- | ---- | ---------------------------------- | ----------------------------------------------------- |
+| `report_html` | TEXT | DANGER/FAULT 진단 시**항상** | Jinja2 렌더는 순수 Python이라 환경과 무관하게 성공    |
+| `report_pdf`  | BLOB | 사용자가 리포트를 요청할 때        | WeasyPrint 성공 시 저장해 캐시. 이후 요청은 즉시 응답 |
 
 `report_html`을 BLOB이 아닌 **TEXT**로 두는 이유: HTML은 UTF-8 텍스트이고 렌더 함수가 `str`을 반환하므로 encode/decode 변환이 불필요하며, `sqlite3` CLI로 내용을 직접 확인할 수 있다. 반면 PDF는 바이너리이므로 BLOB이 맞다.
 
@@ -194,4 +194,5 @@ WHERE time < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-48 hours');
 MVP 실행 방식: 별도 스케줄러(APScheduler, `02_architecture.md` §3 참고) 잡으로 1일 1회 실행. 정식 서비스 단계에서 필요 시 별도 아카이브 테이블/파일로 이관 검토.
 
 ---
+
 승인해주시면 다음 문서(`05_ui_screens.md`) 작성을 진행하겠습니다.

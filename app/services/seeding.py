@@ -30,9 +30,12 @@ from app.config import (
 )
 from app.services.diagnosis import build_notification_message, build_notification_title
 
+# (company_id, 회사명, 서비스 시작 시점 — 지금으로부터 며칠 전)
+# created_at을 DB 기본값(현재 시각)에 맡기면 "총 운영 일수"(05 §3.1)가 항상 0일이 되어
+# 상단 요약이 시연에서 아무것도 보여주지 못한다. 회사마다 다른 값을 준다.
 _COMPANIES = [
-    ("COMP-001", "(주)한국모터스"),
-    ("COMP-002", "대한중공업(주)"),
+    ("COMP-001", "(주)한국모터스", 412),
+    ("COMP-002", "대한중공업(주)", 187),
 ]
 
 _CONTACTS = [
@@ -40,14 +43,15 @@ _CONTACTS = [
     ("COMP-002", "이영희", "010-9876-5432", "demo2@example.com"),
 ]
 
-# (motor_id, company_id, 모터명, 설치 위치, 모델명, 수집주기 초)
+# (motor_id, company_id, 모터명, 설치 위치, 모델명, 수집주기 초, 등록 시점 — 지금으로부터 며칠 전)
+# 등록일자는 §4.1 상세 페이지에 표시된다. 소속 회사의 서비스 시작일보다 뒤여야 한다.
 _MOTORS = [
-    ("MTR-001", "COMP-001", "2호기 메인 송풍기", "제1공장 지하 1층 기계실", "HYUN-37KW-4P", 10),
-    ("MTR-002", "COMP-001", "1호기 냉각펌프", "제1공장 1층 펌프실", "HYUN-15KW-4P", 20),
-    ("MTR-003", "COMP-001", "컨베이어 구동모터", "제1공장 생산라인 A", "HYUN-22KW-6P", 30),
-    ("MTR-004", "COMP-002", "3호기 배기 송풍기", "제2공장 2층 기계실", "HYUN-37KW-4P", 10),
-    ("MTR-005", "COMP-002", "2호기 냉각펌프", "제2공장 1층 펌프실", "HYUN-15KW-4P", 20),
-    ("MTR-006", "COMP-002", "포장라인 구동모터", "제2공장 생산라인 B", "HYUN-22KW-6P", 30),
+    ("MTR-001", "COMP-001", "2호기 메인 송풍기", "제1공장 지하 1층 기계실", "HYUN-37KW-4P", 10, 405),
+    ("MTR-002", "COMP-001", "1호기 냉각펌프", "제1공장 1층 펌프실", "HYUN-15KW-4P", 20, 398),
+    ("MTR-003", "COMP-001", "컨베이어 구동모터", "제1공장 생산라인 A", "HYUN-22KW-6P", 30, 233),
+    ("MTR-004", "COMP-002", "3호기 배기 송풍기", "제2공장 2층 기계실", "HYUN-37KW-4P", 10, 180),
+    ("MTR-005", "COMP-002", "2호기 냉각펌프", "제2공장 1층 펌프실", "HYUN-15KW-4P", 20, 180),
+    ("MTR-006", "COMP-002", "포장라인 구동모터", "제2공장 생산라인 B", "HYUN-22KW-6P", 30, 96),
 ]
 
 # 이상 시나리오. ratio는 48시간 창에서의 진행 비율(0.0=48시간 전, 1.0=현재).
@@ -110,8 +114,14 @@ def _transition_reason(metric: str, previous: str, new: str) -> str:
     return "회복"
 
 
-def _seed_companies(conn) -> list[str]:
-    conn.executemany("INSERT INTO companies (company_id, company_name) VALUES (?, ?)", _COMPANIES)
+def _seed_companies(conn, now: datetime) -> list[str]:
+    conn.executemany(
+        "INSERT INTO companies (company_id, company_name, created_at) VALUES (?, ?, ?)",
+        [
+            (company_id, name, _iso(now - timedelta(days=days_ago)))
+            for company_id, name, days_ago in _COMPANIES
+        ],
+    )
     return [c[0] for c in _COMPANIES]
 
 
@@ -139,13 +149,23 @@ def _seed_contacts(conn) -> list[dict]:
     return created
 
 
-def _seed_motors(conn) -> list[dict]:
+def _seed_motors(conn, now: datetime) -> list[dict]:
     motors = []
-    for motor_id, company_id, name, location, model, interval in _MOTORS:
+    for motor_id, company_id, name, location, model, interval, days_ago in _MOTORS:
         conn.execute(
             "INSERT INTO motors (motor_id, company_id, motor_name, installation_location, "
-            "model_name, serial_number, collection_interval_seconds) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (motor_id, company_id, name, location, model, f"SN-{motor_id}", interval),
+            "model_name, serial_number, collection_interval_seconds, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                motor_id,
+                company_id,
+                name,
+                location,
+                model,
+                f"SN-{motor_id}",
+                interval,
+                _iso(now - timedelta(days=days_ago)),
+            ),
         )
         for metric in METRIC_NAMES:
             normal, warning, danger, fault = METRIC_THRESHOLDS[metric]
@@ -350,10 +370,10 @@ def seed_demo_data(conn) -> dict:
     rng = random.Random(SEED_RNG_SEED)
     now = datetime.now(timezone.utc)
 
-    _seed_companies(conn)
+    _seed_companies(conn, now)
     contacts = _seed_contacts(conn)
     contacts_by_company = {c["company_id"]: c for c in contacts}
-    motors = _seed_motors(conn)
+    motors = _seed_motors(conn, now)
 
     telemetry_count = 0
     all_transitions: list[dict] = []
