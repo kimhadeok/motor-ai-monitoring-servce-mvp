@@ -62,6 +62,9 @@ DASHBOARD_REFRESH_INTERVAL_SECONDS = 10
 # --- 이벤트 리스트 (05_ui_screens.md §3.3 / §4.4 확정) ---
 DASHBOARD_EVENT_LIST_LIMIT = 10  # 대시보드: 최근 최대 10개
 DETAIL_EVENT_PAGE_SIZE = 20  # 상세 페이지: 페이지당 20개
+# 컬럼 폭 — 발생 일시 / (모터명) / 상태 변화 / 발생 사유 / 리포트 버튼
+EVENT_COLUMN_WIDTHS_WITH_MOTOR = (1.6, 2.0, 2.4, 2.6, 1.1)
+EVENT_COLUMN_WIDTHS = (1.6, 2.4, 2.6, 1.1)
 
 # --- 모터 카드 그리드 (05_ui_screens.md §3.2) ---
 # 문서 미확정 — MVP 제안값

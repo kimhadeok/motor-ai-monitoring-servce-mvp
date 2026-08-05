@@ -6,7 +6,6 @@ import streamlit as st
 from app.auth.session import end_session
 from app.config import (
     DETAIL_EVENT_PAGE_SIZE,
-    DISPLAY_DATETIME_FORMAT,
     METRIC_LABELS,
     METRIC_UNITS,
     format_display,
@@ -21,7 +20,7 @@ from app.services.motors import (
     get_representative_status,
     get_thresholds,
 )
-from app.ui.components import render_report_dialog, report_button, status_badge
+from app.ui.components import event_list_header, event_row, render_report_dialog, status_badge
 from app.ui.navigation import DASHBOARD_PAGE
 
 _PAGE_KEY = "detail_event_page"
@@ -157,20 +156,9 @@ else:
             conn, motor_id, DETAIL_EVENT_PAGE_SIZE, page * DETAIL_EVENT_PAGE_SIZE
         )
 
-    _COLUMN_WIDTHS = [2, 1.5, 2.5, 1.5, 1]
-    header = st.columns(_COLUMN_WIDTHS)
-    for col, label in zip(header, ("발생 일시", "지표", "발생 사유", "모터 상태", "")):
-        col.caption(label)
-
+    event_list_header(show_motor=False)
     for event in events:
-        occurred_at, metric_col, reason, status, action = st.columns(_COLUMN_WIDTHS)
-        occurred_at.write(format_display(parse_utc(event["created_at"]), DISPLAY_DATETIME_FORMAT))
-        metric_col.write(METRIC_LABELS.get(event["metric_name"], event["metric_name"]))
-        reason.write(event["trigger_reason"] or "-")
-        with status:
-            status_badge(event["new_status"])
-        with action:
-            report_button(event)
+        event_row(event, show_motor=False)
 
     if last_page > 0:
         prev_col, label_col, next_col = st.columns([1, 2, 1])

@@ -5,17 +5,15 @@ import streamlit as st
 from app.auth.session import end_session
 from app.config import (
     DASHBOARD_EVENT_LIST_LIMIT,
-    DISPLAY_DATETIME_FORMAT,
     MOTOR_CARD_COLUMNS,
     SUMMARY_DATE_FORMAT,
     format_display,
-    parse_utc,
 )
 from app.db.connection import connection_scope
 from app.services.company import build_summary
 from app.services.events import list_company_events
 from app.services.motors import list_company_motors
-from app.ui.components import motor_card, render_report_dialog, report_button, status_badge
+from app.ui.components import event_list_header, event_row, motor_card, render_report_dialog
 
 st.title("메인 대시보드")
 
@@ -65,18 +63,9 @@ st.subheader("이벤트 발생 내역")
 if not events:
     st.info("최근 이벤트가 없습니다.")
 else:
-    _EVENT_COLUMN_WIDTHS = [2, 2, 1.5, 1]
-    header = st.columns(_EVENT_COLUMN_WIDTHS)
-    for col, label in zip(header, ("발생 일시", "모터명", "모터 상태", "")):
-        col.caption(label)
-
+    st.caption(f"최근 {len(events)}건 · 상세 이력은 모터별 상세 페이지에서 볼 수 있습니다.")
+    event_list_header(show_motor=True)
     for event in events:
-        occurred_at, motor_name, status, action = st.columns(_EVENT_COLUMN_WIDTHS)
-        occurred_at.write(format_display(parse_utc(event["created_at"]), DISPLAY_DATETIME_FORMAT))
-        motor_name.write(event["motor_name"])
-        with status:
-            status_badge(event["new_status"])
-        with action:
-            report_button(event)
+        event_row(event, show_motor=True)
 
 render_report_dialog()

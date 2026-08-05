@@ -36,6 +36,11 @@ def inject_global_styles() -> None:
         f".metric-block.status-{status.lower()} {{ --metric-color: {color}; }}"
         for status, color in STATUS_COLORS.items()
     )
+    chip_status_css = "\n".join(
+        f".event-change .chip.status-{status.lower()} {{ "
+        f"color: {color}; background: {STATUS_BG_COLORS[status]}; }}"
+        for status, color in STATUS_COLORS.items()
+    )
 
     # st.html을 쓰는 이유: 이 컴포넌트만 DOMPurify 허용 목록에 <style>을 명시적으로 추가한다.
     # st.markdown 경로는 <style> 처리가 보장되지 않는다.
@@ -164,6 +169,31 @@ def inject_global_styles() -> None:
         }}
         .metric-trend .sparkline {{ flex: 1 1 auto; min-width: 0; }}
         .metric-trend .trend-note {{ font-size: 11px; color: #64748b; white-space: nowrap; }}
+
+        /* --- 이벤트 리스트 (05 §3.3 / §4.4) --- */
+        .event-when {{ display: flex; flex-direction: column; line-height: 1.35; }}
+        .event-when .rel {{ font-size: 13px; font-weight: 600; color: #334155; }}
+        .event-when .abs {{ font-size: 10.5px; color: #94a3b8; }}
+
+        .event-change {{ display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }}
+        .event-change .metric-tag {{
+            font-size: 11px; font-weight: 700; color: #475569;
+            background: #f1f5f9; border-radius: 5px; padding: 1px 6px;
+        }}
+        /* 배지보다 작은 칩 — 한 줄에 이전/이후 두 개가 들어가야 한다 */
+        .event-change .chip {{
+            font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 9px;
+            border: 1px solid currentColor;
+        }}
+        {chip_status_css}
+        .event-change .arrow {{ font-size: 10px; font-weight: 700; }}
+        .event-change .arrow.worse {{ color: {STATUS_COLORS["DANGER"]}; }}
+        .event-change .arrow.recover {{ color: {STATUS_COLORS["NORMAL"]}; }}
+        .event-change .arrow.flat {{ color: #94a3b8; }}
+
+        .event-reason {{ font-size: 12px; color: #475569; line-height: 1.4; }}
+        .event-reason.worse {{ color: {STATUS_COLORS["DANGER"]}; font-weight: 600; }}
+        .event-reason.recover {{ color: {STATUS_COLORS["NORMAL"]}; }}
         /* 설명 줄은 모든 지표에 있다(높이 균일). 정상은 회색, 이상만 상태색으로 강조 */
         .metric-note {{ font-size: 10.5px; color: #94a3b8; margin-top: 3px; }}
         .metric-block.abnormal .metric-note {{ color: var(--metric-color); font-weight: 600; }}

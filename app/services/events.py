@@ -7,6 +7,21 @@
 
 import sqlite3
 
+from app.config import STATUS_SEVERITY_RANK
+
+# 전이 방향 — 심각도가 올라갔는지 내려갔는지 (03_state_event_logic.md §4.2)
+WORSE, RECOVER, FLAT = "worse", "recover", "flat"
+
+
+def transition_direction(previous_status: str, new_status: str) -> str:
+    """상태 전이가 악화인지 회복인지. 알 수 없는 상태값은 변화 없음으로 본다."""
+    previous = STATUS_SEVERITY_RANK.get(previous_status)
+    new = STATUS_SEVERITY_RANK.get(new_status)
+    if previous is None or new is None or previous == new:
+        return FLAT
+    return WORSE if new > previous else RECOVER
+
+
 _COLUMNS = (
     "l.log_id, l.motor_id, m.motor_name, l.metric_name, "
     "l.previous_status, l.new_status, l.trigger_reason, l.created_at"

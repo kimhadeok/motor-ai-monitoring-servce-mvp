@@ -5,6 +5,10 @@ import streamlit as st
 from app.config import (
     CARD_HIGHLIGHT_STATUSES,
     DATA_FLOW_NODES,
+    DISPLAY_DATETIME_FORMAT,
+    EVENT_COLUMN_WIDTHS,
+    EVENT_COLUMN_WIDTHS_WITH_MOTOR,
+    METRIC_LABELS,
     METRIC_NAMES,
     REPORT_DATE_FORMAT,
     REPORT_SESSION_ID_FORMAT,
@@ -20,6 +24,7 @@ from app.config import (
     parse_utc,
 )
 from app.reports.service import REPORTABLE_STATUSES, get_report
+from app.services.events import FLAT, RECOVER, WORSE, transition_direction
 
 _REPORT_VIEW_KEY = "report_view"
 
@@ -199,6 +204,62 @@ def motor_card(motor: dict) -> None:
     if st.button("상세 보기", key=f"motor-{motor_id}", use_container_width=True):
         st.session_state["selected_motor_id"] = motor_id
         st.switch_page(MOTOR_DETAIL_PAGE)
+
+
+_DIRECTION_MARK = {WORSE: ("▲", "악화"), RECOVER: ("▼", "회복"), FLAT: ("·", "")}
+
+
+def event_list_header(show_motor: bool) -> None:
+    """이벤트 리스트 헤더 (05 §3.3 / §4.4). 대시보드만 모터명 컬럼을 갖는다."""
+    labels = ("발생 일시", "모터명", "상태 변화", "발생 사유", "")
+    widths = EVENT_COLUMN_WIDTHS_WITH_MOTOR if show_motor else EVENT_COLUMN_WIDTHS
+    if not show_motor:
+        labels = tuple(label for label in labels if label != "모터명")
+
+    for column, label in zip(st.columns(widths), labels):
+        column.caption(label)
+
+
+def event_row(event, show_motor: bool) -> None:
+    """이벤트 1건. 무슨 지표가 어디서 어디로 왜 바뀌었는지를 한 줄에 담는다.
+
+    상태값만 보여주면 "DANGER"라는 결과만 알 뿐 원인과 방향을 알 수 없어, 담당자가
+    상세 페이지까지 들어가야 상황을 파악할 수 있다.
+    """
+    widths = EVENT_COLUMN_WIDTHS_WITH_MOTOR if show_motor else EVENT_COLUMN_WIDTHS
+    columns = list(st.columns(widths))
+
+    occurred_at = columns.pop(0)
+    event_dt = parse_utc(event["created_at"])
+    occurred_at.markdown(
+        f'<div class="event-when"><span class="rel">{format_relative(event_dt)}</span>'
+        f'<span class="abs">{format_display(event_dt, DISPLAY_DATETIME_FORMAT)}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+    if show_motor:
+        columns.pop(0).write(event["motor_name"])
+
+    direction = transition_direction(event["previous_status"], event["new_status"])
+    mark, word = _DIRECTION_MARK[direction]
+    columns.pop(0).markdown(
+        f'<div class="event-change">'
+        f'<span class="metric-tag">{METRIC_LABELS.get(event["metric_name"], event["metric_name"])}</span>'
+        f'<span class="chip status-{event["previous_status"].lower()}">'
+        f'{event["previous_status"]}</span>'
+        f'<span class="arrow {direction}" title="{word}">{mark}</span>'
+        f'<span class="chip status-{event["new_status"].lower()}">{event["new_status"]}</span>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    columns.pop(0).markdown(
+        f'<div class="event-reason {direction}">{event["trigger_reason"] or "-"}</div>',
+        unsafe_allow_html=True,
+    )
+
+    with columns.pop(0):
+        report_button(event)
 
 
 def _report_basename(log) -> str:
