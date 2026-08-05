@@ -5,6 +5,8 @@ import streamlit as st
 from app.config import (
     BRAND_PRIMARY_COLOR,
     DATA_FLOW_ANIMATION_SECONDS,
+    MOTOR_CARD_BUTTON_PREFIX,
+    MOTOR_CARD_ROW_GAP_PX,
     SPARKLINE_HEIGHT_PX,
     STATUS_BG_COLORS,
     STATUS_COLORS,
@@ -12,6 +14,22 @@ from app.config import (
 
 
 def inject_global_styles() -> None:
+    """전역 CSS 주입.
+
+    모터 카드 클릭 영역(05 §3.2)이 기대하는 Streamlit DOM 구조는 다음과 같다.
+
+        div[data-testid="stColumn"]
+         └ div[data-testid="stVerticalBlock"]
+            ├ div.stElementContainer               → div.motor-card        (카드 마크다운)
+            └ div.stElementContainer.st-key-motorclick-{motor_id}          (투명 버튼)
+               └ div.stButton > button
+
+    카드와 버튼은 반드시 **형제**여야 한다. 사이에 `st.container`를 끼우면 래퍼가 한 겹
+    더 생겨(`stLayoutWrapper`) 절대 위치의 기준점이 어긋난다.
+
+    오버레이 규칙은 전부 `:has(.motor-card)`로 묶어 모터 카드 컬럼에만 적용한다. 범위를
+    좁히지 않으면 상단 요약 타일과 이벤트 리스트의 컬럼까지 영향을 받아 화면이 깨진다.
+    """
     status_css = "\n".join(
         f".status-badge.status-{status.lower()} {{ "
         f"color: {color}; background-color: {STATUS_BG_COLORS[status]}; "
@@ -98,6 +116,42 @@ def inject_global_styles() -> None:
         /* 애니메이션을 원치 않는 사용자 설정(OS 접근성)에서는 정지시킨다 */
         @media (prefers-reduced-motion: reduce) {{
             .data-flow .link {{ animation: none; background-position: 50% 0; }}
+        }}
+
+        /* --- 모터 카드 클릭 영역 (05 §3.2) — 구조 설명은 이 함수의 파이썬 주석 참고 --- */
+        div[data-testid="stColumn"]:has(.motor-card) > div[data-testid="stVerticalBlock"] {{
+            position: relative;
+            /* 간격은 카드 바깥에 준다. margin은 요소 박스 밖이라 inset:0인 투명 버튼이
+               덮지 않으므로, 카드 사이 빈 공간을 눌러도 상세로 넘어가지 않는다. */
+            margin-bottom: {MOTOR_CARD_ROW_GAP_PX}px;
+        }}
+        div[data-testid="stColumn"]:has(.motor-card)
+        .stElementContainer[class*="st-key-{MOTOR_CARD_BUTTON_PREFIX}"] {{
+            position: absolute; inset: 0; z-index: 3; margin: 0;
+        }}
+        div[data-testid="stColumn"]:has(.motor-card)
+        .stElementContainer[class*="st-key-{MOTOR_CARD_BUTTON_PREFIX}"] .stButton,
+        div[data-testid="stColumn"]:has(.motor-card)
+        .stElementContainer[class*="st-key-{MOTOR_CARD_BUTTON_PREFIX}"] button {{
+            width: 100%; height: 100%; opacity: 0; cursor: pointer;
+            border: none; background: transparent; padding: 0; min-height: 0;
+        }}
+        /* 클릭 가능하다는 신호 — 살짝 떠오르고 테두리가 상태색으로 바뀐다 */
+        div[data-testid="stColumn"]:has(.motor-card) .motor-card {{
+            transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+        }}
+        div[data-testid="stColumn"]:has(.motor-card):hover .motor-card {{
+            transform: translateY(-2px);
+            border-color: var(--card-color);
+            box-shadow: 0 4px 12px color-mix(in srgb, var(--card-color) 26%, transparent);
+        }}
+        div[data-testid="stColumn"]:has(.motor-card):hover .motor-foot .go {{
+            color: var(--card-color);
+        }}
+        .motor-foot .go {{ float: right; font-weight: 700; color: #cbd5e1; }}
+        @media (prefers-reduced-motion: reduce) {{
+            div[data-testid="stColumn"]:has(.motor-card) .motor-card {{ transition: none; }}
+            div[data-testid="stColumn"]:has(.motor-card):hover .motor-card {{ transform: none; }}
         }}
 
         /* --- 모터 카드 (05 §3.2) --- */

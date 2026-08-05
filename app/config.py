@@ -73,6 +73,12 @@ EVENT_COLUMN_WIDTHS = (1.6, 2.4, 2.6, 1.1)
 # --- 모터 카드 그리드 (05_ui_screens.md §3.2) ---
 # 문서 미확정 — MVP 제안값
 MOTOR_CARD_COLUMNS = 5
+# 카드 위를 덮는 투명 버튼의 key 접두사. Streamlit이 위젯 key를 DOM의
+# `st-key-{key}` 클래스로 내보내므로 CSS(styles.py)가 이 클래스를 잡아 오버레이한다.
+MOTOR_CARD_BUTTON_PREFIX = "motorclick-"
+# 카드 행 사이 세로 간격(px). 클릭 버튼이 절대 위치라 카드 아래 여백이 사라지므로
+# 카드 바깥(컬럼 블록의 margin)에 준다 — 간격이 클릭 영역에 포함되지 않게 하기 위함.
+MOTOR_CARD_ROW_GAP_PX = 16
 # 모터 → API → AI Agent 데이터 흐름 애니메이션 1주기 (초). 값이 작을수록 빠르게 흐른다.
 DATA_FLOW_ANIMATION_SECONDS = 2.4
 # 흐름 각 단계의 아이콘과 라벨
@@ -239,5 +245,7 @@ RETENTION_BATCH_CRON_HOUR = 3
 # --- 데모 데이터 시드 (02_architecture.md §6) ---
 # 앱 부팅 시 런타임 생성되는 시연용 데이터의 파라미터.
 DEMO_ACCOUNT_PASSWORD = "demo1234!"
+# 로그인 폼에 데모 계정을 미리 채워둘지 여부. 시연·개발 편의용이며 실제 서비스에서는 끈다.
+PREFILL_DEMO_CREDENTIALS = True
 SEED_RNG_SEED = 20260804  # 고정 시드 — 실행마다 동일한 수치가 나오도록
 SEED_TELEMETRY_HOURS = DB_RETENTION_HOURS  # 보관 범위 전체를 채운다

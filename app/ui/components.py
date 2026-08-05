@@ -10,6 +10,7 @@ from app.config import (
     EVENT_COLUMN_WIDTHS_WITH_MOTOR,
     METRIC_LABELS,
     METRIC_NAMES,
+    MOTOR_CARD_BUTTON_PREFIX,
     REPORT_DATE_FORMAT,
     REPORT_SESSION_ID_FORMAT,
     REPORT_TIME_FORMAT,
@@ -199,8 +200,12 @@ def motor_card(motor: dict) -> None:
     카드 본문은 마크다운 한 번으로 렌더한다. Streamlit은 `st.markdown`으로 연 `<div>`가
     다음 요소를 감싸도록 두지 않으므로, 여러 번 나눠 부르면 상태색 테두리를 입힐 수 없다.
 
-    상세 이동은 카드 아래 [상세 보기] 버튼으로 한다. 카드 전체를 클릭 영역으로 만드는 두
-    방법을 시도했으나 모두 문제가 있었다 (05 §3.2 "카드 클릭 영역" 참고).
+    카드 전체가 클릭 영역이다. 마크다운(카드)과 버튼을 컬럼 안에 **형제로** 두고, CSS가
+    버튼 컨테이너를 카드 위에 투명하게 덮는다. 버튼 `key`는 DOM에서 그 컨테이너의
+    `st-key-{key}` 클래스로 나타난다 (05 §3.2 참고).
+
+    카드와 버튼 사이에 `st.container`를 끼우면 안 된다 — 래퍼가 한 겹 더 생겨 CSS의
+    기준점이 어긋난다. 같은 이유로 카드 안에는 다른 위젯을 두지 않는다.
     """
     from app.ui.navigation import MOTOR_DETAIL_PAGE  # 순환 import 방지를 위한 지연 import
 
@@ -233,25 +238,19 @@ def motor_card(motor: dict) -> None:
         f"</div>"
         f'<div class="motor-meta">{motor["model_name"]} · {motor["installation_location"]}</div>'
         f"{body}"
-        f'<div class="motor-foot">{footer}</div>'
+        f'<div class="motor-foot">{footer}<span class="go">상세 보기 ›</span></div>'
         f"</div>",
         unsafe_allow_html=True,
     )
 
-    # 고장 상태면 가장 급한 조치(정비 완료 확인)를 카드에서 바로 할 수 있게 한다.
-    # 버튼 행은 상태와 무관하게 항상 한 줄이라 카드 높이는 그대로 유지된다.
-    if motor.get("fault_metrics"):
-        action_col, detail_col = st.columns(2)
-        with action_col:
-            maintenance_button(motor, key_prefix="card", type="primary", use_container_width=True)
-        detail_slot = detail_col
-    else:
-        detail_slot = st.container()
-
-    with detail_slot:
-        if st.button("상세 보기", key=f"motor-{motor_id}", use_container_width=True):
-            st.session_state["selected_motor_id"] = motor_id
-            st.switch_page(MOTOR_DETAIL_PAGE)
+    # 카드 위를 덮는 투명 버튼. 라벨은 화면에 보이지 않지만 스크린리더에는 읽힌다.
+    if st.button(
+        f"{motor['motor_name']} 상세 보기",
+        key=f"{MOTOR_CARD_BUTTON_PREFIX}{motor_id}",
+        use_container_width=True,
+    ):
+        st.session_state["selected_motor_id"] = motor_id
+        st.switch_page(MOTOR_DETAIL_PAGE)
 
 
 _DIRECTION_MARK = {WORSE: ("▲", "악화"), RECOVER: ("▼", "회복"), FLAT: ("·", "")}

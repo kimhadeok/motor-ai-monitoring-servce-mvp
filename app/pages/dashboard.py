@@ -17,6 +17,7 @@ from app.services.motors import list_company_motors
 from app.ui.components import (
     event_list_header,
     event_row,
+    maintenance_button,
     motor_card,
     page_header,
     render_maintenance_dialog,
@@ -80,10 +81,12 @@ def _names(items) -> str:
 
 
 if _needs_confirm:
-    st.error(
-        f"**{_names(_needs_confirm)}** 가 고장(FAULT) 상태입니다. "
-        "정비 후 아래 카드에서 완료 확인을 해주세요."
-    )
+    st.error(f"**{_names(_needs_confirm)}** 가 고장(FAULT) 상태입니다. 정비 후 완료 확인을 해주세요.")
+    # 확인 버튼은 배너 바로 아래 둔다 — 카드 전체가 클릭 영역이라 그 안에 위젯을 두면
+    # 클릭이 겹치고, 카드마다 버튼 유무가 달라지면 높이도 어긋난다.
+    for _column, _motor in zip(st.columns(MOTOR_CARD_COLUMNS), _needs_confirm):
+        with _column:
+            maintenance_button(_motor, key_prefix="banner", type="primary", use_container_width=True)
 if _still_faulted:
     st.error(
         f"**{_names(_still_faulted)}** 는 정비 완료 확인을 마쳤지만 "
