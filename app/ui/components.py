@@ -79,6 +79,19 @@ def page_header() -> None:
     st.markdown('<div class="app-header-rule"></div>', unsafe_allow_html=True)
 
 
+def alert_banner(status: str, message: str) -> None:
+    """상태색을 그대로 쓰는 경고 배너 (05 §3.1).
+
+    `st.error`/`st.warning`은 빨강·노랑 두 가지뿐이라 카드의 상태색(DANGER 빨강,
+    FAULT 짙은 회색)과 어긋난다. 같은 상태를 두 화면 요소가 다른 색으로 말하면
+    담당자가 심각도를 잘못 읽는다.
+    """
+    st.markdown(
+        f'<div class="alert-banner status-{status.lower()}">{message}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def status_badge(status: str) -> None:
     st.markdown(
         f'<span class="status-badge status-{status.lower()}">{status}</span>',

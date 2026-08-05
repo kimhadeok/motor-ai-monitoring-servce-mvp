@@ -15,6 +15,7 @@ from app.services.company import build_summary
 from app.services.events import list_company_events
 from app.services.motors import list_company_motors
 from app.ui.components import (
+    alert_banner,
     event_list_header,
     event_row,
     maintenance_button,
@@ -43,31 +44,25 @@ if summary:
     )
 
     counts = summary["status_counts"]
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric(
-        "조치 필요",
-        f"{summary['action_required']}대",
-        delta=f"고장 {counts['FAULT']} · 위험 {counts['DANGER']}",
-        delta_color="inverse" if summary["action_required"] else "off",
+    # st.metric의 delta는 값이 증감이 아니어도 항상 화살표(↑)를 붙여 오해를 준다.
+    # 내역은 delta 대신 아래 캡션 줄로 표기한다.
+    tiles = (
+        ("조치 필요", f"{summary['action_required']}대", f"고장 {counts['FAULT']} · 위험 {counts['DANGER']}"),
+        ("주의 관찰", f"{summary['watch_count']}대", f"정상 {summary['normal_count']}대"),
+        (
+            f"최근 {DASHBOARD_RECENT_WINDOW_HOURS}시간 이벤트",
+            f"{summary['recent_event_count']}건",
+            f"악화 {summary['recent_worsened']} · 회복 {summary['recent_recovered']}",
+        ),
+        (
+            "마지막 수집",
+            format_relative(summary["last_collected_at"]) if summary["last_collected_at"] else "-",
+            "정상 수집 중" if summary["last_collected_at"] else "데이터 없음",
+        ),
     )
-    col2.metric(
-        "주의 관찰",
-        f"{summary['watch_count']}대",
-        delta=f"정상 {summary['normal_count']}대",
-        delta_color="off",
-    )
-    col3.metric(
-        f"최근 {DASHBOARD_RECENT_WINDOW_HOURS}시간 이벤트",
-        f"{summary['recent_event_count']}건",
-        delta=f"악화 {summary['recent_worsened']} · 회복 {summary['recent_recovered']}",
-        delta_color="off",
-    )
-    col4.metric(
-        "마지막 수집",
-        format_relative(summary["last_collected_at"]) if summary["last_collected_at"] else "-",
-        delta="정상 수집 중" if summary["last_collected_at"] else "데이터 없음",
-        delta_color="off",
-    )
+    for column, (label, value, sub) in zip(st.columns(4), tiles):
+        column.metric(label, value)
+        column.markdown(f'<div class="metric-sub">{sub}</div>', unsafe_allow_html=True)
 
 # 조치가 필요한 설비를 화면 맨 위에서 이름으로 알린다 — 카드를 훑어 찾게 하지 않는다.
 # 확인 대기와 "확인은 끝났지만 수치가 여전히 고장 범위"는 담당자가 할 일이 달라 나눠 알린다.
@@ -81,19 +76,26 @@ def _names(items) -> str:
 
 
 if _needs_confirm:
-    st.error(f"**{_names(_needs_confirm)}** 가 고장(FAULT) 상태입니다. 정비 후 완료 확인을 해주세요.")
+    alert_banner(
+        "FAULT",
+        f"<b>{_names(_needs_confirm)}</b> 가 고장(FAULT) 상태입니다. 정비 후 완료 확인을 해주세요.",
+    )
     # 확인 버튼은 배너 바로 아래 둔다 — 카드 전체가 클릭 영역이라 그 안에 위젯을 두면
     # 클릭이 겹치고, 카드마다 버튼 유무가 달라지면 높이도 어긋난다.
     for _column, _motor in zip(st.columns(MOTOR_CARD_COLUMNS), _needs_confirm):
         with _column:
             maintenance_button(_motor, key_prefix="banner", type="primary", use_container_width=True)
 if _still_faulted:
-    st.error(
-        f"**{_names(_still_faulted)}** 는 정비 완료 확인을 마쳤지만 "
-        "여전히 고장 임계를 넘는 값이 들어오고 있습니다. 현장 재점검이 필요합니다."
+    alert_banner(
+        "FAULT",
+        f"<b>{_names(_still_faulted)}</b> 는 정비 완료 확인을 마쳤지만 "
+        "여전히 고장 임계를 넘는 값이 들어오고 있습니다. 현장 재점검이 필요합니다.",
     )
 if _dangered:
-    st.warning(f"**{_names(_dangered)}** 가 위험(DANGER) 상태입니다. 진단 리포트를 확인해주세요.")
+    alert_banner(
+        "DANGER",
+        f"<b>{_names(_dangered)}</b> 가 위험(DANGER) 상태입니다. 진단 리포트를 확인해주세요.",
+    )
 
 st.subheader("모터 현황")
 

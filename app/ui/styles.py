@@ -60,6 +60,11 @@ def inject_global_styles() -> None:
         f".metric-block.status-{status.lower()} {{ --metric-color: {color}; }}"
         for status, color in status_colors.items()
     )
+    alert_status_css = "\n".join(
+        f".alert-banner.status-{status.lower()} {{ "
+        f"--alert-color: {color}; --alert-bg: {status_bg[status]}; }}"
+        for status, color in status_colors.items()
+    )
     chip_status_css = "\n".join(
         f".event-change .chip.status-{status.lower()} {{ "
         f"color: {color}; background: {status_bg[status]}; }}"
@@ -122,6 +127,27 @@ def inject_global_styles() -> None:
         @media (prefers-reduced-motion: reduce) {{
             .data-flow .link {{ animation: none; background-position: 50% 0; }}
         }}
+
+        /* --- 상단 요약 보조 줄 / 조치 배너 (05 §3.1) --- */
+        .metric-sub {{
+            font-size: 11.5px; color: {p["text_muted"]}; margin-top: -10px;
+        }}
+        .alert-banner {{
+            --alert-color: {status_colors["DANGER"]};
+            --alert-bg: {status_bg["DANGER"]};
+            margin: 4px 0 6px; padding: 11px 14px; border-radius: 8px;
+            border-left: 4px solid var(--alert-color);
+            background: var(--alert-bg); color: {p["text"]}; font-size: 13.5px;
+        }}
+        .alert-banner b {{ color: var(--alert-color); }}
+        {alert_status_css}
+        /* FAULT(설비 정지)는 가장 급한 조치다. 상태색이 짙은 남색이라 테두리만으로는
+           바로 아래 DANGER(빨강) 배너보다 약해 보여 심각도가 역전된다. 채워서 강조한다. */
+        .alert-banner.status-fault {{
+            background: var(--alert-color); color: {p["surface"]};
+            border-left-color: var(--alert-color);
+        }}
+        .alert-banner.status-fault b {{ color: {p["surface"]}; }}
 
         /* --- 모터 카드 클릭 영역 (05 §3.2) — 구조 설명은 이 함수의 파이썬 주석 참고 --- */
         div[data-testid="stColumn"]:has(.motor-card) > div[data-testid="stVerticalBlock"] {{
