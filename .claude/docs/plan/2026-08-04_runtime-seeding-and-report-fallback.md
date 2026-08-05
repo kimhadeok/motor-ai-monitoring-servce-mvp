@@ -47,16 +47,18 @@
 
 ---
 
-## 진행 현황 (2026-08-04 기준)
+## 진행 현황 (2026-08-05 재확인)
 
 | 단계 | 상태 | 비고 |
 |---|---|---|
 | 1단계 문서 갱신 | **완료** | 6개 문서 전부 반영. 구 서술(`PDF 리포트 생성`, `report_pdf IS NOT NULL` 조건) 잔존 없음 확인 |
 | 2단계 스키마·설정 | **완료** | `schema.sql`에 `report_html TEXT` 추가. `config.py`에 `METRIC_THRESHOLDS`/`METRIC_LABELS`/`METRIC_UNITS`/`CHROMA_COLLECTION_NAME`/`DEMO_ACCOUNT_PASSWORD`/`TRANSITION_CONFIRM_SAMPLES` 등 이관, `format_display()` 헬퍼 추가 |
 | 3단계 로직 이관·시드 품질 | **완료** | 신규: `app/services/{seeding,diagnosis}.py`, `app/rag/ingest.py`, `app/reports/service.py`. `scripts/seed_data.py`는 얇은 CLI로 축소. `chroma_client.py`에 OpenAI 임베딩 배선 |
-| 4단계 런타임 부트스트랩 | **부분 완료** | `app/services/bootstrap.py` 작성 완료. **남은 일: `main.py` 연결, 실제 부팅 검증, 동시 진입 테스트** |
-| 5단계 리포트 UI | 미착수 | |
-| 6단계 정리 | 미착수 | |
+| 4단계 런타임 부트스트랩 | **미완료** | `app/services/bootstrap.py`는 작성됐으나 **`main.py:11`이 여전히 `ensure_schema()`를 직접 호출**하고 `ensure_demo_data()` 참조가 저장소 전체에 0건. 완료 마커 `data/.ingest_done`도 없어 **한 번도 완주한 적 없음** |
+| 5단계 리포트 UI | **부분 완료** | `get_report()`는 `app/reports/service.py:154`에 이미 완성(PDF 캐시 히트 → PDF 시도 → 실패 시 HTML 폴백 → BLOB 캐시). **남은 일: `report_button()` 및 이를 붙일 이벤트 리스트** |
+| 6단계 정리 | 미착수 | `data/` 12파일(2.4MB) 여전히 추적 중. `.gitignore` 34-36행에 "절대 gitignore하지 말 것"이라는 정반대 주석 잔존 |
+
+> 2026-08-05 정정: 위 4·5단계 상태는 최초 작성 시 기록(`부분 완료` / `미착수`)과 실제가 달라 재확인 후 갱신했다. 잔여 작업은 `2026-08-05_bootstrap-report-ui-cleanup.md`에서 이어간다.
 
 ### 3단계 검증 결과 (임시 DB 실측)
 

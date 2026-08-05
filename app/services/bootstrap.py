@@ -75,43 +75,56 @@ def bootstrap_demo_data(force: bool = False) -> dict:
             summary["skipped_concurrent"] = True
             return summary
 
-        if force:
-            DB_PATH.unlink(missing_ok=True)
-            BOOTSTRAP_MARKER_PATH.unlink(missing_ok=True)
+        try:
+            if force:
+                DB_PATH.unlink(missing_ok=True)
+                BOOTSTRAP_MARKER_PATH.unlink(missing_ok=True)
 
-        started = time.monotonic()
-        ensure_schema()
-        summary["timings"]["schema"] = time.monotonic() - started
+            started = time.monotonic()
+            ensure_schema()
+            summary["timings"]["schema"] = time.monotonic() - started
 
-        with connection_scope() as conn:
-            if not _has_demo_data(conn):
-                started = time.monotonic()
-                summary.update(seed_demo_data(conn))
-                summary["seeded"] = True
-                summary["timings"]["seed"] = time.monotonic() - started
+            with connection_scope() as conn:
+                if not _has_demo_data(conn):
+                    started = time.monotonic()
+                    summary.update(seed_demo_data(conn))
+                    summary["seeded"] = True
+                    summary["timings"]["seed"] = time.monotonic() - started
 
-        started = time.monotonic()
-        summary["rag_chunks"] = ingest_rag_sources()
-        summary["timings"]["rag"] = time.monotonic() - started
+            started = time.monotonic()
+            summary["rag_chunks"] = ingest_rag_sources(force=force)
+            summary["timings"]["rag"] = time.monotonic() - started
 
-        started = time.monotonic()
-        with connection_scope() as conn:
-            summary["reports_html"] = generate_missing_report_html(conn)
-        summary["timings"]["report_html"] = time.monotonic() - started
+            started = time.monotonic()
+            with connection_scope() as conn:
+                summary["reports_html"] = generate_missing_report_html(conn)
+            summary["timings"]["report_html"] = time.monotonic() - started
 
-        BOOTSTRAP_MARKER_PATH.parent.mkdir(parents=True, exist_ok=True)
-        BOOTSTRAP_MARKER_PATH.touch()
+            BOOTSTRAP_MARKER_PATH.parent.mkdir(parents=True, exist_ok=True)
+            BOOTSTRAP_MARKER_PATH.touch()
+        except Exception as exc:
+            # 데이터 준비 실패로 앱 전체가 죽지 않도록 한다 (CLAUDE.md fallback 요구사항).
+            # 마커를 만들지 않으므로 다음 기동에서 다시 시도한다.
+            summary["error"] = f"{type(exc).__name__}: {exc}"
 
     summary["timings"]["total"] = sum(summary["timings"].values())
     return summary
 
 
+_cached_bootstrap = None
+
+
 def ensure_demo_data() -> dict:
     """Streamlit 진입점용 래퍼 — 프로세스당 1회만 실행한다."""
-    import streamlit as st
+    global _cached_bootstrap
 
-    @st.cache_resource(show_spinner="시연용 데이터를 준비하는 중입니다…")
-    def _run() -> dict:
-        return bootstrap_demo_data()
+    import streamlit as st  # CLI에서 streamlit 없이 쓰기 위한 지연 import
 
-    return _run()
+    if _cached_bootstrap is None:
+        # 모듈 레벨 함수를 1회만 래핑한다. 호출마다 지역 함수를 새로 정의해 데코레이터를
+        # 적용하면 캐시 키가 매번 달라질 수 있어 "프로세스당 1회" 보장이 깨진다.
+        _cached_bootstrap = st.cache_resource(
+            show_spinner="시연용 데이터를 준비하는 중입니다…"
+        )(bootstrap_demo_data)
+
+    return _cached_bootstrap()

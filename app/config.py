@@ -1,7 +1,7 @@
 """중앙화된 설정값. CLAUDE.md 요구사항: 앱 동작에 영향을 주는 값은 하드코딩하지 않고 여기 모아둔다."""
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -58,6 +58,17 @@ COOLDOWN_HOURS = 1
 # --- 자동 갱신 (01_tech_stack.md §2.5 / 05_ui_screens.md §5-2, st.fragment run_every) ---
 # 문서 미확정 — MVP 제안값
 DASHBOARD_REFRESH_INTERVAL_SECONDS = 10
+
+# --- 이벤트 리스트 (05_ui_screens.md §3.3 / §4.4 확정) ---
+DASHBOARD_EVENT_LIST_LIMIT = 10  # 대시보드: 최근 최대 10개
+DETAIL_EVENT_PAGE_SIZE = 20  # 상세 페이지: 페이지당 20개
+
+# --- 모터 카드 그리드 (05_ui_screens.md §3.2) ---
+# 문서 미확정 — MVP 제안값
+MOTOR_CARD_COLUMNS = 3
+
+# --- 리포트 뷰어 (05_ui_screens.md §3.3 인앱 표시) ---
+REPORT_VIEWER_HEIGHT_PX = 600
 
 # --- 수집 주기 (02_architecture.md §2.1) ---
 ALLOWED_COLLECTION_INTERVALS_SECONDS = (10, 20, 30)
@@ -142,7 +153,15 @@ REPORT_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 REPORT_DATE_FORMAT = "%Y%m%d"
 REPORT_TIME_FORMAT = "%H%M%S"
 
+# DB에 저장되는 시각 포맷 (schema.sql의 strftime('%Y-%m-%dT%H:%M:%fZ','now')와 동일)
+DB_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+
 _DISPLAY_TZ = ZoneInfo(DISPLAY_TIMEZONE)
+
+
+def parse_utc(value: str) -> datetime:
+    """DB에 저장된 ISO8601 UTC 문자열을 tz-aware datetime으로 변환."""
+    return datetime.strptime(value, DB_DATETIME_FORMAT).replace(tzinfo=timezone.utc)
 
 
 def to_display_tz(dt: datetime) -> datetime:

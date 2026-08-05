@@ -1,8 +1,22 @@
-"""메인 대시보드. 05_ui_screens.md §3. 스캐폴딩 단계: 레이아웃 뼈대만 — 실데이터 연동은 이후 작업."""
+"""메인 대시보드. 05_ui_screens.md §3.
+
+§3.2 모터 카드와 §3.3 이벤트 리스트는 실데이터로 동작한다. §3.1 상단 요약은 이후 작업.
+"""
 
 import streamlit as st
 
 from app.auth.session import end_session
+from app.config import (
+    DASHBOARD_EVENT_LIST_LIMIT,
+    DISPLAY_DATETIME_FORMAT,
+    MOTOR_CARD_COLUMNS,
+    format_display,
+    parse_utc,
+)
+from app.db.connection import connection_scope
+from app.services.events import list_company_events
+from app.services.motors import list_company_motors
+from app.ui.components import motor_card, render_report_dialog, report_button, status_badge
 
 st.title("메인 대시보드")
 
@@ -18,8 +32,41 @@ col2.metric("서비스 시작 일자", "구현 예정")
 col3.metric("총 운영 일수", "구현 예정")
 col4.metric("주의 이상 모터 수", "구현 예정")
 
+_company_id = st.session_state.get("company_id")
+
+with connection_scope() as conn:
+    motors = list_company_motors(conn, _company_id)
+    events = list_company_events(conn, _company_id, DASHBOARD_EVENT_LIST_LIMIT)
+
 st.subheader("모터 현황")
-st.info("모터별 카드 UI 구현 예정 (05_ui_screens.md §3.2)")
+
+if not motors:
+    st.info("등록된 모터가 없습니다.")
+else:
+    for row_start in range(0, len(motors), MOTOR_CARD_COLUMNS):
+        for column, motor in zip(
+            st.columns(MOTOR_CARD_COLUMNS), motors[row_start : row_start + MOTOR_CARD_COLUMNS]
+        ):
+            with column:
+                motor_card(motor)
 
 st.subheader("이벤트 발생 내역")
-st.info("motor_status_logs 기반 이벤트 리스트 구현 예정 (05_ui_screens.md §3.3)")
+
+if not events:
+    st.info("최근 이벤트가 없습니다.")
+else:
+    _EVENT_COLUMN_WIDTHS = [2, 2, 1.5, 1]
+    header = st.columns(_EVENT_COLUMN_WIDTHS)
+    for col, label in zip(header, ("발생 일시", "모터명", "모터 상태", "")):
+        col.caption(label)
+
+    for event in events:
+        occurred_at, motor_name, status, action = st.columns(_EVENT_COLUMN_WIDTHS)
+        occurred_at.write(format_display(parse_utc(event["created_at"]), DISPLAY_DATETIME_FORMAT))
+        motor_name.write(event["motor_name"])
+        with status:
+            status_badge(event["new_status"])
+        with action:
+            report_button(event)
+
+render_report_dialog()

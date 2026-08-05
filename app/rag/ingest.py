@@ -32,11 +32,30 @@ def _load_chunks() -> list[tuple[str, str, str]]:
     return chunks
 
 
-def ingest_rag_sources() -> int:
-    """원본 텍스트를 ChromaDB에 적재하고 청크 수를 반환. 실패 시 0."""
+def ingest_rag_sources(force: bool = False) -> int:
+    """원본 텍스트를 ChromaDB에 적재하고 청크 수를 반환. 실패 시 0.
+
+    이미 같은 수의 청크가 적재돼 있으면 생략한다. 부팅마다 전량 재임베딩하면
+    OpenAI 임베딩 API를 반복 호출해 콜드 스타트가 그만큼 길어지기 때문이다.
+    `collection.count()`는 임베딩을 요구하지 않으므로 판정 자체에는 비용이 없다.
+
+    청크 수는 그대로인데 원본 내용만 바뀐 경우는 감지하지 못한다 —
+    이때는 `scripts/seed_data.py --force`로 재인제스트한다.
+    """
     chunks = _load_chunks()
     if not chunks:
         return 0
+
+    if not force:
+        # create=False — 확인만 하고 만들지는 않는다. 여기서 만들면 아래 reset_collection()이
+        # 곧바로 지우게 되어 첫 부팅에 불필요한 생성/삭제가 한 번씩 더 붙는다.
+        existing = get_collection(create=False)
+        if existing is not None:
+            try:
+                if existing.count() == len(chunks):
+                    return len(chunks)  # 이미 최신 — 재임베딩 생략
+            except Exception:
+                pass  # 컬렉션 상태 확인 실패 — 아래에서 새로 적재
 
     collection = reset_collection()
     if collection is None:

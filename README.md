@@ -16,28 +16,34 @@ uv sync
 cp .env.example .env
 # .env 파일을 열어 OPENAI_API_KEY 입력
 
-# 3. 앱 실행 (최초 실행 시 SQLite 스키마 자동 생성)
+# 3. 앱 실행 (최초 실행 시 스키마 생성 + 시연용 데이터 자동 준비)
 uv run streamlit run main.py
 ```
 
-## 시연용 데이터 생성 (최초 1회, 로컬에서만 실행)
+데모 계정은 `demo1@example.com` / `demo2@example.com`이고 비밀번호는 둘 다 `demo1234!`입니다. 서로 다른 회사 소속이라 각자 자기 회사 이벤트만 봅니다.
 
-이 프로젝트는 Streamlit Community Cloud에 배포합니다. Community Cloud는 재배포/재시작 시 로컬 파일시스템이 초기화될 수 있어, 런타임에 관리자 페이지로 데이터를 채우는 대신 **배포 전 로컬에서 시드 스크립트를 1회 실행하고 그 결과물을 git에 커밋**하는 방식을 사용합니다.
+## 시연용 데이터 (앱 부팅 시 자동 생성)
+
+별도 준비 절차가 없습니다. 앱을 처음 띄우면 `app/services/bootstrap.py`가 스키마 생성 → 데모 데이터 시드 → RAG 인제스트 → 리포트 HTML 생성까지 한 번에 수행합니다.
+
+Streamlit Community Cloud는 재배포/재시작 시 파일시스템이 초기화되므로 산출물을 커밋해도 소용이 없고, 커밋된 데이터는 시간이 지나면 "최근 48시간" 구간이 비어버립니다. 런타임 생성 방식은 **언제 켜도 항상 지금 기준 최근 48시간** 데이터를 갖습니다.
+
+| 경로 | 소요 (로컬 실측) | 내용 |
+|---|---|---|
+| 콜드 (배포 환경, 첫 기동) | 약 3.4초 | 스키마 0.07s · 시드 0.68s · RAG 인제스트 1.4s · 리포트 HTML 1.3s |
+| 웜 (로컬 재기동) | 약 0.5초 | 데이터·벡터가 이미 있어 시드와 인제스트를 모두 생략 |
+
+생성물은 `data/app.db`(SQLite)와 `data/chroma/`(ChromaDB)이며 **git에 커밋하지 않습니다**. 동시 진입은 `data/.ingest.lock`(파일 락)과 `data/.ingest_done`(완료 마커)으로 차단합니다. 인제스트 원본인 `data/rag_sources/`만 커밋 대상입니다.
+
+### 수동 재생성 (선택)
+
+시드 로직을 바꿨거나 `data/rag_sources/`의 내용을 수정했을 때만 사용합니다. 청크 수가 그대로면 인제스트 생략 로직이 변경을 감지하지 못하므로 `--force`가 필요합니다.
 
 ```bash
-uv run python scripts/seed_data.py
+uv run python scripts/seed_data.py --force   # DB를 지우고 처음부터 다시 생성
 ```
 
-실행하면 `data/app.db`(SQLite), `data/chroma/`(ChromaDB persist 디렉터리)가 생성/갱신됩니다. 완료 후 반드시 커밋하세요.
-
-> ⚠️ **Windows 로컬에서 PDF(`report_pdf`) 생성이 실패하는 경우**: WeasyPrint는 Pango/Cairo/GLib 네이티브 라이브러리가 필요한데, Windows에는 기본으로 없습니다. 시드 스크립트는 PDF 생성 실패를 무시하고 나머지 데이터는 정상 시딩하도록 되어 있습니다(`report_pdf`만 NULL로 남음). 로컬에서 PDF까지 포함해 완전히 테스트하려면 WSL/Docker(Linux 컨테이너)에서 실행하거나 GTK3 런타임을 설치하세요. Streamlit Community Cloud는 `packages.txt`로 이 문제가 해결됩니다.
-
-```bash
-git add data/app.db data/chroma/
-git commit -m "chore: 시연용 데이터 갱신"
-```
-
-> ⚠️ `data/app.db`, `data/chroma/`는 `.gitignore`에 추가하지 마세요 — 의도적으로 커밋해야 하는 파일입니다.
+> ⚠️ **Windows에서는 리포트가 PDF 대신 HTML로 표시됩니다.** WeasyPrint는 Pango/GLib 네이티브 라이브러리를 요구하는데 Windows에는 기본 탑재되어 있지 않습니다. 앱은 이를 감지해 저장된 HTML을 다이얼로그에 그대로 보여주므로 **기능이 막히지는 않습니다**. PDF까지 확인하려면 WSL/Docker에서 실행하거나 GTK3 런타임을 설치하세요. Streamlit Community Cloud에서는 `packages.txt` 덕분에 PDF가 정상 생성되며, 한 번 만든 PDF는 `report_pdf` BLOB에 캐시되어 이후 즉시 응답합니다.
 
 ## 배포 (Streamlit Community Cloud)
 
@@ -49,12 +55,22 @@ git commit -m "chore: 시연용 데이터 갱신"
 ## 프로젝트 구조
 
 ```
-app/            # 애플리케이션 코드 (config, db, rag, auth, reports, ui, pages)
-data/           # 시드 스크립트 산출물 — SQLite DB, ChromaDB persist 디렉터리 (git 커밋 대상)
-scripts/        # 1회성 로컬 스크립트 (seed_data.py)
+app/            # 애플리케이션 코드
+  services/     #   bootstrap(부팅 시 데이터 준비), seeding, diagnosis, events
+  reports/      #   HTML/PDF 렌더 및 리포트 제공 (PDF 실패 시 HTML 폴백)
+  rag/          #   ChromaDB 인제스트 및 SOP 조회 (실패 시 키워드 매칭 폴백)
+data/
+  rag_sources/  #   RAG 인제스트 원본 텍스트 (git 커밋 대상)
+  app.db        #   런타임 생성 — SQLite (git 제외)
+  chroma/       #   런타임 생성 — ChromaDB persist (git 제외)
+  .ingest_done  #   부트스트랩 완료 마커 (git 제외)
+  .ingest.lock  #   부트스트랩 파일 락 (git 제외)
+scripts/        # 선택적 수동 재생성 CLI (seed_data.py)
 .claude/docs/generated/  # 확정 사양 문서 (단일 소스 오브 트루스)
 ```
 
 ## 현재 범위
 
-이 저장소는 스캐폴딩 단계입니다 — 폴더 구조, 문서-스키마 정합성, 로그인/DB 초기화가 동작하는 최소 뼈대, 시연용 시드 데이터까지가 범위입니다. 실제 AI 에이전트 진단 로직과 대시보드 실데이터 렌더링은 이후 별도 작업으로 구현합니다.
+동작하는 것: 로그인, 런타임 데모 데이터 부트스트랩, 대시보드 이벤트 발생 내역 리스트(05 §3.3), 리포트 제공(PDF 우선, 불가 시 HTML).
+
+아직 구현되지 않은 것: 대시보드 상단 요약(§3.1)과 모터 카드(§3.2), 모터 상세 페이지(§4), LangGraph 진단 에이전트(현재는 `app/services/diagnosis.py`의 규칙 기반 템플릿), 런타임 상태 전이 감지·알림 발송·48시간 보관 배치.

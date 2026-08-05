@@ -8,7 +8,7 @@
    변환이 불가한 환경(네이티브 라이브러리 미설치)에서는 저장된 HTML을 그대로 제공한다.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from app.config import (
     DIAGNOSIS_MODEL_LABEL,
@@ -21,6 +21,7 @@ from app.config import (
     REPORT_SESSION_ID_FORMAT,
     REPORT_TIME_FORMAT,
     format_display,
+    parse_utc,
 )
 from app.db.connection import connection_scope
 from app.rag.ingest import query_sop_steps
@@ -43,10 +44,6 @@ REPORTABLE_STATUSES = ("DANGER", "FAULT")
 def _mask_phone(phone: str) -> str:
     parts = phone.split("-")
     return f"{parts[0]}-****-{parts[2]}" if len(parts) == 3 else phone
-
-
-def _parse_utc(value: str) -> datetime:
-    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
 
 
 def build_report_context(conn, log) -> dict | None:
@@ -74,7 +71,7 @@ def build_report_context(conn, log) -> dict | None:
 
     metric = log["metric_name"]
     status = log["new_status"]
-    event_dt = _parse_utc(log["created_at"])
+    event_dt = parse_utc(log["created_at"])
     report_dt = event_dt + timedelta(seconds=12)
 
     sensors = []

@@ -33,6 +33,10 @@ def main() -> None:
         print("다른 프로세스가 부트스트랩 중이어서 건너뛰었습니다.")
         return
 
+    if summary.get("error"):
+        print(f"!! 데모 데이터 생성 실패: {summary['error']}", file=sys.stderr)
+        sys.exit(1)
+
     print("=== 데모 데이터 생성 완료 ===")
     if summary.get("seeded"):
         print(f"  회사             {summary['companies']}건")

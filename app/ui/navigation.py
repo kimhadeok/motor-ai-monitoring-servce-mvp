@@ -12,12 +12,16 @@ from app.auth.session import is_authenticated
 
 _PAGES_DIR = Path(__file__).resolve().parent.parent / "pages"
 
+# st.switch_page는 st.Page에 넘긴 것과 동일한 경로 문자열을 요구하므로 상수로 공유한다.
+DASHBOARD_PAGE = str(_PAGES_DIR / "dashboard.py")
+MOTOR_DETAIL_PAGE = str(_PAGES_DIR / "motor_detail.py")
+
 
 def run() -> None:
     if is_authenticated():
         pages = [
-            st.Page(str(_PAGES_DIR / "dashboard.py"), title="메인 대시보드", default=True),
-            st.Page(str(_PAGES_DIR / "motor_detail.py"), title="모터 상세"),
+            st.Page(DASHBOARD_PAGE, title="메인 대시보드", default=True),
+            st.Page(MOTOR_DETAIL_PAGE, title="모터 상세"),
         ]
     else:
         pages = [st.Page(str(_PAGES_DIR / "login.py"), title="로그인", default=True)]

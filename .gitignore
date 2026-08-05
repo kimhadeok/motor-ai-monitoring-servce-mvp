@@ -31,6 +31,9 @@ Thumbs.db
 *.db-wal
 *.db-shm
 
-# 주의: data/app.db, data/chroma/ 는 절대 여기에 추가하지 말 것.
-# Streamlit Community Cloud 재배포 시 로컬 파일시스템이 초기화될 수 있어,
-# scripts/seed_data.py로 만든 시연용 데이터를 의도적으로 git에 커밋해서 배포한다.
+# 시연용 데이터는 앱 부팅 시 런타임 생성한다 (app/services/bootstrap.py).
+# Streamlit Community Cloud는 재배포/재시작 시 파일시스템이 초기화되므로 산출물을 커밋해도
+# 소용이 없고, 커밋된 데이터는 시간이 지나면 "최근 48시간" 구간이 비어버린다.
+# 인제스트 원본인 data/rag_sources/ 만 커밋 대상이다.
+data/app.db
+data/chroma/
