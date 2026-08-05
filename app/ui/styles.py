@@ -5,6 +5,7 @@ import streamlit as st
 from app.config import (
     BRAND_PRIMARY_COLOR,
     DATA_FLOW_ANIMATION_SECONDS,
+    SPARKLINE_HEIGHT_PX,
     STATUS_BG_COLORS,
     STATUS_COLORS,
 )
@@ -108,34 +109,55 @@ def inject_global_styles() -> None:
             background: #ffffff;
         }}
         {card_status_css}
-        /* 이상 상태 카드는 배경까지 옅게 물들여 멀리서도 구분되게 한다 */
+        /* 이상 상태 카드는 배경만 옅게 물들여 구분한다.
+           그림자를 주면 카드가 실제보다 커 보여 정상 카드와 크기가 달라 보인다. */
         .motor-card.status-warning, .motor-card.status-danger, .motor-card.status-fault {{
             background: var(--card-bg);
-            box-shadow: 0 1px 6px color-mix(in srgb, var(--card-color) 22%, transparent);
         }}
+        /* 아래 높이들은 모두 고정이다. 카드가 5열로 좁아 모터명·설치위치가 모터마다 다른
+           줄 수로 접히고, 이상 지표는 글꼴이 커져 행 높이가 달라진다. 그대로 두면 카드마다
+           세로 길이가 어긋나 그리드가 들쭉날쭉해진다. */
         .motor-head {{
             display: flex; align-items: center; justify-content: space-between;
-            gap: 8px; margin-top: 2px;
+            gap: 8px; margin-top: 2px; height: 22px;
         }}
-        .motor-name {{ font-size: 15px; font-weight: 700; color: #0f172a; }}
-        .motor-meta {{ font-size: 11px; color: #64748b; margin-top: 3px; }}
+        .motor-name {{
+            font-size: 15px; font-weight: 700; color: #0f172a; line-height: 22px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }}
+        .motor-head .status-badge {{ flex: 0 0 auto; }}
+        /* 모델명 · 설치 위치 — 최대 두 줄로 잘라 높이를 고정한다 */
+        .motor-meta {{
+            font-size: 11px; color: #64748b; margin-top: 3px;
+            height: 30px; line-height: 15px; overflow: hidden;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        }}
         .motor-foot {{
             font-size: 11px; color: #94a3b8; margin-top: 12px;
+            height: 16px; line-height: 16px; white-space: nowrap; overflow: hidden;
         }}
 
-        /* 지표 블록 — 모든 카드가 4개를 같은 순서로 담아 높이가 일정하다 */
+        /* 지표 블록 — 모든 카드가 4개를 같은 순서로 담는다.
+           행 높이를 고정해 이상 지표의 큰 글꼴이 아래를 밀어내지 않게 한다. */
         .metric-block {{ margin-top: 9px; }}
         .metric-row {{
             display: flex; align-items: baseline; justify-content: space-between;
-            margin-bottom: 3px;
+            gap: 6px; margin-bottom: 3px; height: 21px;
         }}
-        .metric-name {{ font-size: 12px; color: #64748b; }}
-        .metric-value {{ font-size: 14px; font-weight: 600; color: #475569; }}
+        .metric-name {{
+            font-size: 12px; color: #64748b; line-height: 21px;
+            white-space: nowrap; flex: 0 0 auto;
+        }}
+        .metric-value {{
+            font-size: 14px; font-weight: 600; color: #475569; line-height: 21px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }}
         .metric-unit {{ font-size: 10px; font-weight: 500; color: #94a3b8; margin-left: 2px; }}
         /* 이상 지표만 색과 굵기로 끌어올린다 — 위치는 바꾸지 않는다 */
         .metric-block.abnormal .metric-name {{ font-weight: 700; color: var(--metric-color); }}
+        /* 글꼴은 키우되 line-height는 고정 행 높이를 그대로 써서 아래를 밀지 않는다 */
         .metric-block.abnormal .metric-value {{
-            font-size: 18px; font-weight: 800; color: var(--metric-color);
+            font-size: 18px; font-weight: 800; color: var(--metric-color); line-height: 21px;
         }}
         .metric-block.abnormal .metric-unit {{ color: var(--metric-color); }}
         {metric_status_css}
@@ -163,6 +185,7 @@ def inject_global_styles() -> None:
         .metric-trend {{
             display: flex; align-items: center; gap: 6px;
             margin-top: 12px; padding-top: 10px; border-top: 1px dashed #e2e8f0;
+            height: {SPARKLINE_HEIGHT_PX + 10}px;
         }}
         .metric-trend .trend-label {{
             font-size: 11px; font-weight: 600; color: #475569; white-space: nowrap;
@@ -239,7 +262,10 @@ def inject_global_styles() -> None:
         .login-highlights .title {{ font-size: 12.5px; font-weight: 700; color: #334155; }}
         .login-highlights .desc {{ font-size: 10.5px; color: #94a3b8; line-height: 1.4; }}
         /* 설명 줄은 모든 지표에 있다(높이 균일). 정상은 회색, 이상만 상태색으로 강조 */
-        .metric-note {{ font-size: 10.5px; color: #94a3b8; margin-top: 3px; }}
+        .metric-note {{
+            font-size: 10.5px; color: #94a3b8; margin-top: 3px;
+            height: 14px; line-height: 14px; white-space: nowrap; overflow: hidden;
+        }}
         .metric-block.abnormal .metric-note {{ color: var(--metric-color); font-weight: 600; }}
         </style>
         """
