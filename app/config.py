@@ -146,6 +146,7 @@ METRIC_THRESHOLDS = {
 }
 
 # --- 상태별 색상 (05_ui_screens.md §5-3 확정, report_template.html과 통일) ---
+# 라이트 기준값. 리포트 템플릿(HTML/PDF)은 항상 흰 배경이므로 이 값을 그대로 쓴다.
 STATUS_COLORS = {
     "NORMAL": "#16a34a",
     "WARNING": "#d97706",
@@ -160,6 +161,59 @@ STATUS_BG_COLORS = {
 }
 BRAND_PRIMARY_COLOR = "#1e3a8a"
 BRAND_PRIMARY_LIGHT_COLOR = "#3b82f6"
+
+# --- 테마 팔레트 (05_ui_screens.md §5-5) ---
+# Streamlit은 테마 색을 CSS 변수로 노출하지 않고(emotion CSS-in-JS), 런타임에 테마를
+# 바꾸는 API도 없다. 그래서 `st.context.theme.type`으로 현재 테마를 읽어 여기서 팔레트를
+# 골라 CSS를 만든다. 사용자가 테마를 고르는 UI는 Streamlit 기본 메뉴(⋮ → Settings)다.
+THEMES = {
+    "light": {
+        "surface": "#ffffff",  # 카드 배경
+        "surface_muted": "#f1f5f9",  # 태그·칩 배경
+        "border": "#e2e8f0",
+        "border_soft": "#eef2f7",  # 게이지 트랙, 점선 구분
+        "text_strong": "#0f172a",  # 모터명, 지표 값
+        "text": "#334155",
+        "text_muted": "#64748b",  # 설명, 라벨
+        "text_faint": "#94a3b8",  # 보조 캡션
+        "text_ghost": "#cbd5e1",  # 비활성 안내
+        "brand": BRAND_PRIMARY_COLOR,
+        "status": STATUS_COLORS,
+        "status_bg": STATUS_BG_COLORS,
+    },
+    "dark": {
+        "surface": "#111a2b",
+        "surface_muted": "#1c2739",
+        "border": "#243347",
+        "border_soft": "#1c2739",
+        "text_strong": "#f1f5f9",
+        "text": "#cbd5e1",
+        "text_muted": "#94a3b8",
+        "text_faint": "#64748b",
+        "text_ghost": "#475569",
+        # 남색 브랜드색은 어두운 배경에서 읽히지 않아 밝은 파랑으로 대체한다.
+        "brand": "#60a5fa",
+        # 상태색도 채도를 낮추고 밝기를 올려야 어두운 배경에서 대비가 확보된다.
+        "status": {
+            "NORMAL": "#4ade80",
+            "WARNING": "#fbbf24",
+            "DANGER": "#f87171",
+            "FAULT": "#cbd5e1",
+        },
+        "status_bg": {
+            "NORMAL": "#0f2417",
+            "WARNING": "#2a2010",
+            "DANGER": "#2b1414",
+            "FAULT": "#1c2739",
+        },
+    },
+}
+DEFAULT_THEME = "light"
+# 헤더에 현재 테마와 변경 위치를 알리는 문구. 앱에서 테마를 바꾸는 API가 없어(위 주석 참고)
+# 안내만 하고, 실제 전환은 Streamlit 기본 메뉴가 처리한다.
+THEME_LABELS = {"light": ("☀️", "라이트"), "dark": ("🌙", "다크")}
+THEME_HINT = "⋮ 설정에서 변경"
+THEME_HINT_TOOLTIP = "우측 상단 ⋮ → Settings → Choose app theme 에서 시스템/라이트/다크를 고를 수 있습니다."
 
 # --- 서비스 소개 (05_ui_screens.md §2 로그인 화면) ---
 # 고객이 서비스를 처음 마주하는 화면이라 "무엇을 해주는 서비스인지"가 드러나야 한다.

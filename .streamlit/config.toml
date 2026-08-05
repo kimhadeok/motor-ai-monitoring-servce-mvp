@@ -1,9 +1,22 @@
+# 테마 (05_ui_screens.md §5-5)
+# 사용자는 우측 상단 ⋮ → Settings → Choose app theme 에서
+# "Use system setting / Light / Dark" 를 고른다. Streamlit이 아래 팔레트를 적용하고,
+# 앱의 커스텀 CSS는 app/ui/theme.py 가 현재 테마를 읽어 같은 톤으로 맞춘다.
 [theme]
+font = "sans serif"
+
+[theme.light]
 primaryColor = "#1e3a8a"
 backgroundColor = "#ffffff"
 secondaryBackgroundColor = "#f8fafc"
 textColor = "#1e293b"
-font = "sans serif"
+
+[theme.dark]
+# 남색 브랜드색은 어두운 배경에서 읽히지 않아 밝은 파랑을 쓴다 (app/config.py THEMES와 통일).
+primaryColor = "#60a5fa"
+backgroundColor = "#0b1220"
+secondaryBackgroundColor = "#111a2b"
+textColor = "#e2e8f0"
 
 [server]
 enableXsrfProtection = true

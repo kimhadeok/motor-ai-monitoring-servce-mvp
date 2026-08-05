@@ -19,7 +19,9 @@ from app.config import (
     SERVICE_NAME,
     SPARKLINE_HEIGHT_PX,
     SPARKLINE_WIDTH_PX,
-    STATUS_COLORS,
+    THEME_HINT,
+    THEME_HINT_TOOLTIP,
+    THEME_LABELS,
     TREND_CHANGE_THRESHOLD,
     TREND_WINDOW_HOURS,
     format_display,
@@ -30,6 +32,7 @@ from app.db.connection import connection_scope
 from app.reports.service import REPORTABLE_STATUSES, get_report
 from app.services.events import FLAT, RECOVER, WORSE, transition_direction
 from app.services.motors import confirm_maintenance
+from app.ui.theme import current_theme, palette
 
 _REPORT_VIEW_KEY = "report_view"
 
@@ -42,20 +45,32 @@ def page_header() -> None:
     """
     from app.auth.session import end_session  # 순환 import 방지를 위한 지연 import
 
-    brand_col, user_col, action_col = st.columns([5, 3, 1.2], vertical_alignment="center")
+    brand_col, info_col, action_col = st.columns([4.6, 4.2, 1.2], vertical_alignment="center")
 
     brand_col.markdown(
         f'<div class="app-brand"><span class="icon">{SERVICE_ICON}</span>'
         f'<span class="name">{SERVICE_NAME}</span></div>',
         unsafe_allow_html=True,
     )
-    user_col.markdown(
+
+    # 로그인 정보와 테마 안내를 한 블록에 담는다. 컬럼으로 나누면 폭이 좁아질 때
+    # 한쪽이 밀려 다른 쪽 자리를 차지한다.
+    # 앱에서 테마를 바꾸는 API가 없어 현재 테마와 변경 위치만 알린다 (05 §5-5).
+    _icon, _label = THEME_LABELS[current_theme()]
+    info_col.markdown(
+        f'<div class="app-side">'
         f'<div class="app-user">'
         f'<span class="company">{st.session_state.get("company_name", "")}</span>'
         f'<span class="contact">{st.session_state.get("contact_name", "")}</span>'
+        f"</div>"
+        f'<div class="app-theme" title="{THEME_HINT_TOOLTIP}">'
+        f'<span class="now">{_icon} {_label}</span>'
+        f'<span class="hint">{THEME_HINT}</span>'
+        f"</div>"
         f"</div>",
         unsafe_allow_html=True,
     )
+
     with action_col:
         if st.button("로그아웃", use_container_width=True):
             end_session()
@@ -108,7 +123,9 @@ def _sparkline_svg(values: list[float], status: str) -> str:
         f"{pad + i * step:.1f},{pad + (height - pad * 2) * (1 - (v - low) / span):.1f}"
         for i, v in enumerate(values)
     )
-    color = STATUS_COLORS.get(status, STATUS_COLORS["NORMAL"])
+    # SVG 획 색은 CSS 변수를 못 쓰므로 현재 테마 팔레트에서 직접 가져온다.
+    status_colors = palette()["status"]
+    color = status_colors.get(status, status_colors["NORMAL"])
     return (
         f'<svg class="sparkline" width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}" preserveAspectRatio="none" aria-hidden="true">'

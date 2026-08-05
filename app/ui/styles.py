@@ -3,14 +3,12 @@
 import streamlit as st
 
 from app.config import (
-    BRAND_PRIMARY_COLOR,
     DATA_FLOW_ANIMATION_SECONDS,
     MOTOR_CARD_BUTTON_PREFIX,
     MOTOR_CARD_ROW_GAP_PX,
     SPARKLINE_HEIGHT_PX,
-    STATUS_BG_COLORS,
-    STATUS_COLORS,
 )
+from app.ui.theme import palette
 
 
 def inject_global_styles() -> None:
@@ -29,36 +27,43 @@ def inject_global_styles() -> None:
 
     오버레이 규칙은 전부 `:has(.motor-card)`로 묶어 모터 카드 컬럼에만 적용한다. 범위를
     좁히지 않으면 상단 요약 타일과 이벤트 리스트의 컬럼까지 영향을 받아 화면이 깨진다.
+
+    색상은 현재 테마(라이트/다크) 팔레트에서 가져온다 (§5-5).
     """
+    p = palette()
+    status_colors = p["status"]
+    status_bg = p["status_bg"]
+    brand = p["brand"]
+
     status_css = "\n".join(
         f".status-badge.status-{status.lower()} {{ "
-        f"color: {color}; background-color: {STATUS_BG_COLORS[status]}; "
+        f"color: {color}; background-color: {status_bg[status]}; "
         f"border: 1px solid {color}; }}"
-        for status, color in STATUS_COLORS.items()
+        for status, color in status_colors.items()
     )
 
     # 모터 카드의 흐름 색상은 대표 상태에 따라 달라지므로 CSS 변수로 받는다.
     flow_status_css = "\n".join(
         f".data-flow.status-{status.lower()} {{ --flow-color: {color}; }}"
-        for status, color in STATUS_COLORS.items()
+        for status, color in status_colors.items()
     )
     card_status_css = "\n".join(
         f".motor-card.status-{status.lower()} {{ "
-        f"--card-color: {color}; --card-bg: {STATUS_BG_COLORS[status]}; }}"
-        for status, color in STATUS_COLORS.items()
+        f"--card-color: {color}; --card-bg: {status_bg[status]}; }}"
+        for status, color in status_colors.items()
     )
     gauge_status_css = "\n".join(
         f".metric-gauge.status-{status.lower()} .fill {{ background: {color}; }}"
-        for status, color in STATUS_COLORS.items()
+        for status, color in status_colors.items()
     )
     metric_status_css = "\n".join(
         f".metric-block.status-{status.lower()} {{ --metric-color: {color}; }}"
-        for status, color in STATUS_COLORS.items()
+        for status, color in status_colors.items()
     )
     chip_status_css = "\n".join(
         f".event-change .chip.status-{status.lower()} {{ "
-        f"color: {color}; background: {STATUS_BG_COLORS[status]}; }}"
-        for status, color in STATUS_COLORS.items()
+        f"color: {color}; background: {status_bg[status]}; }}"
+        for status, color in status_colors.items()
     )
 
     # st.html을 쓰는 이유: 이 컴포넌트만 DOMPurify 허용 목록에 <style>을 명시적으로 추가한다.
@@ -71,11 +76,11 @@ def inject_global_styles() -> None:
             font-size: 12px; font-weight: 700;
         }}
         {status_css}
-        a.brand-link {{ color: {BRAND_PRIMARY_COLOR}; }}
+        a.brand-link {{ color: {brand}; }}
 
         /* --- 05_ui_screens.md §3.2 모터 → API → AI Agent 데이터 흐름 --- */
         .data-flow {{
-            --flow-color: {BRAND_PRIMARY_COLOR};
+            --flow-color: {brand};
             display: flex; align-items: center; justify-content: space-between;
             gap: 4px; margin: 4px 0 10px;
         }}
@@ -89,7 +94,7 @@ def inject_global_styles() -> None:
             filter: drop-shadow(0 0 3px color-mix(in srgb, var(--flow-color) 45%, transparent));
         }}
         .data-flow .node .label {{
-            font-size: 10px; color: #64748b; white-space: nowrap;
+            font-size: 10px; color: {p["text_muted"]}; white-space: nowrap;
         }}
         /* 연결선 — 배경 그라데이션을 흘려보내 데이터가 이동하는 것처럼 보이게 한다 */
         .data-flow .link {{
@@ -148,7 +153,7 @@ def inject_global_styles() -> None:
         div[data-testid="stColumn"]:has(.motor-card):hover .motor-foot .go {{
             color: var(--card-color);
         }}
-        .motor-foot .go {{ float: right; font-weight: 700; color: #cbd5e1; }}
+        .motor-foot .go {{ float: right; font-weight: 700; color: {p["text_ghost"]}; }}
         @media (prefers-reduced-motion: reduce) {{
             div[data-testid="stColumn"]:has(.motor-card) .motor-card {{ transition: none; }}
             div[data-testid="stColumn"]:has(.motor-card):hover .motor-card {{ transform: none; }}
@@ -156,11 +161,11 @@ def inject_global_styles() -> None:
 
         /* --- 모터 카드 (05 §3.2) --- */
         .motor-card {{
-            --card-color: {STATUS_COLORS["NORMAL"]};
-            --card-bg: {STATUS_BG_COLORS["NORMAL"]};
+            --card-color: {status_colors["NORMAL"]};
+            --card-bg: {status_bg["NORMAL"]};
             position: relative; padding: 14px 16px 12px; border-radius: 10px;
-            border: 1px solid #e2e8f0; border-top: 3px solid var(--card-color);
-            background: #ffffff;
+            border: 1px solid {p["border"]}; border-top: 3px solid var(--card-color);
+            background: {p["surface"]};
         }}
         {card_status_css}
         /* 이상 상태 카드는 배경만 옅게 물들여 구분한다.
@@ -176,18 +181,18 @@ def inject_global_styles() -> None:
             gap: 8px; margin-top: 2px; height: 22px;
         }}
         .motor-name {{
-            font-size: 15px; font-weight: 700; color: #0f172a; line-height: 22px;
+            font-size: 15px; font-weight: 700; color: {p["text_strong"]}; line-height: 22px;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }}
         .motor-head .status-badge {{ flex: 0 0 auto; }}
         /* 모델명 · 설치 위치 — 최대 두 줄로 잘라 높이를 고정한다 */
         .motor-meta {{
-            font-size: 11px; color: #64748b; margin-top: 3px;
+            font-size: 11px; color: {p["text_muted"]}; margin-top: 3px;
             height: 30px; line-height: 15px; overflow: hidden;
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
         }}
         .motor-foot {{
-            font-size: 11px; color: #94a3b8; margin-top: 12px;
+            font-size: 11px; color: {p["text_faint"]}; margin-top: 12px;
             height: 16px; line-height: 16px; white-space: nowrap; overflow: hidden;
         }}
 
@@ -199,14 +204,14 @@ def inject_global_styles() -> None:
             gap: 6px; margin-bottom: 3px; height: 21px;
         }}
         .metric-name {{
-            font-size: 12px; color: #64748b; line-height: 21px;
+            font-size: 12px; color: {p["text_muted"]}; line-height: 21px;
             white-space: nowrap; flex: 0 0 auto;
         }}
         .metric-value {{
-            font-size: 14px; font-weight: 600; color: #475569; line-height: 21px;
+            font-size: 14px; font-weight: 600; color: {p["text"]}; line-height: 21px;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }}
-        .metric-unit {{ font-size: 10px; font-weight: 500; color: #94a3b8; margin-left: 2px; }}
+        .metric-unit {{ font-size: 10px; font-weight: 500; color: {p["text_faint"]}; margin-left: 2px; }}
         /* 이상 지표만 색과 굵기로 끌어올린다 — 위치는 바꾸지 않는다 */
         .metric-block.abnormal .metric-name {{ font-weight: 700; color: var(--metric-color); }}
         /* 글꼴은 키우되 line-height는 고정 행 높이를 그대로 써서 아래를 밀지 않는다 */
@@ -219,11 +224,11 @@ def inject_global_styles() -> None:
         /* 고장 임계를 100%로 둔 게이지. 눈금은 주의·위험 임계 위치 */
         .metric-gauge {{
             position: relative; height: 7px; border-radius: 4px;
-            background: #eef2f7; overflow: hidden;
+            background: {p["border_soft"]}; overflow: hidden;
         }}
         .metric-gauge .fill {{
             position: absolute; inset-block: 0; left: 0; border-radius: 4px;
-            background: var(--gauge-color, {STATUS_COLORS["NORMAL"]});
+            background: var(--gauge-color, {status_colors["NORMAL"]});
         }}
         .metric-gauge .tick {{
             position: absolute; inset-block: 0; width: 1px;
@@ -232,30 +237,30 @@ def inject_global_styles() -> None:
         {gauge_status_css}
         /* 정상 게이지는 옅게 — 이상 지표가 먼저 눈에 들어와야 한다 */
         .metric-block:not(.abnormal) .metric-gauge .fill {{
-            background: color-mix(in srgb, {STATUS_COLORS["NORMAL"]} 45%, #cbd5e1);
+            background: color-mix(in srgb, {status_colors["NORMAL"]} 45%, {p["text_ghost"]});
         }}
 
         /* 카드 하단 추이 — 정상 카드에도 넣어 높이를 맞춘다 */
         .metric-trend {{
             display: flex; align-items: center; gap: 6px;
-            margin-top: 12px; padding-top: 10px; border-top: 1px dashed #e2e8f0;
+            margin-top: 12px; padding-top: 10px; border-top: 1px dashed {p["border"]};
             height: {SPARKLINE_HEIGHT_PX + 10}px;
         }}
         .metric-trend .trend-label {{
-            font-size: 11px; font-weight: 600; color: #475569; white-space: nowrap;
+            font-size: 11px; font-weight: 600; color: {p["text"]}; white-space: nowrap;
         }}
         .metric-trend .sparkline {{ flex: 1 1 auto; min-width: 0; }}
-        .metric-trend .trend-note {{ font-size: 11px; color: #64748b; white-space: nowrap; }}
+        .metric-trend .trend-note {{ font-size: 11px; color: {p["text_muted"]}; white-space: nowrap; }}
 
         /* --- 이벤트 리스트 (05 §3.3 / §4.4) --- */
         .event-when {{ display: flex; flex-direction: column; line-height: 1.35; }}
-        .event-when .rel {{ font-size: 13px; font-weight: 600; color: #334155; }}
-        .event-when .abs {{ font-size: 10.5px; color: #94a3b8; }}
+        .event-when .rel {{ font-size: 13px; font-weight: 600; color: {p["text"]}; }}
+        .event-when .abs {{ font-size: 10.5px; color: {p["text_faint"]}; }}
 
         .event-change {{ display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }}
         .event-change .metric-tag {{
-            font-size: 11px; font-weight: 700; color: #475569;
-            background: #f1f5f9; border-radius: 5px; padding: 1px 6px;
+            font-size: 11px; font-weight: 700; color: {p["text"]};
+            background: {p["surface_muted"]}; border-radius: 5px; padding: 1px 6px;
         }}
         /* 배지보다 작은 칩 — 한 줄에 이전/이후 두 개가 들어가야 한다 */
         .event-change .chip {{
@@ -264,34 +269,51 @@ def inject_global_styles() -> None:
         }}
         {chip_status_css}
         .event-change .arrow {{ font-size: 10px; font-weight: 700; }}
-        .event-change .arrow.worse {{ color: {STATUS_COLORS["DANGER"]}; }}
-        .event-change .arrow.recover {{ color: {STATUS_COLORS["NORMAL"]}; }}
-        .event-change .arrow.flat {{ color: #94a3b8; }}
+        .event-change .arrow.worse {{ color: {status_colors["DANGER"]}; }}
+        .event-change .arrow.recover {{ color: {status_colors["NORMAL"]}; }}
+        .event-change .arrow.flat {{ color: {p["text_faint"]}; }}
 
-        .event-reason {{ font-size: 12px; color: #475569; line-height: 1.4; }}
-        .event-reason.worse {{ color: {STATUS_COLORS["DANGER"]}; font-weight: 600; }}
-        .event-reason.recover {{ color: {STATUS_COLORS["NORMAL"]}; }}
+        .event-reason {{ font-size: 12px; color: {p["text"]}; line-height: 1.4; }}
+        .event-reason.worse {{ color: {status_colors["DANGER"]}; font-weight: 600; }}
+        .event-reason.recover {{ color: {status_colors["NORMAL"]}; }}
 
         /* --- 상단 헤더 (05 §5-4) — 사이드바 대신 일반 웹 서비스 형태 --- */
         .app-brand {{ display: flex; align-items: center; gap: 8px; }}
         .app-brand .icon {{ font-size: 22px; line-height: 1; }}
         .app-brand .name {{
-            font-size: 19px; font-weight: 800; color: {BRAND_PRIMARY_COLOR};
+            font-size: 19px; font-weight: 800; color: {brand};
             letter-spacing: -0.3px;
+        }}
+        /* 로그인 정보 + 테마 안내를 오른쪽 정렬로 나란히 둔다 */
+        .app-side {{
+            display: flex; align-items: center; justify-content: flex-end;
+            gap: 18px; flex-wrap: nowrap; min-width: 0;
         }}
         .app-user {{
             display: flex; flex-direction: column; align-items: flex-end;
-            line-height: 1.3; text-align: right;
+            line-height: 1.3; text-align: right; min-width: 0;
         }}
-        .app-user .company {{ font-size: 13px; font-weight: 700; color: #334155; }}
-        .app-user .contact {{ font-size: 11px; color: #94a3b8; }}
+        .app-user .company, .app-user .contact {{
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+        }}
+        .app-user .company {{ font-size: 13px; font-weight: 700; color: {p["text"]}; }}
+        .app-user .contact {{ font-size: 11px; color: {p["text_faint"]}; }}
+        /* 현재 테마 안내 — 전환은 Streamlit 기본 메뉴가 맡는다 (05 §5-5) */
+        .app-theme {{
+            display: flex; flex-direction: column; align-items: flex-end;
+            line-height: 1.3; text-align: right; cursor: help;
+            flex: 0 0 auto; padding-left: 18px;
+            border-left: 1px solid {p["border"]};
+        }}
+        .app-theme .now {{ font-size: 12px; font-weight: 600; color: {p["text_muted"]}; }}
+        .app-theme .hint {{ font-size: 10px; color: {p["text_ghost"]}; white-space: nowrap; }}
         .app-header-rule {{
             height: 1px; margin: 10px 0 18px;
             background: linear-gradient(
                 90deg,
-                {BRAND_PRIMARY_COLOR} 0%,
-                color-mix(in srgb, {BRAND_PRIMARY_COLOR} 15%, transparent) 45%,
-                #e2e8f0 100%
+                {brand} 0%,
+                color-mix(in srgb, {brand} 15%, transparent) 45%,
+                {p["border"]} 100%
             );
         }}
 
@@ -300,24 +322,24 @@ def inject_global_styles() -> None:
         .login-hero .icon {{ font-size: 44px; line-height: 1; }}
         .login-hero h1 {{
             margin: 10px 0 6px; font-size: 30px; font-weight: 800;
-            color: {BRAND_PRIMARY_COLOR}; letter-spacing: -0.5px;
+            color: {brand}; letter-spacing: -0.5px;
         }}
-        .login-hero .tagline {{ margin: 0; font-size: 14px; color: #64748b; }}
+        .login-hero .tagline {{ margin: 0; font-size: 14px; color: {p["text_muted"]}; }}
 
         .login-highlights {{
             display: flex; gap: 10px; margin-top: 26px;
-            padding-top: 20px; border-top: 1px solid #e2e8f0;
+            padding-top: 20px; border-top: 1px solid {p["border"]};
         }}
         .login-highlights .item {{
             flex: 1 1 0; display: flex; flex-direction: column; align-items: center;
             gap: 3px; text-align: center;
         }}
         .login-highlights .icon {{ font-size: 20px; line-height: 1.2; }}
-        .login-highlights .title {{ font-size: 12.5px; font-weight: 700; color: #334155; }}
-        .login-highlights .desc {{ font-size: 10.5px; color: #94a3b8; line-height: 1.4; }}
+        .login-highlights .title {{ font-size: 12.5px; font-weight: 700; color: {p["text"]}; }}
+        .login-highlights .desc {{ font-size: 10.5px; color: {p["text_faint"]}; line-height: 1.4; }}
         /* 설명 줄은 모든 지표에 있다(높이 균일). 정상은 회색, 이상만 상태색으로 강조 */
         .metric-note {{
-            font-size: 10.5px; color: #94a3b8; margin-top: 3px;
+            font-size: 10.5px; color: {p["text_faint"]}; margin-top: 3px;
             height: 14px; line-height: 14px; white-space: nowrap; overflow: hidden;
         }}
         .metric-block.abnormal .metric-note {{ color: var(--metric-color); font-weight: 600; }}
