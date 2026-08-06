@@ -20,7 +20,6 @@ from app.config import (
     GROUPING_MODE_LOCATION,
     GROUPING_MODES,
     ISSUE_GROUP_ORDER,
-    STATUS_CARDS_PER_ROW,
     STATUS_GROUP_ORDER,
 )
 from app.db.connection import connection_scope
@@ -72,11 +71,6 @@ _groups = _grouped()
 if not _groups:
     st.info("해당 조건에 표시할 모터가 없습니다.")
     st.stop()
-
-st.caption(
-    f"총 {len(_motors):,}대 · 가로 최대 {STATUS_CARDS_PER_ROW}개(화면 폭에 따라 자동 조절) · "
-    "카드를 누르면 상세로 이동합니다."
-)
 
 for _label, _members in _groups:
     st.markdown(f"##### {_label} ({len(_members):,}대)")

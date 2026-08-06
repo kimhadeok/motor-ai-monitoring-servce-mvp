@@ -188,14 +188,22 @@
 - HTML로 표시되는 경우에도 `.html` 다운로드 버튼을 함께 제공한다.
 - `report_html`은 진단 시점에 항상 생성되므로 **버튼이 보이는데 보여줄 것이 없는 상황은 발생하지 않는다** (`04_database_schema.md` §3.5).
 
-## 3-A. 모터 그래프 페이지 (2026-08-06 추가)
+## 3-A. 모터 그래프 페이지 (2026-08-06 추가 · 필터/임계선 보강)
 
-> 재정리안 1페이지. 지표별로 회사 전체 모터의 추이를 한눈에 훑는 화면.
+> 재정리안 1페이지. 지표별로 모터 추이를 한눈에 훑으며, 어느 지표가 문제인지 바로 보는 화면.
 
-- **레이아웃**: 지표 4열(온도 / 진동 / 전류 / 소음). 각 열에 현재 페이지 모터를 세로로 나열하고, 모터마다 이름 + 최근 `GRAPH_TREND_HOURS`시간 라인차트(`st.line_chart`)를 그린다.
-- **페이지네이션(필수)**: 회사가 최대 200대라 4지표를 곱하면 한 화면 800차트가 되어 브라우저가 멈춘다. 한 번에 `GRAPH_PAGE_SIZE`(기본 20)대만 그리고 나머지는 `표시 범위` 선택으로 넘긴다. "모터 1–20 / 200"처럼 범위를 표기한다.
-- **데이터**: 목록은 `list_company_motor_status()`(배치 조회), 시계열은 `get_motor_metric_series()`(모터당 4지표를 한 쿼리로 구간 평균 다운샘플, `GRAPH_TREND_BUCKETS`). 200대에서도 페이지당 쿼리는 모터 수 +2건 수준으로 억제한다.
-- **회사 격리**: `session_state.company_id` 기준. 빈 회사는 안내 문구.
+- **표시 범위 필터(상단 4개 드롭다운)**:
+  - **상태**(`GRAPH_STATUS_FILTER_ORDER`): 전체 / FAULT / DANGER / WARNING / NORMAL. 기본 전체.
+  - **위치**: `installation_location` 값. 기본 전체.
+  - **모델명**: `model_name` 값. 기본 전체.
+  - **표시 최대 수**(`GRAPH_MAX_MOTORS_OPTIONS`): 10 / 20. 기본 `GRAPH_DEFAULT_MAX_MOTORS`(10). 4지표를 곱하면 차트가 많아지므로 한 화면 렌더량을 이 값으로 제한한다.
+- **정렬**: 대표 상태 심각도 내림차순(FAULT → DANGER → WARNING → NORMAL), 동순위는 `motor_id`.
+- **레이아웃**: 지표 4열(온도/진동/전류/소음). 각 열은 `st.container(border=True)`로 영역을 나누고, 열 헤더·라인 색을 지표별로 달리한다(`THEMES[...]["metric_chart"]`). 열마다 필터·정렬된 모터를 세로로 나열하고 모터명 + 상태 배지 + 추이 차트를 그린다.
+- **차트(Altair, `st.altair_chart`)**: 최근 `GRAPH_TREND_HOURS`시간 라인 + **상태 임계선**(경고/위험/고장, 상태색 점선)을 겹쳐, 값이 어느 구간인지 한눈에 보인다. 모든 차트가 지표별 고정 Y범위(`[0, fault×1.15]`)를 공유한다.
+  - **Y축 처리(2026-08-06 결정)**: 숫자 Y축을 차트마다 반복하지 않는다 — 열 헤더에 임계값(경고/위험/고장)을 한 번만 표기하고, 차트의 임계 점선이 Y 기준이 된다(여백 절감).
+  - **구현 주의**: 축은 `axis=None` 대신 라벨·눈금·제목을 끈 `alt.Axis(...)`로 준다 — 일부 Streamlit/Vega 버전이 `axis=None`에서 렌더 크래시(`forEach of undefined`)한다. 또 `.configure_*()`는 Streamlit이 렌더하지 못하므로 쓰지 않는다.
+- **데이터**: 목록은 `list_company_motor_status()`, 시계열은 `get_motor_metric_series()`(모터당 4지표 한 쿼리 구간 평균, `GRAPH_TREND_BUCKETS`).
+- **회사 격리**: `session_state.company_id` 기준. 빈 회사/빈 결과는 안내 문구.
 
 ## 3-B. 모터 현황 페이지 (2026-08-06 추가)
 

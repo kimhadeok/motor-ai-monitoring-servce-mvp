@@ -98,11 +98,14 @@ TREND_CHANGE_THRESHOLD = 0.03
 REPORT_VIEWER_HEIGHT_PX = 600
 
 # --- 모터 그래프 페이지 (05_ui_screens.md §3-graph, 재정리안 1페이지) ---
-# 지표 4열(온도/진동/전류/소음)에 전체 모터의 추이 라인차트를 세로로 나열한다.
-# 200대 × 4지표 = 800차트를 한 번에 그리면 브라우저가 멈추므로 페이지네이션으로 끊는다.
-GRAPH_PAGE_SIZE = 20  # 한 화면에 보여줄 모터 수 (→ 페이지당 4×20=80차트)
+# 지표 4열(온도/진동/전류/소음)에 필터링된 모터의 추이 라인차트를 세로로 나열한다.
+# 4지표를 곱하면 차트가 많아지므로, 표시 최대 수로 한 화면 렌더량을 제한한다.
+GRAPH_MAX_MOTORS_OPTIONS = (10, 20)  # "표시 최대 수" 드롭다운 (→ 4×10 또는 4×20 차트)
+GRAPH_DEFAULT_MAX_MOTORS = 10
+# 상태 필터 드롭다운 순서 (ALL = 전체). 심각도 내림차순 (정렬·그룹 순서와 동일).
+GRAPH_STATUS_FILTER_ORDER = ("ALL", "FAULT", "DANGER", "WARNING", "NORMAL")
 GRAPH_TREND_HOURS = LONG_TERM_TREND_HOURS  # 라인차트가 보여줄 최근 창(6시간)
-GRAPH_TREND_BUCKETS = 48  # 다운샘플 구간 수 — 원 데이터가 수천 행이라 그대로 그리지 않는다
+GRAPH_TREND_BUCKETS = 24  # 다운샘플 구간 수 — 포인트 마커가 촘촘하지 않게 6시간을 24구간(15분)으로
 
 # --- 모터 현황 페이지 (05_ui_screens.md §3-status, 재정리안 2페이지) ---
 # 라디오 버튼으로 그룹핑 방식을 고른다. "환경설정에 값 관리" = 이 config가 곧 환경설정이다.
@@ -212,6 +215,14 @@ THEMES = {
         "brand": BRAND_PRIMARY_COLOR,
         "status": STATUS_COLORS,
         "status_bg": STATUS_BG_COLORS,
+        # 모터 그래프 지표별 라인 색 — 4개 지표 열을 색으로 구분한다. 상태색(주황/빨강/짙은색)과
+        # 겹치지 않는 파랑/보라/청록/자홍 계열로 골라 임계선(상태색)과 헷갈리지 않게 한다.
+        "metric_chart": {
+            "temperature": "#2563eb",
+            "vibration": "#7c3aed",
+            "current": "#0891b2",
+            "sound": "#c026d3",
+        },
     },
     "dark": {
         "surface": "#111a2b",
@@ -237,6 +248,13 @@ THEMES = {
             "WARNING": "#2a2010",
             "DANGER": "#2b1414",
             "FAULT": "#1c2739",
+        },
+        # 어두운 배경에서 읽히도록 밝은 파랑/보라/청록/자홍으로.
+        "metric_chart": {
+            "temperature": "#60a5fa",
+            "vibration": "#c084fc",
+            "current": "#22d3ee",
+            "sound": "#e879f9",
         },
     },
 }

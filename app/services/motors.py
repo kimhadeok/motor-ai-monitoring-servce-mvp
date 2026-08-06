@@ -268,27 +268,33 @@ def list_company_motor_status(conn, company_id: str) -> list[dict]:
     return result
 
 
-def get_motor_metric_series(conn, motor_id: str, hours: int, buckets: int) -> dict[str, list[float]]:
+def get_motor_metric_series(
+    conn, motor_id: str, hours: int, buckets: int
+) -> tuple[list[str], dict[str, list[float]]]:
     """모터 하나의 4개 지표 추이를 한 번의 쿼리로 구간 평균 다운샘플한다 (그래프 페이지용).
 
     `get_metric_trend`를 지표마다 부르면 페이지당 쿼리 수가 4배가 된다. 여기서는 4개
     지표 평균을 한 쿼리로 모아 페이지당 쿼리를 모터 수만큼으로 줄인다.
+
+    반환: (버킷 시각 목록, {지표: 값 목록}). 시각은 각 버킷의 MIN(time)(ISO8601 UTC 문자열)로,
+    그래프 X축을 실제 시간으로 그리는 데 쓴다. 한 버킷에는 4개 지표가 모두 있으므로 시각과
+    값 목록의 길이·순서가 일치한다.
     """
     window_start = _iso(datetime.now(timezone.utc) - timedelta(hours=hours))
     bucket_span_days = (hours / 24) / buckets
 
     rows = conn.execute(
-        "SELECT AVG(temperature) AS temperature, AVG(vibration) AS vibration, "
-        "AVG(current) AS current, AVG(sound) AS sound FROM motor_telemetry "
-        "WHERE motor_id = ? AND time >= ? "
+        "SELECT MIN(time) AS bucket_time, AVG(temperature) AS temperature, "
+        "AVG(vibration) AS vibration, AVG(current) AS current, AVG(sound) AS sound "
+        "FROM motor_telemetry WHERE motor_id = ? AND time >= ? "
         "GROUP BY CAST((julianday(time) - julianday(?)) / ? AS INT) "
         "ORDER BY MIN(time)",
         (motor_id, window_start, window_start, bucket_span_days),
     ).fetchall()
 
-    return {
-        metric: [r[metric] for r in rows if r[metric] is not None] for metric in METRIC_NAMES
-    }
+    times = [r["bucket_time"] for r in rows]
+    series = {metric: [r[metric] for r in rows] for metric in METRIC_NAMES}
+    return times, series
 
 
 def get_thresholds(conn, motor_id: str) -> list[sqlite3.Row]:

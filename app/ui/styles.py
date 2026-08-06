@@ -407,6 +407,35 @@ def inject_global_styles() -> None:
         .status-card .sc-foot.status-danger {{ color: {status_colors["DANGER"]}; font-weight: 600; }}
         .status-card .sc-foot.status-fault {{ color: {status_colors["FAULT"]}; font-weight: 700; }}
 
+        /* --- 모터 그래프 페이지 (재정리안 1페이지) — 지표 열 헤더/범례/모터명 행 --- */
+        /* 헤더(지표명·단위) + 임계값을 라운드 테두리 박스로 묶어 아래 차트들의 '대표 정보'로 구분 */
+        .mg-headbox {{
+            border: 1px solid {p["border"]};
+            border-left: 3px solid var(--mg-color, {brand});
+            border-radius: 8px; padding: 6px 10px 7px; margin-bottom: 9px;
+            background: {p["surface_muted"]};
+        }}
+        .mg-head {{
+            display: flex; align-items: baseline; gap: 6px;
+            border-bottom: 1px dashed {p["border"]}; padding-bottom: 4px; margin-bottom: 5px;
+        }}
+        .mg-metric {{ font-size: 14px; font-weight: 800; color: var(--mg-color, {brand}); }}
+        .mg-unit {{ font-size: 10px; color: {p["text_muted"]}; }}
+        /* 임계값 범례 — 색은 상태색과 일치시킨다. */
+        .mg-legend {{
+            display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 9.5px; font-weight: 600;
+            line-height: 1.3;
+        }}
+        .mg-row {{
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 4px; margin-top: 8px; height: 18px;
+        }}
+        .mg-name {{
+            font-size: 11px; font-weight: 600; color: {p["text_strong"]};
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }}
+        .mg-row .status-badge {{ flex: 0 0 auto; padding: 0 6px; font-size: 8.5px; border-radius: 8px; }}
+
         /* --- 이벤트 리스트 (05 §3.3 / §4.4) --- */
         .event-when {{ display: flex; flex-direction: column; line-height: 1.35; }}
         .event-when .rel {{ font-size: 13px; font-weight: 600; color: {p["text"]}; }}
