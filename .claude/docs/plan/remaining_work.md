@@ -22,9 +22,11 @@
 
 - [ ] **1. LangGraph 진단 에이전트**
   - 현황: `app/agents/` 비어 있음, `app/prompts.py` 스텁, 실제 진단은 `app/services/diagnosis.py` 규칙 기반 템플릿.
-  - 할 일: LangChain/LangGraph 기반 진단 에이전트로 `build_diagnosis_text()` 대체(호출측 시그니처 유지). 프롬프트는 `app/prompts.py`로 분리.
+  - 할 일: 최소 LangGraph 그래프로 구조화 진단(요약/원인/연쇄영향/방치결과) 생성, **리포트 최초 열람 시 온디맨드** 생성+캐시, LLM 실패 시 규칙 기반 폴백.
+  - 확정(2026-08-06): (A) 최소 LangGraph 그래프 (B) 온디맨드 생성(부팅 대량 생성 제거) (C) 섹션 = 요약·원인·연쇄영향·방치결과.
+  - 계획: `.claude/docs/plan/2026-08-06_langgraph-diagnosis-agent.md`
   - 관련 스펙: `01_tech_stack.md §2.4`, `02_architecture.md §2.4`, `06_report_spec.md`
-  - 상태: 미착수
+  - 상태: **진행 중**
 
 - [ ] **2. 실시간 런타임**
   - [ ] 2-1. 상태 전이 **실시간 감지** — 현재는 시드 시점에만 전이 생성. 수집→판정→전이 로직 필요. (스펙: `03_state_event_logic.md`, `02_architecture.md`)
