@@ -15,6 +15,7 @@ import math
 import altair as alt
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from app.config import (
     DISPLAY_TIMEZONE,
@@ -209,3 +210,29 @@ for _column, _metric in zip(st.columns(len(METRIC_NAMES)), METRIC_NAMES):
                     st.altair_chart(_chart(_df, _metric), use_container_width=True)
                 else:
                     st.caption("데이터 없음")
+
+# 표시 범위 셀렉트박스 입력을 읽기전용으로 만들어 검색/타이핑을 막는다(드롭다운 선택만 허용).
+# CSS로는 keyboard 입력을 못 막으므로(드롭다운 열 때 입력이 자동 포커스됨) 부모 DOM에 접근하는
+# 컴포넌트 스크립트로 readOnly를 건다. MutationObserver로 rerun 후 재렌더된 입력에도 재적용.
+components.html(
+    """
+    <script>
+    const doc = window.parent.document;
+    const KEYS = ['graph_status', 'graph_loc', 'graph_model', 'graph_maxn'];
+    function apply() {
+      KEYS.forEach(function (k) {
+        doc.querySelectorAll('.st-key-' + k + ' input').forEach(function (inp) {
+          inp.readOnly = true;
+          inp.setAttribute('inputmode', 'none');
+        });
+      });
+    }
+    apply();
+    if (!doc.__graphSelReadonly) {
+      doc.__graphSelReadonly = true;
+      new MutationObserver(apply).observe(doc.body, { childList: true, subtree: true });
+    }
+    </script>
+    """,
+    height=0,
+)

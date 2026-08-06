@@ -468,6 +468,14 @@ def inject_global_styles() -> None:
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }}
         .mg-row .status-badge {{ flex: 0 0 auto; padding: 0 6px; font-size: 8.5px; border-radius: 8px; }}
+        /* 표시 범위 셀렉트박스를 읽기전용처럼 — 캐럿을 숨겨 편집 느낌을 없앤다.
+           실제 타이핑 차단은 입력을 readOnly로 만드는 JS(모터 그래프 페이지)가 담당한다. */
+        .st-key-graph_status input,
+        .st-key-graph_loc input,
+        .st-key-graph_model input,
+        .st-key-graph_maxn input {{
+            caret-color: transparent; cursor: pointer;
+        }}
 
         /* --- 이벤트 리스트 (05 §3.3 / §4.4) --- */
         .event-when {{ display: flex; flex-direction: column; line-height: 1.35; }}
