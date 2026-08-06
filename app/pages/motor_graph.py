@@ -130,7 +130,10 @@ def _chart(df: pd.DataFrame, metric: str) -> alt.LayerChart:
     _x_axis = alt.Axis(
         format="%H:%M", labelFontSize=8, tickCount=4, title=None, grid=True, domain=True
     )
-    _y_axis = alt.Axis(values=y_ticks, labelFontSize=8, title=None, grid=True, domain=True)
+    # format ".1~f": 12.5 같은 반정수 눈금이 "13"으로 반올림되지 않게(소수 1자리, 불필요한 0은 제거)
+    _y_axis = alt.Axis(
+        values=y_ticks, labelFontSize=8, title=None, grid=True, domain=True, format=".1~f"
+    )
     line = (
         alt.Chart(df)
         .mark_line(

@@ -56,7 +56,9 @@ uv run python scripts/seed_data.py --force   # DB를 지우고 처음부터 다�
 
 ```
 app/            # 애플리케이션 코드
-  services/     #   bootstrap(부팅 시 데이터 준비), seeding, diagnosis, events
+  pages/        #   화면: 로그인 · 메인 대시보드 · 모터 그래프 · 모터 현황 · 모터 상세
+  ui/           #   재사용 컴포넌트 · 전역 스타일 · 네비게이션 · 테마
+  services/     #   bootstrap(부팅 시 데이터 준비), seeding, motors, company, events, diagnosis
   reports/      #   HTML/PDF 렌더 및 리포트 제공 (PDF 실패 시 HTML 폴백)
   rag/          #   ChromaDB 인제스트 및 SOP 조회 (실패 시 키워드 매칭 폴백)
 data/
@@ -71,6 +73,6 @@ scripts/        # 선택적 수동 재생성 CLI (seed_data.py)
 
 ## 현재 범위
 
-동작하는 것: 로그인, 런타임 데모 데이터 부트스트랩, 대시보드 이벤트 발생 내역 리스트(05 §3.3), 리포트 제공(PDF 우선, 불가 시 HTML).
+동작하는 것: 로그인/인증, 런타임 데모 데이터 부트스트랩(COMP-001 200대 포함), 메인 대시보드(상단 요약 §3.1 · 조치 배너 · 정비 완료 확인 · 모터 카드 §3.2 · 이벤트 리스트 §3.3), 모터 그래프(지표별 추이 · 상태/위치/모델 필터 · 임계선), 모터 현황(확인사항/위치/상태 그룹핑), 모터 상세(§4), 리포트 제공(PDF 우선, 불가 시 HTML).
 
-아직 구현되지 않은 것: 대시보드 상단 요약(§3.1)과 모터 카드(§3.2), 모터 상세 페이지(§4), LangGraph 진단 에이전트(현재는 `app/services/diagnosis.py`의 규칙 기반 템플릿), 런타임 상태 전이 감지·알림 발송·48시간 보관 배치.
+아직 구현되지 않은 것: LangGraph 진단 에이전트(현재는 `app/services/diagnosis.py`의 규칙 기반 템플릿), 실시간 상태 전이 감지 · 자동 갱신 · 통신 두절 판정, 알림 실제 발송, 48시간 보관 배치, Python 3.14 배포 검증. 상세 추적은 [`.claude/docs/plan/remaining_work.md`](.claude/docs/plan/remaining_work.md).
