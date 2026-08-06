@@ -25,7 +25,7 @@ from app.ui.components import (
     render_report_dialog,
 )
 
-page_header()
+page_header(active="dashboard")
 
 _company_id = st.session_state.get("company_id")
 

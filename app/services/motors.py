@@ -194,6 +194,103 @@ def count_status(cards: list[dict], statuses: tuple[str, ...]) -> int:
     return sum(1 for c in cards if c["status"] in statuses)
 
 
+def list_company_motor_status(conn, company_id: str) -> list[dict]:
+    """모터 현황·그래프 페이지용 경량 목록 (재정리안 2페이지).
+
+    `list_company_motors`보다 가볍다 — 카드 스파크라인용 추이(GROUP BY)와 게이지용
+    readings 가공을 생략하고, 카드에 필요한 최신값·대표상태·마지막 상태변경만 담는다.
+
+    조회 전략(실측 근거): 최신 텔레메트리를 윈도우 함수로 한 번에 뽑으면 회사 텔레메트리
+    전체(수십만 행)를 스캔해 오히려 느리다(200대 기준 ~294ms). `idx_motor_telemetry_motor_time`를
+    타는 모터별 `ORDER BY time DESC LIMIT 1` 점조회 200회가 훨씬 싸다(~30ms). 반면
+    motor_status_logs는 작은 테이블이라 미확인 FAULT·마지막 상태변경은 배치 쿼리로 묶는다.
+
+    각 dict: motor_id, motor_name, installation_location, model_name, status(대표),
+    values(metric→최신값), statuses(metric→상태), fault_metrics, last_changed_at.
+    """
+    motors = conn.execute(
+        "SELECT motor_id, motor_name, installation_location, model_name "
+        "FROM motors WHERE company_id = ? ORDER BY motor_id",
+        (company_id,),
+    ).fetchall()
+    if not motors:
+        return []
+
+    # 마지막 상태변경 (motor_status_logs는 작아 배치 GROUP BY가 저렴하다)
+    changed_rows = conn.execute(
+        "SELECT motor_id, MAX(created_at) AS mc FROM motor_status_logs "
+        "WHERE motor_id IN (SELECT motor_id FROM motors WHERE company_id = ?) "
+        "GROUP BY motor_id",
+        (company_id,),
+    ).fetchall()
+    last_changed = {r["motor_id"]: r["mc"] for r in changed_rows}
+
+    # 지표별 최신 로그가 FAULT인 (모터, 지표) — 미확인 FAULT (03 §4.3).
+    # 로그 테이블이 작아 윈도우 함수로 한 번에 뽑아도 싸다.
+    fault_rows = conn.execute(
+        "SELECT motor_id, metric_name FROM ("
+        "  SELECT l.motor_id, l.metric_name, l.new_status, ROW_NUMBER() OVER ("
+        "    PARTITION BY l.motor_id, l.metric_name ORDER BY l.created_at DESC) rn"
+        "  FROM motor_status_logs l JOIN motors m ON m.motor_id = l.motor_id"
+        "  WHERE m.company_id = ?"
+        ") WHERE rn = 1 AND new_status = 'FAULT'",
+        (company_id,),
+    ).fetchall()
+    fault_metrics: dict[str, list[str]] = {}
+    for r in fault_rows:
+        fault_metrics.setdefault(r["motor_id"], []).append(r["metric_name"])
+
+    result = []
+    for motor in motors:
+        motor_id = motor["motor_id"]
+        # 최신 텔레메트리는 인덱스를 타는 모터별 점조회로 (윈도우 함수 전체 스캔 회피)
+        row = get_latest_telemetry(conn, motor_id)
+        values: dict[str, float] = {}
+        statuses: dict[str, str] = {}
+        if row is not None:
+            for metric in METRIC_NAMES:
+                values[metric] = row[metric]
+                statuses[metric] = row[_TELEMETRY_STATUS_COLUMN[metric]]
+
+        motor_faults = sorted(fault_metrics.get(motor_id, []))
+        status = "FAULT" if motor_faults else _worst(statuses.values())
+
+        result.append(
+            {
+                **dict(motor),
+                "status": status,
+                "values": values,
+                "statuses": statuses,
+                "fault_metrics": motor_faults,
+                "last_changed_at": last_changed.get(motor_id),
+            }
+        )
+    return result
+
+
+def get_motor_metric_series(conn, motor_id: str, hours: int, buckets: int) -> dict[str, list[float]]:
+    """모터 하나의 4개 지표 추이를 한 번의 쿼리로 구간 평균 다운샘플한다 (그래프 페이지용).
+
+    `get_metric_trend`를 지표마다 부르면 페이지당 쿼리 수가 4배가 된다. 여기서는 4개
+    지표 평균을 한 쿼리로 모아 페이지당 쿼리를 모터 수만큼으로 줄인다.
+    """
+    window_start = _iso(datetime.now(timezone.utc) - timedelta(hours=hours))
+    bucket_span_days = (hours / 24) / buckets
+
+    rows = conn.execute(
+        "SELECT AVG(temperature) AS temperature, AVG(vibration) AS vibration, "
+        "AVG(current) AS current, AVG(sound) AS sound FROM motor_telemetry "
+        "WHERE motor_id = ? AND time >= ? "
+        "GROUP BY CAST((julianday(time) - julianday(?)) / ? AS INT) "
+        "ORDER BY MIN(time)",
+        (motor_id, window_start, window_start, bucket_span_days),
+    ).fetchall()
+
+    return {
+        metric: [r[metric] for r in rows if r[metric] is not None] for metric in METRIC_NAMES
+    }
+
+
 def get_thresholds(conn, motor_id: str) -> list[sqlite3.Row]:
     """지표별 임계값 4행 (05 §4.2). METRIC_NAMES 순서로 정렬한다."""
     rows = conn.execute(

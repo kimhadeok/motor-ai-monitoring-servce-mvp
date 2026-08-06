@@ -14,13 +14,25 @@ _PAGES_DIR = Path(__file__).resolve().parent.parent / "pages"
 
 # st.switch_page는 st.Page에 넘긴 것과 동일한 경로 문자열을 요구하므로 상수로 공유한다.
 DASHBOARD_PAGE = str(_PAGES_DIR / "dashboard.py")
+MOTOR_GRAPH_PAGE = str(_PAGES_DIR / "motor_graph.py")
+MOTOR_STATUS_PAGE = str(_PAGES_DIR / "motor_status.py")
 MOTOR_DETAIL_PAGE = str(_PAGES_DIR / "motor_detail.py")
+
+# 상단 헤더 페이지 이동 내비에 노출할 메인 페이지 (키, 라벨, 경로).
+# 모터 상세는 카드 클릭으로만 진입하는 하위 화면이라 내비에 넣지 않는다.
+HEADER_NAV_PAGES = (
+    ("dashboard", "메인 대시보드", DASHBOARD_PAGE),
+    ("graph", "모터 그래프", MOTOR_GRAPH_PAGE),
+    ("status", "모터 현황", MOTOR_STATUS_PAGE),
+)
 
 
 def run() -> None:
     if is_authenticated():
         pages = [
             st.Page(DASHBOARD_PAGE, title="메인 대시보드", default=True),
+            st.Page(MOTOR_GRAPH_PAGE, title="모터 그래프"),
+            st.Page(MOTOR_STATUS_PAGE, title="모터 현황"),
             st.Page(MOTOR_DETAIL_PAGE, title="모터 상세"),
         ]
     else:

@@ -23,6 +23,13 @@ from app.config import (
     METRIC_NAMES,
     METRIC_THRESHOLDS,
     NOTIFICATION_CHANNELS,
+    SEED_BULK_COMPANY,
+    SEED_BULK_INTERVAL_SECONDS,
+    SEED_BULK_MOTOR_TOTAL,
+    SEED_BULK_STATUS_TARGETS,
+    SEED_EQUIPMENT_POOL,
+    SEED_LOCATION_POOL,
+    SEED_MODEL_POOL,
     SEED_RNG_SEED,
     SEED_TELEMETRY_HOURS,
     STATUS_LEVELS,
@@ -208,9 +215,9 @@ def _seed_contacts(conn) -> list[dict]:
     return created
 
 
-def _seed_motors(conn, now: datetime) -> list[dict]:
+def _seed_motors(conn, now: datetime, motor_rows: list[tuple]) -> list[dict]:
     motors = []
-    for motor_id, company_id, name, location, model, interval, days_ago in _MOTORS:
+    for motor_id, company_id, name, location, model, interval, days_ago in motor_rows:
         conn.execute(
             "INSERT INTO motors (motor_id, company_id, motor_name, installation_location, "
             "model_name, serial_number, collection_interval_seconds, created_at) "
@@ -252,9 +259,16 @@ def _baseline(metric: str, rng: random.Random) -> float:
     return round(rng.uniform(normal, warning * 0.7), 1)
 
 
-def _metric_value(motor_id: str, metric: str, ratio: float, baseline: float, rng: random.Random) -> float:
+def _metric_value(
+    motor_id: str,
+    metric: str,
+    ratio: float,
+    baseline: float,
+    rng: random.Random,
+    scenarios: dict[str, dict[str, dict]],
+) -> float:
     """해당 시점의 지표값. 시나리오 구간이면 램프값, 아니면 기준값 + 소폭 노이즈."""
-    scenario = _SCENARIOS.get(motor_id, {}).get(metric)
+    scenario = scenarios.get(motor_id, {}).get(metric)
     if scenario and scenario["start"] <= ratio <= scenario["end"]:
         span = scenario["end"] - scenario["start"]
         progress = (ratio - scenario["start"]) / span if span else 1.0
@@ -266,7 +280,9 @@ def _metric_value(motor_id: str, metric: str, ratio: float, baseline: float, rng
     return round(max(value, 0.0), 2)
 
 
-def _generate_series(motor: dict, now: datetime, rng: random.Random) -> tuple[list[tuple], list[dict]]:
+def _generate_series(
+    motor: dict, now: datetime, rng: random.Random, scenarios: dict[str, dict[str, dict]]
+) -> tuple[list[tuple], list[dict]]:
     """텔레메트리 행과 확정된 상태 전이를 한 번의 패스로 생성한다."""
     interval = motor["collection_interval_seconds"]
     window_start = now - timedelta(hours=SEED_TELEMETRY_HOURS)
@@ -286,7 +302,10 @@ def _generate_series(motor: dict, now: datetime, rng: random.Random) -> tuple[li
         ratio = (current_time - window_start).total_seconds() / total_seconds
         timestamp = _iso(current_time)
 
-        values = {m: _metric_value(motor["motor_id"], m, ratio, baselines[m], rng) for m in METRIC_NAMES}
+        values = {
+            m: _metric_value(motor["motor_id"], m, ratio, baselines[m], rng, scenarios)
+            for m in METRIC_NAMES
+        }
         statuses = {m: classify(m, values[m]) for m in METRIC_NAMES}
 
         rows.append(
@@ -427,20 +446,91 @@ def _seed_login_logs(conn, contacts: list[dict], now: datetime) -> None:
         )
 
 
+def _build_target_scenario(metric: str, target: str, rng: random.Random) -> dict[str, dict]:
+    """지정 지표를 목표 상태까지 최근 절반 구간에서 완만히 램프시키는 시나리오.
+
+    벌크 모터는 수집 주기가 300초라 확정 표본이 1개(ceil(300/300))다. 램프가 임계를
+    넘는 순간 전이가 확정되므로, from(확실한 NORMAL) → to(목표 상태 대역)로 올리면
+    NORMAL→WARNING(→DANGER→FAULT) 전이가 차례로 로그에 남는다.
+    """
+    _, warning, danger, fault = METRIC_THRESHOLDS[metric]
+    from_val = round(warning * 0.5, 2)  # 시작은 확실히 NORMAL
+    if target == "WARNING":
+        to_val = warning + 0.45 * (danger - warning)
+    elif target == "DANGER":
+        to_val = danger + 0.45 * (fault - danger)
+    else:  # FAULT
+        to_val = fault + 0.15 * (fault - danger)
+    noise = max((danger - warning) * 0.03, 0.02)
+    return {
+        metric: {
+            "start": 0.5,
+            "end": 1.0,
+            "from": from_val,
+            "to": round(to_val, 2),
+            "noise": round(noise, 3),
+        }
+    }
+
+
+def _build_bulk_motor_rows(
+    rng: random.Random,
+) -> tuple[list[tuple], dict[str, dict[str, dict]]]:
+    """SEED_BULK_COMPANY를 목표 총 대수까지 채우는 추가 모터 행과 시나리오 (재정리안 200대).
+
+    기존 큐레이션 모터는 그대로 두고 부족분만 생성한다. 전용 rng를 받아 큐레이션 모터의
+    텔레메트리 난수열은 건드리지 않는다(기존 대시보드 데모 불변).
+    """
+    curated = sum(1 for m in _MOTORS if m[1] == SEED_BULK_COMPANY)
+    needed = max(SEED_BULK_MOTOR_TOTAL - curated, 0)
+    if needed == 0:
+        return [], {}
+
+    # 목표 상태 배정: 지정 분포만큼 이상 상태, 나머지는 NORMAL. 섞어 목록 전반에 분포시킨다.
+    targets: list[str] = []
+    for status, count in SEED_BULK_STATUS_TARGETS.items():
+        targets.extend([status] * count)
+    targets += ["NORMAL"] * max(needed - len(targets), 0)
+    targets = targets[:needed]
+    rng.shuffle(targets)
+
+    rows: list[tuple] = []
+    scenarios: dict[str, dict[str, dict]] = {}
+    for i, target in enumerate(targets):
+        motor_id = f"MTR-{101 + i:03d}"  # 큐레이션(MTR-001~020)과 겹치지 않는 대역
+        equipment = SEED_EQUIPMENT_POOL[i % len(SEED_EQUIPMENT_POOL)]
+        name = f"{i + 11}호기 {equipment}"
+        location = SEED_LOCATION_POOL[i % len(SEED_LOCATION_POOL)]
+        model = rng.choice(SEED_MODEL_POOL)
+        days_ago = rng.randint(30, 400)  # 회사 서비스 시작(412일 전)보다 뒤
+        rows.append(
+            (motor_id, SEED_BULK_COMPANY, name, location, model, SEED_BULK_INTERVAL_SECONDS, days_ago)
+        )
+        if target != "NORMAL":
+            metric = rng.choice(METRIC_NAMES)
+            scenarios[motor_id] = _build_target_scenario(metric, target, rng)
+    return rows, scenarios
+
+
 def seed_demo_data(conn) -> dict:
     """데모 데이터 전체를 생성하고 요약을 반환한다. 호출측에서 commit한다."""
     rng = random.Random(SEED_RNG_SEED)
+    bulk_rng = random.Random(SEED_RNG_SEED + 1)  # 벌크 모터 속성 생성용 — 큐레이션 난수열과 분리
     now = datetime.now(timezone.utc)
 
     _seed_companies(conn, now)
     contacts = _seed_contacts(conn)
     contacts_by_company = {c["company_id"]: c for c in contacts}
-    motors = _seed_motors(conn, now)
+
+    bulk_rows, bulk_scenarios = _build_bulk_motor_rows(bulk_rng)
+    motor_rows = list(_MOTORS) + bulk_rows
+    scenarios = {**_SCENARIOS, **bulk_scenarios}
+    motors = _seed_motors(conn, now, motor_rows)
 
     telemetry_count = 0
     all_transitions: list[dict] = []
     for motor in motors:
-        rows, transitions = _generate_series(motor, now, rng)
+        rows, transitions = _generate_series(motor, now, rng, scenarios)
         _insert_telemetry(conn, rows)
         telemetry_count += len(rows)
         all_transitions.extend(transitions)

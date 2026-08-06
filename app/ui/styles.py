@@ -7,6 +7,10 @@ from app.config import (
     MOTOR_CARD_BUTTON_PREFIX,
     MOTOR_CARD_ROW_GAP_PX,
     SPARKLINE_HEIGHT_PX,
+    STATUS_CARD_BUTTON_PREFIX,
+    STATUS_CARD_GRID_GAP_PX,
+    STATUS_CARD_MIN_WIDTH_PX,
+    STATUS_CARDS_PER_ROW,
 )
 from app.ui.theme import palette
 
@@ -68,6 +72,11 @@ def inject_global_styles() -> None:
     chip_status_css = "\n".join(
         f".event-change .chip.status-{status.lower()} {{ "
         f"color: {color}; background: {status_bg[status]}; }}"
+        for status, color in status_colors.items()
+    )
+    status_card_status_css = "\n".join(
+        f".status-card.status-{status.lower()} {{ "
+        f"--card-color: {color}; --card-bg: {status_bg[status]}; }}"
         for status, color in status_colors.items()
     )
 
@@ -277,6 +286,126 @@ def inject_global_styles() -> None:
         }}
         .metric-trend .sparkline {{ flex: 1 1 auto; min-width: 0; }}
         .metric-trend .trend-note {{ font-size: 11px; color: {p["text_muted"]}; white-space: nowrap; }}
+
+        /* --- 모터 현황 페이지 (재정리안 2페이지) --- */
+        /* 그룹핑 라디오 — 다른 컨트롤과 구분되게 라운드 테두리 박스로 감싼다 */
+        .st-key-status_grouping_mode {{
+            border: 1px solid {p["border"]}; border-radius: 10px;
+            padding: 8px 14px; background: {p["surface"]};
+            display: inline-block; margin-bottom: 8px;
+        }}
+
+        /* 반응형 카드 배치 — 한 그룹의 컬럼을 flex-wrap으로 감싼다. 화면이 좁아지면 한 줄
+           카드 수가 자동으로 준다(10→9→8…). 카드 폭은 STATUS_CARD_MIN_WIDTH_PX 밑으로는
+           내려가지 않고, max-width로 최대 열 수(STATUS_CARDS_PER_ROW)를 제한한다. */
+        div[data-testid="stHorizontalBlock"]:has(.status-card) {{
+            flex-wrap: wrap;
+            column-gap: {STATUS_CARD_GRID_GAP_PX}px;
+            /* row-gap을 16px 더 준다: Streamlit 마크다운 래퍼가 컬럼(플렉스 라인) 높이를
+               카드보다 16px 낮게 보고해, 기본 gap만으로는 아래 행이 위 행 카드와 겹친다.
+               이 보정으로 실제 행 간격이 STATUS_CARD_GRID_GAP_PX가 된다. */
+            row-gap: {STATUS_CARD_GRID_GAP_PX + 16}px;
+            max-width: {STATUS_CARDS_PER_ROW * STATUS_CARD_MIN_WIDTH_PX
+                        + (STATUS_CARDS_PER_ROW - 1) * STATUS_CARD_GRID_GAP_PX}px;
+            margin-bottom: 6px;
+        }}
+        /* 카드는 늘어나지 않는 고정 폭 — 모든 카드(부분 행 포함)가 정확히 같은 크기가 되게
+           한다. 남는 가로 공간은 채우지 않고, 열 수만 화면 폭에 따라 줄어든다. */
+        div[data-testid="stHorizontalBlock"]:has(.status-card) > div[data-testid="stColumn"] {{
+            flex: 0 0 {STATUS_CARD_MIN_WIDTH_PX}px;
+            width: {STATUS_CARD_MIN_WIDTH_PX}px;
+            min-width: {STATUS_CARD_MIN_WIDTH_PX}px;
+            max-width: {STATUS_CARD_MIN_WIDTH_PX}px;
+        }}
+        /* 카드 클릭 영역 — 카드 마크다운과 투명 버튼을 컬럼 안 형제로 두고 버튼을 덮는다.
+           st.button은 웹소켓 처리라 리로드가 없어 로그인 세션이 유지된다. */
+        div[data-testid="stColumn"]:has(.status-card) > div[data-testid="stVerticalBlock"] {{
+            position: relative;
+        }}
+        div[data-testid="stColumn"]:has(.status-card)
+        .stElementContainer[class*="st-key-{STATUS_CARD_BUTTON_PREFIX}"] {{
+            /* 카드가 컬럼보다 16px 크므로(위 row-gap 주석 참고) 오버레이도 16px 아래로
+               늘려 카드 전체(푸터 포함)가 클릭되게 한다. */
+            position: absolute; top: 0; left: 0; right: 0; bottom: -16px;
+            z-index: 3; margin: 0;
+        }}
+        div[data-testid="stColumn"]:has(.status-card)
+        .stElementContainer[class*="st-key-{STATUS_CARD_BUTTON_PREFIX}"] .stButton,
+        div[data-testid="stColumn"]:has(.status-card)
+        .stElementContainer[class*="st-key-{STATUS_CARD_BUTTON_PREFIX}"] button {{
+            width: 100%; height: 100%; opacity: 0; cursor: pointer;
+            border: none; background: transparent; padding: 0; min-height: 0;
+        }}
+        /* 높이는 내용에 맡긴다 — 모든 카드가 같은 구조(배지·이름·위치·모델·지표 2줄·푸터)라
+           높이가 균일하다. 고정 height는 Streamlit 컬럼 내부 블록 높이와 어긋나 카드가
+           넘쳐(overflow) 아래 행과 겹치는 문제가 있었다. */
+        .status-card {{
+            --card-color: {status_colors["NORMAL"]};
+            --card-bg: {status_bg["NORMAL"]};
+            position: relative; padding: 9px 11px; border-radius: 8px;
+            border: 1px solid {p["border"]}; border-top: 3px solid var(--card-color);
+            background: {p["surface"]};
+            transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+        }}
+        {status_card_status_css}
+        .status-card.status-warning, .status-card.status-danger, .status-card.status-fault {{
+            background: var(--card-bg);
+        }}
+        div[data-testid="stColumn"]:has(.status-card):hover .status-card {{
+            transform: translateY(-2px); border-color: var(--card-color);
+            box-shadow: 0 4px 12px color-mix(in srgb, var(--card-color) 26%, transparent);
+        }}
+        @media (prefers-reduced-motion: reduce) {{
+            .status-card {{ transition: none; }}
+            div[data-testid="stColumn"]:has(.status-card):hover .status-card {{ transform: none; }}
+        }}
+        /* 상태 라벨을 좌상단에 먼저, 그 아래 모터명 — 긴 모터명과 배지가 겹치지 않게 한다 */
+        .status-card .sc-badge-row {{ height: 18px; margin-bottom: 9px; }}
+        .status-card .sc-badge-row .status-badge {{
+            padding: 1px 7px; font-size: 9px; border-radius: 9px;
+        }}
+        .status-card .sc-name {{
+            font-size: 12.5px; font-weight: 700; color: {p["text_strong"]}; margin-top: 0;
+            line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }}
+        .status-card .sc-loc {{
+            font-size: 10px; color: {p["text_muted"]}; margin-top: 2px;
+            height: 14px; line-height: 14px; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis;
+        }}
+        /* 모델명 아래 지표를 바로 붙인다 (모델명↔온도 사이 공간 제거) */
+        .status-card .sc-model {{
+            font-size: 10px; color: {p["text_faint"]};
+            height: 14px; line-height: 14px; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis;
+        }}
+        .status-card .sc-metrics {{ margin-top: 2px; }}
+        .status-card .sc-metric-line {{
+            display: flex; align-items: baseline; gap: 3px; line-height: 17px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }}
+        /* 지표 색을 라벨·값·단위로 나눈다 (메인 대시보드 색 체계 공유) */
+        .status-card .scm {{ display: inline-flex; align-items: baseline; gap: 2px; }}
+        .status-card .scm-l {{ font-size: 10px; color: {p["text_muted"]}; }}
+        .status-card .scm-v {{ font-size: 11.5px; font-weight: 600; color: {p["text"]}; }}
+        .status-card .scm-u {{ font-size: 9px; color: {p["text_faint"]}; }}
+        .status-card .scm-sep {{ color: {p["text_ghost"]}; margin: 0 3px; }}
+        /* 이상 지표(WARNING/DANGER/FAULT)는 라벨·값·단위를 상태색으로 강조 — 어느 지표가
+           문제인지 정상 지표와 확실히 구분되게 한다 (메인 대시보드 강조 방식과 동일). */
+        .status-card .scm.scm-abn .scm-l,
+        .status-card .scm.scm-abn .scm-v,
+        .status-card .scm.scm-abn .scm-u {{ color: var(--scm-color); font-weight: 700; }}
+        .status-card .scm.status-warning {{ --scm-color: {status_colors["WARNING"]}; }}
+        .status-card .scm.status-danger {{ --scm-color: {status_colors["DANGER"]}; }}
+        .status-card .scm.status-fault {{ --scm-color: {status_colors["FAULT"]}; }}
+        /* 상태 변경 시각 — 지표 바로 아래 붙이고(소음↔상태변경 공간 제거), 이상 상태는 상태색 강조 */
+        .status-card .sc-foot {{
+            font-size: 9.5px; color: {p["text_faint"]}; margin-top: 3px;
+            white-space: nowrap; overflow: hidden;
+        }}
+        .status-card .sc-foot.status-warning {{ color: {status_colors["WARNING"]}; font-weight: 600; }}
+        .status-card .sc-foot.status-danger {{ color: {status_colors["DANGER"]}; font-weight: 600; }}
+        .status-card .sc-foot.status-fault {{ color: {status_colors["FAULT"]}; font-weight: 700; }}
 
         /* --- 이벤트 리스트 (05 §3.3 / §4.4) --- */
         .event-when {{ display: flex; flex-direction: column; line-height: 1.35; }}

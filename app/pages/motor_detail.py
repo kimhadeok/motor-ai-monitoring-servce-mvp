@@ -61,14 +61,15 @@ with connection_scope() as conn:
     thresholds = get_thresholds(conn, motor_id)
     total_events = count_motor_events(conn, motor_id)
 
+# 뒤로가기는 모터명 위에 둔다 — 페이지 최상단에서 대시보드로 돌아갈 경로를 먼저 보인다.
+if st.button("← 대시보드"):
+    st.switch_page(DASHBOARD_PAGE)
+
 title_col, badge_col = st.columns([4, 1])
 title_col.title(motor["motor_name"])
 with badge_col:
     st.write("")
     status_badge(representative_status)
-
-if st.button("← 대시보드"):
-    st.switch_page(DASHBOARD_PAGE)
 
 # --- §4.1 기본 정보 ---
 st.subheader("기본 정보")

@@ -10,6 +10,7 @@ from app.config import (
     EVENT_COLUMN_WIDTHS_WITH_MOTOR,
     METRIC_LABELS,
     METRIC_NAMES,
+    METRIC_UNITS,
     MOTOR_CARD_BUTTON_PREFIX,
     REPORT_DATE_FORMAT,
     REPORT_SESSION_ID_FORMAT,
@@ -19,6 +20,7 @@ from app.config import (
     SERVICE_NAME,
     SPARKLINE_HEIGHT_PX,
     SPARKLINE_WIDTH_PX,
+    STATUS_CARD_BUTTON_PREFIX,
     THEME_HINT,
     THEME_HINT_TOOLTIP,
     THEME_LABELS,
@@ -37,11 +39,34 @@ from app.ui.theme import current_theme, palette
 _REPORT_VIEW_KEY = "report_view"
 
 
-def page_header() -> None:
+def _page_nav(active: str | None) -> None:
+    """상단 페이지 이동 내비 (메인 대시보드 / 모터 그래프 / 모터 현황).
+
+    사이드바를 숨긴 구조라 메인 페이지 3개를 오갈 경로가 필요하다. 현재 페이지는
+    primary 버튼으로 강조하고, 나머지는 클릭 시 해당 페이지로 전환한다.
+    """
+    from app.ui.navigation import HEADER_NAV_PAGES  # 순환 import 방지를 위한 지연 import
+
+    columns = st.columns([1.3, 1.3, 1.3, 5.1])
+    for (key, label, path), column in zip(HEADER_NAV_PAGES, columns):
+        with column:
+            if st.button(
+                label,
+                key=f"nav-{key}",
+                type="primary" if key == active else "secondary",
+                use_container_width=True,
+            ) and key != active:
+                st.switch_page(path)
+
+
+def page_header(active: str | None = None) -> None:
     """상단 헤더 — 좌측 서비스명, 우측 로그인 정보와 로그아웃 (05 §5-4).
 
     사이드바 대신 일반 웹 서비스처럼 상단에 둔다. 로그인 화면에서 세운 브랜드가
     로그인 후에도 이어지고, 담당자는 지금 어느 회사 계정으로 보고 있는지 늘 확인할 수 있다.
+
+    `active`는 페이지 이동 내비에서 현재 페이지를 강조하는 키다. None이면 내비를 그리지
+    않는다 (모터 상세처럼 자체 뒤로가기를 갖는 하위 화면).
     """
     from app.auth.session import end_session  # 순환 import 방지를 위한 지연 import
 
@@ -75,6 +100,9 @@ def page_header() -> None:
         if st.button("로그아웃", use_container_width=True):
             end_session()
             st.rerun()
+
+    if active is not None:
+        _page_nav(active)
 
     st.markdown('<div class="app-header-rule"></div>', unsafe_allow_html=True)
 
@@ -277,6 +305,84 @@ def motor_card(motor: dict) -> None:
     if st.button(
         f"{motor['motor_name']} 상세 보기",
         key=f"{MOTOR_CARD_BUTTON_PREFIX}{motor_id}",
+        use_container_width=True,
+    ):
+        st.session_state["selected_motor_id"] = motor_id
+        st.switch_page(MOTOR_DETAIL_PAGE)
+
+
+def _sc_metric_span(metric: str, value, status: str) -> str:
+    """현황 카드의 지표 1개 — 라벨·값·단위를 색을 나눠 표기한다 (메인 대시보드 색 체계 공유).
+
+    이상(WARNING/DANGER/FAULT)으로 판정된 지표는 `scm-abn status-{status}` 클래스를 붙여
+    상태색으로 강조한다 — 어느 지표가 문제인지 한눈에 구분되게 한다.
+    """
+    abnormal = status in ("WARNING", "DANGER", "FAULT")
+    cls = f"scm scm-abn status-{status.lower()}" if abnormal else "scm"
+    if value is None:
+        return f'<span class="{cls}"><span class="scm-l">{METRIC_LABELS[metric]}</span>' \
+               f'<span class="scm-v">-</span></span>'
+    return (
+        f'<span class="{cls}"><span class="scm-l">{METRIC_LABELS[metric]}</span>'
+        f'<span class="scm-v">{value:,.1f}</span>'
+        f'<span class="scm-u">{METRIC_UNITS[metric]}</span></span>'
+    )
+
+
+def status_card(motor: dict) -> None:
+    """모터 현황 페이지의 경량 카드 (재정리안 2페이지).
+
+    200대를 한 화면에 그리므로 인라인 SVG·게이지·흐름 애니메이션을 가진 `motor_card`를
+    쓰지 않고 텍스트 위주로만 그린다. 상태 색상 클래스(`status-{status}`)는 공유한다.
+
+    카드 전체가 클릭 영역이다. `motor_card`와 같은 오버레이 기법 — 카드 마크다운과 투명
+    `st.button`을 컬럼 안 형제로 두고 CSS가 버튼을 카드 위에 덮는다(styles.py의
+    `:has(.status-card)` 규칙). st.button을 쓰는 이유: 웹소켓으로 처리돼 페이지 리로드가
+    없어 로그인 세션이 유지된다(마크다운 `<a href>`는 전체 리로드라 세션이 날아간다).
+    반응형 열 수는 컬럼을 감싼 flex-wrap 블록이 담당한다.
+
+    상태 라벨을 좌상단에 먼저 두고 그 아래 모터명을 둔다 — 길이가 다른 모터명과 배지가
+    한 줄에서 겹치는 문제를 없애기 위함이다. 입력은 `list_company_motor_status()`의 dict.
+    """
+    from app.ui.navigation import MOTOR_DETAIL_PAGE  # 순환 import 방지를 위한 지연 import
+
+    motor_id = motor["motor_id"]
+    status = motor["status"]
+    values = motor.get("values", {})
+    statuses = motor.get("statuses", {})
+    lower = status.lower()
+
+    def _span(metric: str) -> str:
+        return _sc_metric_span(metric, values.get(metric), statuses.get(metric, "NORMAL"))
+
+    line1 = f'{_span("temperature")}<span class="scm-sep">·</span>{_span("vibration")}'
+    line2 = f'{_span("current")}<span class="scm-sep">·</span>{_span("sound")}'
+
+    last_changed = motor.get("last_changed_at")
+    footer = (
+        f"{format_relative(parse_utc(last_changed))} 상태변경"
+        if last_changed
+        else "상태변경 이력 없음"
+    )
+
+    st.markdown(
+        f'<div class="status-card status-{lower}">'
+        f'<div class="sc-badge-row">'
+        f'<span class="status-badge status-{lower}">{status}</span></div>'
+        f'<div class="sc-name">{motor["motor_name"]}</div>'
+        f'<div class="sc-loc">{motor["installation_location"]}</div>'
+        f'<div class="sc-model">{motor["model_name"]}</div>'
+        f'<div class="sc-metrics">'
+        f'<div class="sc-metric-line">{line1}</div>'
+        f'<div class="sc-metric-line">{line2}</div></div>'
+        f'<div class="sc-foot status-{lower}">{footer}</div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    if st.button(
+        f"{motor['motor_name']} 상세 보기",
+        key=f"{STATUS_CARD_BUTTON_PREFIX}{motor_id}",
         use_container_width=True,
     ):
         st.session_state["selected_motor_id"] = motor_id

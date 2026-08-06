@@ -97,6 +97,38 @@ TREND_CHANGE_THRESHOLD = 0.03
 # --- 리포트 뷰어 (05_ui_screens.md §3.3 인앱 표시) ---
 REPORT_VIEWER_HEIGHT_PX = 600
 
+# --- 모터 그래프 페이지 (05_ui_screens.md §3-graph, 재정리안 1페이지) ---
+# 지표 4열(온도/진동/전류/소음)에 전체 모터의 추이 라인차트를 세로로 나열한다.
+# 200대 × 4지표 = 800차트를 한 번에 그리면 브라우저가 멈추므로 페이지네이션으로 끊는다.
+GRAPH_PAGE_SIZE = 20  # 한 화면에 보여줄 모터 수 (→ 페이지당 4×20=80차트)
+GRAPH_TREND_HOURS = LONG_TERM_TREND_HOURS  # 라인차트가 보여줄 최근 창(6시간)
+GRAPH_TREND_BUCKETS = 48  # 다운샘플 구간 수 — 원 데이터가 수천 행이라 그대로 그리지 않는다
+
+# --- 모터 현황 페이지 (05_ui_screens.md §3-status, 재정리안 2페이지) ---
+# 라디오 버튼으로 그룹핑 방식을 고른다. "환경설정에 값 관리" = 이 config가 곧 환경설정이다.
+GROUPING_MODE_STATUS = "status"
+GROUPING_MODE_LOCATION = "location"
+GROUPING_MODE_ISSUE = "issue"
+# 표시 순서와 라벨. st.radio 옵션으로 그대로 쓴다. (확인 사항 정보를 맨 앞·기본으로 둔다)
+GROUPING_MODES = {
+    GROUPING_MODE_ISSUE: "확인 사항 정보",
+    GROUPING_MODE_LOCATION: "위치별 정보",
+    GROUPING_MODE_STATUS: "상태별 정보",
+}
+DEFAULT_GROUPING_MODE = GROUPING_MODE_ISSUE
+# 상태별 그룹핑 순서 — 급한 것부터 위로 (심각도 내림차순)
+STATUS_GROUP_ORDER = ("FAULT", "DANGER", "WARNING", "NORMAL")
+# 확인사항 그룹핑 — 조치가 필요한 상태만 (NORMAL 제외)
+ISSUE_GROUP_ORDER = ("FAULT", "DANGER", "WARNING")
+# 한 줄에 카드 최대 몇 개 (재정리안: 가로 10개). 실제 열 수는 화면 폭에 따라 자동으로 줄어든다.
+STATUS_CARDS_PER_ROW = 10
+# 카드 최소 폭(px). 이보다 좁아지지 않고, 화면이 좁아지면 대신 한 줄에 들어가는 카드 수가 준다.
+STATUS_CARD_MIN_WIDTH_PX = 128
+STATUS_CARD_GRID_GAP_PX = 10
+# 카드 위를 덮는 투명 클릭 버튼 key 접두사. st.button은 웹소켓으로 처리돼 페이지 리로드가
+# 없으므로 로그인 세션이 유지된다(마크다운 앵커는 전체 리로드라 세션이 날아간다).
+STATUS_CARD_BUTTON_PREFIX = "statusclick-"
+
 # --- 수집 주기 (02_architecture.md §2.1) ---
 ALLOWED_COLLECTION_INTERVALS_SECONDS = (10, 20, 30)
 
@@ -303,3 +335,57 @@ DEMO_ACCOUNT_PASSWORD = "demo1234!"
 PREFILL_DEMO_CREDENTIALS = True
 SEED_RNG_SEED = 20260804  # 고정 시드 — 실행마다 동일한 수치가 나오도록
 SEED_TELEMETRY_HOURS = DB_RETENTION_HOURS  # 보관 범위 전체를 채운다
+
+# --- 대량 시드 (재정리안: COMP-001 200대) ---
+# 큐레이션된 소수 모터로는 그래프 페이지의 세로 스크롤과 현황 페이지의 그룹핑·10열 배치를
+# 시연할 수 없어, 한 회사를 실제 규모(200대)로 채운다. 기존 큐레이션 모터는 보존하고
+# 부족분만 프로그램 생성한다.
+SEED_BULK_COMPANY = "COMP-001"
+SEED_BULK_MOTOR_TOTAL = 200  # 해당 회사의 목표 총 대수 (기존 큐레이션 10대 포함)
+# 대량 모터의 수집 주기(초). 200대 × 48h를 10초 주기로 채우면 텔레메트리가 수백만 행이 되어
+# 부팅/DB가 감당하기 어렵다. 라인차트는 어차피 구간 평균으로 다운샘플하므로 300초로도 충분하다.
+SEED_BULK_INTERVAL_SECONDS = 300
+# 생성 모터의 위치 풀 — 위치별 그룹핑에서 여러 그룹이 나오도록 다양하게 둔다.
+# SEED_BULK_COMPANY(COMP-001 = 제1공장)에 속하므로 전부 제1공장 위치로 통일한다.
+SEED_LOCATION_POOL = (
+    "제1공장 지하 1층 기계실",
+    "제1공장 1층 펌프실",
+    "제1공장 1층 유틸리티실",
+    "제1공장 2층 공조실",
+    "제1공장 2층 기계실",
+    "제1공장 3층 도장실",
+    "제1공장 생산라인 A",
+    "제1공장 생산라인 B",
+    "제1공장 생산라인 C",
+    "제1공장 생산라인 D",
+    "제1공장 옥상",
+    "제1공장 유틸리티동",
+)
+# 생성 모터의 모델 풀 (kW·극수 조합)
+SEED_MODEL_POOL = (
+    "HYUN-7.5KW-4P",
+    "HYUN-11KW-4P",
+    "HYUN-15KW-4P",
+    "HYUN-15KW-6P",
+    "HYUN-18KW-4P",
+    "HYUN-22KW-4P",
+    "HYUN-22KW-6P",
+    "HYUN-30KW-4P",
+    "HYUN-37KW-4P",
+    "HYUN-45KW-4P",
+)
+# 생성 모터의 설비 종류 풀 (모터명 생성용)
+SEED_EQUIPMENT_POOL = (
+    "메인 송풍기",
+    "냉각펌프",
+    "급수펌프",
+    "배기 블로워",
+    "공기압축기",
+    "컨베이어 구동모터",
+    "원심분리기 모터",
+    "냉각탑 팬모터",
+    "집진기 흡입팬",
+    "순환팬",
+)
+# 생성 190대 중 목표 상태 분포 (나머지는 NORMAL). 상태별/확인사항 그룹핑이 의미 있게 보이도록.
+SEED_BULK_STATUS_TARGETS = {"FAULT": 4, "DANGER": 12, "WARNING": 30}
