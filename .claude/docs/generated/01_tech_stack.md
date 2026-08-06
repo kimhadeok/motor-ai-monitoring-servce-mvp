@@ -17,7 +17,7 @@
 | 기술 | 용도 |
 |---|---|
 | Streamlit | 웹 대시보드 UI 프레임워크 |
-| Plotly | 실시간 시계열 차트 (온도/진동/전류/소음) |
+| Altair (Vega-Lite) | 모터 그래프 시계열 차트 — `st.altair_chart` (온도/진동/전류/소음). 라인+포인트 마커+상태 임계선. *(Plotly는 의존성에 있으나 현재 미사용 — 그래프는 Altair로 구현)* |
 | Jinja2 | 리포트 HTML 템플릿 렌더링 |
 | WeasyPrint | HTML → PDF 변환 |
 | Pango, Cairo, GLib | WeasyPrint의 렌더링 의존 라이브러리 (PDF 생성 시 폰트/레이아웃 처리) |
