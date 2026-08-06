@@ -62,7 +62,7 @@ def _grouped() -> list[tuple[str, list[dict]]]:
     for status in order:
         members = [motor for motor in _motors if motor["status"] == status]
         if members:
-            groups.append((f"[{status}]", members))
+            groups.append((status, members))
     return groups
 
 

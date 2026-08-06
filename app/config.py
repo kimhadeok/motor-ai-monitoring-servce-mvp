@@ -73,6 +73,8 @@ EVENT_COLUMN_WIDTHS = (1.6, 2.4, 2.6, 1.1)
 # --- 모터 카드 그리드 (05_ui_screens.md §3.2) ---
 # 문서 미확정 — MVP 제안값
 MOTOR_CARD_COLUMNS = 5
+# 정비 완료 확인 필요 목록의 한 줄 카드 수 (05 §3.1) — 모터별 정보+버튼 카드를 나열한다.
+MAINTENANCE_CONFIRM_COLUMNS = 4
 # 카드 위를 덮는 투명 버튼의 key 접두사. Streamlit이 위젯 key를 DOM의
 # `st-key-{key}` 클래스로 내보내므로 CSS(styles.py)가 이 클래스를 잡아 오버레이한다.
 MOTOR_CARD_BUTTON_PREFIX = "motorclick-"

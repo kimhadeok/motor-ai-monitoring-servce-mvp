@@ -158,6 +158,39 @@ def inject_global_styles() -> None:
         }}
         .alert-banner.status-fault b {{ color: {p["surface"]}; }}
 
+        /* --- 정비 완료 확인 필요 (05 §3.1) — 아이콘·강조 링으로 '확인 필요' 부각 --- */
+        .maint-alert {{
+            display: flex; align-items: center; gap: 10px;
+            background: {status_colors["FAULT"]}; color: {p["surface"]};
+            border-radius: 8px; padding: 12px 16px; margin: 6px 0 12px;
+        }}
+        .maint-alert-icon {{ font-size: 20px; line-height: 1; flex: 0 0 auto; }}
+        .maint-alert-text {{ font-size: 14px; font-weight: 500; }}
+        .maint-alert-text b {{ font-weight: 800; }}
+        /* 모터별 확인 카드 — 테두리 박스(컨테이너)가 카드가 되고 정보+버튼을 함께 담는다.
+           박스에 FAULT 좌측 강조선과 옅은 배경을 준다(정보 div의 .maint-name으로 판별). */
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.maint-name) {{
+            border-left: 3px solid {status_colors["FAULT"]};
+            border-radius: 8px; background: {status_bg["FAULT"]};
+        }}
+        .maint-info {{ margin-bottom: 8px; }}
+        .maint-info .maint-name {{
+            font-size: 13px; font-weight: 700; color: {p["text_strong"]};
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }}
+        .maint-info .maint-meta {{
+            font-size: 10.5px; color: {p["text_muted"]}; margin-top: 2px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }}
+        .maint-info .maint-loc {{
+            font-size: 10.5px; color: {p["text_faint"]};
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }}
+        /* 정비 완료 확인 버튼 — 크기를 줄여 카드 안, 정보 아래 작게 둔다 */
+        .stElementContainer[class*="st-key-banner-maint-"] button {{
+            min-height: 0; padding: 3px 10px; font-size: 12px; font-weight: 600;
+        }}
+
         /* --- 모터 카드 클릭 영역 (05 §3.2) — 구조 설명은 이 함수의 파이썬 주석 참고 --- */
         div[data-testid="stColumn"]:has(.motor-card) > div[data-testid="stVerticalBlock"] {{
             position: relative;

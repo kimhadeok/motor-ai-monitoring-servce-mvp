@@ -8,6 +8,7 @@ from app.config import (
     DISPLAY_DATETIME_FORMAT,
     EVENT_COLUMN_WIDTHS,
     EVENT_COLUMN_WIDTHS_WITH_MOTOR,
+    MAINTENANCE_CONFIRM_COLUMNS,
     METRIC_LABELS,
     METRIC_NAMES,
     METRIC_UNITS,
@@ -414,6 +415,39 @@ def maintenance_button(motor: dict, key_prefix: str, **button_kwargs) -> bool:
         }
         st.rerun()
     return True
+
+
+def render_maintenance_confirm(motors: list[dict]) -> None:
+    """정비 완료 확인이 필요한 FAULT 모터 안내 + 모터별 확인 카드 (05 §3.1).
+
+    설비 정지는 가장 급한 조치라, 건조한 상태색 배너 대신 아이콘·강조 링으로 '확인 필요'임을
+    부각한다. 또 모터별로 이름·모델·설치 위치를 함께 보여줘 어떤 설비의 버튼인지 구분되게 하고,
+    버튼은 카드 아래 작게 둔다(어느 모터의 것인지 카드가 바로 위에서 알려준다).
+    """
+    st.markdown(
+        f'<div class="maint-alert">'
+        f'<span class="maint-alert-icon">🔧</span>'
+        f'<span class="maint-alert-text">'
+        f"<b>정비 완료 확인 필요</b> — {len(motors)}대가 고장(FAULT) 상태입니다. "
+        f"정비 후 아래에서 완료 확인을 해주세요.</span></div>",
+        unsafe_allow_html=True,
+    )
+    for _start in range(0, len(motors), MAINTENANCE_CONFIRM_COLUMNS):
+        _row = motors[_start : _start + MAINTENANCE_CONFIRM_COLUMNS]
+        for _column, _motor in zip(st.columns(MAINTENANCE_CONFIRM_COLUMNS), _row):
+            with _column:
+                # 정보와 버튼을 하나의 테두리 박스(카드) 안에 함께 담는다.
+                with st.container(border=True):
+                    st.markdown(
+                        f'<div class="maint-info">'
+                        f'<div class="maint-name">{_motor["motor_name"]}</div>'
+                        f'<div class="maint-meta">{_motor["model_name"]}</div>'
+                        f'<div class="maint-loc">{_motor["installation_location"]}</div>'
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+                    # 내용 맞춤 폭의 작은 버튼 — 카드 안, 정보 바로 아래.
+                    maintenance_button(_motor, key_prefix="banner", type="primary")
 
 
 def render_maintenance_dialog() -> None:
