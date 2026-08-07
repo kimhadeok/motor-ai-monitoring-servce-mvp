@@ -24,6 +24,7 @@ from app.ui.components import (
     render_maintenance_confirm,
     render_maintenance_dialog,
     render_report_dialog,
+    summary_tiles,
 )
 
 page_header(active="dashboard")
@@ -45,25 +46,48 @@ if summary:
     )
 
     counts = summary["status_counts"]
-    # st.metric의 delta는 값이 증감이 아니어도 항상 화살표(↑)를 붙여 오해를 준다.
-    # 내역은 delta 대신 아래 캡션 줄로 표기한다.
-    tiles = (
-        ("조치 필요", f"{summary['action_required']}대", f"고장 {counts['FAULT']} · 위험 {counts['DANGER']}"),
-        ("주의 관찰", f"{summary['watch_count']}대", f"정상 {summary['normal_count']}대"),
-        (
-            f"최근 {DASHBOARD_RECENT_WINDOW_HOURS}시간 이벤트",
-            f"{summary['recent_event_count']}건",
-            f"악화 {summary['recent_worsened']} · 회복 {summary['recent_recovered']}",
-        ),
-        (
-            "마지막 수집",
-            format_relative(summary["last_collected_at"]) if summary["last_collected_at"] else "-",
-            "정상 수집 중" if summary["last_collected_at"] else "데이터 없음",
-        ),
+    _collected = summary["last_collected_at"]
+
+    # 타일 색이 곧 상태다 — 조치 필요가 0대면 초록, 있으면 빨강이라 숫자를 읽기 전에
+    # 색으로 먼저 안다. 상태색은 카드·배너와 같은 팔레트를 쓴다.
+    #
+    # FAULT가 있어도 fault톤(짙은 회색)을 쓰지 않는다: 이 타일은 고장+위험 합계이고,
+    # 회색 액센트는 바로 옆 warning(주황)보다 약해 보여 가장 급한 타일이 가장 흐려진다.
+    # 고장/위험 내역은 아래 보조줄이 말한다.
+    _action_tone = "danger" if summary["action_required"] else "normal"
+
+    summary_tiles(
+        [
+            {
+                "label": "조치 필요",
+                "value": summary["action_required"],
+                "unit": "대",
+                "sub": f"고장 {counts['FAULT']} · 위험 {counts['DANGER']}",
+                "tone": _action_tone,
+            },
+            {
+                "label": "주의 관찰",
+                "value": summary["watch_count"],
+                "unit": "대",
+                "sub": f"정상 {summary['normal_count']}대",
+                "tone": "warning" if summary["watch_count"] else "normal",
+            },
+            {
+                "label": f"최근 {DASHBOARD_RECENT_WINDOW_HOURS}시간 이벤트",
+                "value": summary["recent_event_count"],
+                "unit": "건",
+                "sub": f"악화 {summary['recent_worsened']} · 회복 {summary['recent_recovered']}",
+                "tone": "brand",
+            },
+            {
+                "label": "마지막 수집",
+                "value": format_relative(_collected) if _collected else "-",
+                "unit": "",
+                "sub": "정상 수집 중" if _collected else "데이터 없음",
+                "tone": "normal" if _collected else "danger",
+            },
+        ]
     )
-    for column, (label, value, sub) in zip(st.columns(4), tiles):
-        column.metric(label, value)
-        column.markdown(f'<div class="metric-sub">{sub}</div>', unsafe_allow_html=True)
 
 # 조치가 필요한 설비를 화면 맨 위에서 이름으로 알린다 — 카드를 훑어 찾게 하지 않는다.
 # 확인 대기와 "확인은 끝났지만 수치가 여전히 고장 범위"는 담당자가 할 일이 달라 나눠 알린다.

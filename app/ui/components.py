@@ -108,6 +108,35 @@ def page_header(active: str | None = None) -> None:
     st.markdown('<div class="app-header-rule"></div>', unsafe_allow_html=True)
 
 
+def summary_tiles(tiles: list[dict]) -> None:
+    """대시보드 상단 요약 타일 (05 §3.1).
+
+    `st.metric`을 쓰지 않는 이유: 라벨·값·보조줄이 아무 테두리 없이 텍스트로만 놓여
+    화면 첫 화면인데도 무게가 실리지 않는다. 모터 카드와 같은 언어(상단 액센트 3px +
+    카드 배경 + 테두리)로 그려 대시보드 전체가 한 벌로 보이게 한다.
+
+    `tone`은 장식이 아니라 정보다 — 조치 필요가 0대면 초록, 있으면 빨강이 되므로
+    숫자를 읽기 전에 색으로 상태를 먼저 안다. 각 타일은 다음 키를 받는다:
+    `label`, `value`, `unit`, `sub`, `tone`(status 소문자 또는 "brand").
+
+    한 덩어리 마크다운으로 그린다. `st.columns`로 나누면 컬럼마다 여백 규칙이 달라
+    타일 사이 간격이 화면 폭에 따라 어긋난다. CSS 그리드는 폭이 좁아지면 자동으로
+    줄을 바꾼다(styles.py `.summary-grid`).
+    """
+    cells = []
+    for tile in tiles:
+        unit = tile.get("unit")
+        unit_html = f'<span class="sum-unit">{unit}</span>' if unit else ""
+        cells.append(
+            f'<div class="summary-tile tone-{tile["tone"]}">'
+            f'<div class="sum-label"><span class="sum-dot"></span>{tile["label"]}</div>'
+            f'<div class="sum-value">{tile["value"]}{unit_html}</div>'
+            f'<div class="sum-sub">{tile["sub"]}</div>'
+            "</div>"
+        )
+    st.markdown(f'<div class="summary-grid">{"".join(cells)}</div>', unsafe_allow_html=True)
+
+
 def alert_banner(status: str, message: str) -> None:
     """상태색을 그대로 쓰는 경고 배너 (05 §3.1).
 

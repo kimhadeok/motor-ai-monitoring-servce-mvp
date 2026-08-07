@@ -176,6 +176,18 @@ company_contacts 1─N notification_logs
 company_contacts 1─N motor_status_logs (관리자 수동 조치 시)
 ```
 
+### 4.1 DB에 두지 않는 데이터 (2026-08-07 확정)
+
+**참조 지식(고장 모드 ↔ 지표 매핑)은 테이블로 만들지 않는다.** `uploads/Reference/` PDF에서 큐레이션한 "지표 이상 → 의심 고장모드 → 부품/조치" 매핑이며, `data/knowledge/fault_modes.json`에 커밋하고 `app/rag/knowledge.py`가 직접 읽는다.
+
+근거는 세 가지다.
+
+- **규모**: 고장모드 9건 + 지표 매핑 17건 = 총 26행. 시간에 무관한 정적 데이터이고 전부 저장소에 커밋된다.
+- **조인 지점 없음**: 조회 입력은 지표명 하나뿐이고 `motors`·`motor_telemetry` 등 런타임 테이블과 조인할 일이 없다. 두 정적 테이블 사이의 조인은 JSON에서 필터·정렬로 끝난다.
+- **수명주기 불일치**: `data/app.db`는 데모 데이터가 실행 시각 기준이라 부팅마다 재생성된다(`02_architecture.md` §6.1). 정적 지식을 여기 두면 부팅마다 시드하는 비용만 붙는다.
+
+같은 이유로 그래프DB도 도입하지 않는다 — 근거는 `01_tech_stack.md` §2.3.1. RAG 벡터는 `data/chroma/`(ChromaDB)가 담당하며 역시 DB 밖이다.
+
 ## 5. 보강 항목 (확정)
 
 5개 항목 모두 coreagent 제안대로 확정 — §3 DDL에 반영 완료:

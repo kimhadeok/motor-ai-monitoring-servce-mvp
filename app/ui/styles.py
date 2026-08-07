@@ -69,6 +69,12 @@ def inject_global_styles() -> None:
         f"--alert-color: {color}; --alert-bg: {status_bg[status]}; }}"
         for status, color in status_colors.items()
     )
+    # 요약 타일의 톤 — 상태색을 그대로 쓴다. 같은 상태를 화면마다 다른 색으로 말하면
+    # 담당자가 심각도를 잘못 읽는다(alert-banner와 같은 이유).
+    summary_tone_css = "\n".join(
+        f".summary-tile.tone-{status.lower()} {{ --tone: {color}; }}"
+        for status, color in status_colors.items()
+    )
     chip_status_css = "\n".join(
         f".event-change .chip.status-{status.lower()} {{ "
         f"color: {color}; background: {status_bg[status]}; }}"
@@ -137,7 +143,42 @@ def inject_global_styles() -> None:
             .data-flow .link {{ animation: none; background-position: 50% 0; }}
         }}
 
-        /* --- 상단 요약 보조 줄 / 조치 배너 (05 §3.1) --- */
+        /* --- 상단 요약 타일 (05 §3.1) --- */
+        /* 4열 → (좁으면) 2×2. auto-fit + minmax를 쓰면 중간 폭에서 3열이 되어 4개 타일이
+           3+1로 접히고 마지막 타일만 홀로 남는다. 절반씩 접히도록 열 수를 명시한다. */
+        .summary-grid {{
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 12px; margin: 8px 0 16px;
+        }}
+        @media (max-width: 820px) {{
+            .summary-grid {{ grid-template-columns: repeat(2, 1fr); }}
+        }}
+        .summary-tile {{
+            --tone: {p["brand"]};
+            position: relative; padding: 14px 16px 13px; border-radius: 10px;
+            background: {p["surface"]}; border: 1px solid {p["border"]};
+            border-top: 3px solid var(--tone);
+        }}
+        .summary-tile.tone-brand {{ --tone: {p["brand"]}; }}
+        {summary_tone_css}
+        .sum-label {{
+            display: flex; align-items: center; gap: 6px;
+            font-size: 12px; font-weight: 600; color: {p["text_muted"]};
+        }}
+        .sum-dot {{
+            width: 7px; height: 7px; border-radius: 50%; background: var(--tone); flex: 0 0 auto;
+        }}
+        /* 값은 이 화면에서 가장 먼저 읽혀야 하는 정보라 크기 차이를 확실히 준다. */
+        .sum-value {{
+            font-size: 30px; font-weight: 800; color: {p["text_strong"]};
+            line-height: 1.15; margin: 7px 0 3px;
+        }}
+        .sum-unit {{
+            font-size: 15px; font-weight: 700; color: {p["text_muted"]}; margin-left: 3px;
+        }}
+        .sum-sub {{ font-size: 11.5px; color: {p["text_muted"]}; }}
+
+        /* --- 조치 배너 (05 §3.1) --- */
         .metric-sub {{
             font-size: 11.5px; color: {p["text_muted"]}; margin-top: -10px;
         }}
