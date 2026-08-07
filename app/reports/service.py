@@ -33,6 +33,7 @@ from app.services.diagnosis import (
     build_diagnosis_text,
     build_notification_message,
 )
+from app.services.motors import get_thresholds
 
 _STATUS_LABEL = {"DANGER": "위험 단계 감지", "FAULT": "고장/정지 감지"}
 
@@ -97,6 +98,22 @@ def build_report_context(conn, log) -> dict | None:
         conn, motor["motor_id"], metric, status, log["created_at"], telemetry
     )
 
+    # 임계값은 모터마다 다르므로 리포트에 참고표로 싣는다 — 센서 카드의 "정상 기준" 한 줄로는
+    # 이 값이 어느 구간에 속하는지, FAULT까지 얼마나 남았는지 알 수 없다 (06 §2.2).
+    thresholds = [
+        {
+            "label": METRIC_LABELS.get(t["metric_name"], t["metric_name"]),
+            "unit": METRIC_UNITS.get(t["metric_name"], ""),
+            "normal": f"< {t['warning_range']:g}",
+            "warning": f"{t['warning_range']:g} ~ {t['danger_range']:g}",
+            "danger": f"{t['danger_range']:g} ~ {t['fault_range']:g}",
+            "fault": f"≥ {t['fault_range']:g}",
+            # 이번 이벤트를 일으킨 지표를 표에서도 짚어준다
+            "is_trigger": t["metric_name"] == metric,
+        }
+        for t in get_thresholds(conn, motor["motor_id"])
+    ]
+
     return {
         "status": status,
         "status_class": status.lower(),
@@ -116,6 +133,7 @@ def build_report_context(conn, log) -> dict | None:
             time=format_display(event_dt, REPORT_TIME_FORMAT),
         ),
         "sensors": sensors,
+        "thresholds": thresholds,
         "diagnosis_model_label": DIAGNOSIS_MODEL_LABEL,
         "diagnosis_text": build_diagnosis_text(status, facts),
         "trend_windows": [w for w in (facts["short_term"], facts["long_term"]) if w],

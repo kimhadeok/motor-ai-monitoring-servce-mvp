@@ -191,13 +191,10 @@ def inject_global_styles() -> None:
         }}
         .alert-banner b {{ color: var(--alert-color); }}
         {alert_status_css}
-        /* FAULT(설비 정지)는 가장 급한 조치다. 상태색이 짙은 남색이라 테두리만으로는
-           바로 아래 DANGER(빨강) 배너보다 약해 보여 심각도가 역전된다. 채워서 강조한다. */
-        .alert-banner.status-fault {{
-            background: var(--alert-color); color: {p["surface"]};
-            border-left-color: var(--alert-color);
-        }}
-        .alert-banner.status-fault b {{ color: {p["surface"]}; }}
+        /* FAULT는 상태색(빨강)이 DANGER(주황)보다 이미 강해 배너를 따로 채우지 않는다.
+           2026-08-07 팔레트 재정리 전에는 FAULT가 슬레이트라 테두리만으로는 아래 DANGER
+           배너보다 약해 보여 배경을 채우는 우회가 있었다. 램프가 단조 증가로 바뀌어
+           그 우회를 걷어냈다 — 모든 배너가 같은 형태를 쓰고 심각도는 색이 말한다. */
 
         /* --- 정비 완료 확인 필요 (05 §3.1) — 아이콘·강조 링으로 '확인 필요' 부각 --- */
         .maint-alert {{
@@ -370,7 +367,7 @@ def inject_global_styles() -> None:
         }}
 
         /* 반응형 카드 배치 — 한 그룹의 컬럼을 flex-wrap으로 감싼다. 화면이 좁아지면 한 줄
-           카드 수가 자동으로 준다(10→9→8…). 카드 폭은 STATUS_CARD_MIN_WIDTH_PX 밑으로는
+           카드 수가 자동으로 준다(7→6→5…). 카드 폭은 STATUS_CARD_MIN_WIDTH_PX 밑으로는
            내려가지 않고, max-width로 최대 열 수(STATUS_CARDS_PER_ROW)를 제한한다. */
         div[data-testid="stHorizontalBlock"]:has(.status-card) {{
             flex-wrap: wrap;
@@ -456,13 +453,18 @@ def inject_global_styles() -> None:
         .status-card .sc-metrics {{ margin-top: 2px; }}
         .status-card .sc-metric-line {{
             display: flex; align-items: baseline; gap: 3px; line-height: 17px;
+            /* 안전망 — 예상 밖으로 긴 값이 와도 레이아웃을 밀지 않고 말줄임된다 */
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }}
-        /* 지표 색을 라벨·값·단위로 나눈다 (메인 대시보드 색 체계 공유) */
-        .status-card .scm {{ display: inline-flex; align-items: baseline; gap: 2px; }}
-        .status-card .scm-l {{ font-size: 10px; color: {p["text_muted"]}; }}
+        /* 지표 색을 라벨·값·단위로 나눈다 (메인 대시보드 색 체계 공유).
+           여백은 균일한 gap이 아니라 자리마다 다르게 준다 (2026-08-07) — 라벨과 값이
+           붙으면 "온도82.2"처럼 한 단어로 읽히므로 한 칸이 필요하고, 값과 단위 사이는
+           붙어도 수치와 단위로 구분되어 읽힌다. */
+        .status-card .scm {{ display: inline-flex; align-items: baseline; gap: 0; }}
+        /* 라벨 뒤 한 칸 — 10px 글꼴의 공백 한 칸에 해당한다 */
+        .status-card .scm-l {{ font-size: 10px; color: {p["text_muted"]}; margin-right: 4px; }}
         .status-card .scm-v {{ font-size: 11.5px; font-weight: 600; color: {p["text"]}; }}
-        .status-card .scm-u {{ font-size: 9px; color: {p["text_faint"]}; }}
+        .status-card .scm-u {{ font-size: 9px; color: {p["text_faint"]}; margin-left: 2px; }}
         .status-card .scm-sep {{ color: {p["text_ghost"]}; margin: 0 3px; }}
         /* 이상 지표(WARNING/DANGER/FAULT)는 라벨·값·단위를 상태색으로 강조 — 어느 지표가
            문제인지 정상 지표와 확실히 구분되게 한다 (메인 대시보드 강조 방식과 동일). */
@@ -538,6 +540,60 @@ def inject_global_styles() -> None:
         .event-change .arrow.worse {{ color: {status_colors["DANGER"]}; }}
         .event-change .arrow.recover {{ color: {status_colors["NORMAL"]}; }}
         .event-change .arrow.flat {{ color: {p["text_faint"]}; }}
+
+        /* 행 구분선 (05 §3.3) — 줄이 많아지면 어느 값이 어느 행인지 눈으로 따라가기
+           어렵다. 이벤트 행에만 걸도록 `.event-when`(행)·`.event-th`(헤더)로 범위를 좁힌다.
+           대시보드의 다른 컬럼 블록까지 선이 그어지면 화면이 표처럼 보여 버린다. */
+        /* 헤더는 min-height로 잡는다. Streamlit이 이 블록을 실제 글자 높이보다 작게
+           보고해(16px 라벨인데 블록 14px), 그대로 두면 글자가 하단 구분선 아래로 삐져나온다.
+           데이터 행에 쓴 height:auto 방식은 헤더에서 듣지 않았고(stMarkdown이 3px로 무너짐),
+           padding-bottom도 블록 높이에 반영되지 않아 min-height가 유일하게 통했다.
+           값은 라벨 글꼴(16px)에 연동한다 — 글꼴만 키우고 여기를 고정으로 두면 다시 넘친다. */
+        div[data-testid="stHorizontalBlock"]:has(.event-th) {{
+            border-bottom: 2px solid {p["border"]};
+            /* center로 두면 Streamlit이 잘못 보고한 작은 상자를 기준으로 정렬해 글자가
+               아래로 쏠리고 구분선에 1px까지 붙는다. 위에서 시작시키고 여백을 직접 준다. */
+            align-items: flex-start; padding-top: 0.5em; min-height: 2.7em;
+            margin-bottom: 2px;
+        }}
+        /* border_soft는 다크에서 surface와 거의 같아 선이 보이지 않는다 — border를 쓴다. */
+        div[data-testid="stHorizontalBlock"]:has(.event-when) {{
+            border-bottom: 1px solid {p["border"]};
+            padding: 9px 0;
+            /* stretch여야 컬럼이 행 높이만큼 늘어난다. center로 두면 아래 마크다운 높이
+               문제와 겹쳐 콘텐츠가 행 아래로 밀려 구분선에 달라붙는다. */
+            align-items: stretch;
+        }}
+        /* 데이터 행: Streamlit이 마크다운 래퍼를 한 줄 기준(16px)으로 보고해, 두 줄인
+           "발생 일시"(32px)가 블록을 넘쳐 하단 구분선에 6px까지 달라붙었다.
+           높이를 풀고 컬럼을 늘려 행 높이에 맞춘다. */
+        div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stMarkdown"],
+        div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stMarkdown"] > div {{
+            height: auto !important; min-height: 0 !important;
+        }}
+        div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stColumn"] {{
+            display: flex; align-items: center;
+        }}
+        /* 컬럼명은 본문(모터명 16px)과 같은 크기로 둔다. 12px일 때는 표의 머리글이 아니라
+           작은 주석처럼 읽혀 어느 열이 무엇인지 눈에 들어오지 않았다. */
+        .event-th {{
+            font-size: 16px; font-weight: 700; color: {p["text_muted"]};
+            letter-spacing: 0.01em;
+        }}
+
+        /* 값 변화 (05 §3.3, 2026-08-07 추가) — 상태만으로는 임계를 아슬하게 넘었는지
+           크게 뛰었는지 알 수 없다. 담당자가 급한 정도를 가늠하는 수치라 이 열에서 가장
+           크게 둔다. 이전 값은 흐리게, 현재 값을 굵게 해 "지금 얼마인가"에 시선이 먼저 간다. */
+        .event-value {{
+            display: flex; align-items: baseline; gap: 5px;
+            font-size: 15px; white-space: nowrap;
+        }}
+        .event-value .ev-prev {{ color: {p["text_faint"]}; font-weight: 500; }}
+        .event-value .ev-now {{ font-weight: 800; color: {p["text_strong"]}; }}
+        .event-value .ev-unit {{ font-size: 11.5px; color: {p["text_muted"]}; }}
+        .event-value .ev-arrow {{ font-size: 13px; color: {p["text_faint"]}; }}
+        .event-value .ev-arrow.worse {{ color: {status_colors["DANGER"]}; }}
+        .event-value .ev-arrow.recover {{ color: {status_colors["NORMAL"]}; }}
 
         .event-reason {{ font-size: 12px; color: {p["text"]}; line-height: 1.4; }}
         .event-reason.worse {{ color: {status_colors["DANGER"]}; font-weight: 600; }}

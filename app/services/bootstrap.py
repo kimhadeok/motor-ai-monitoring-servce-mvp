@@ -15,12 +15,15 @@ git에 커밋하는 대신 앱 부팅 시 실행 환경에서 직접 생성해, 
 
 import os
 import time
+from datetime import datetime, timedelta, timezone
 
 from app.config import (
     BOOTSTRAP_LOCK_PATH,
     BOOTSTRAP_LOCK_TIMEOUT_SECONDS,
     BOOTSTRAP_MARKER_PATH,
     DB_PATH,
+    DEMO_DATA_MAX_AGE_HOURS,
+    parse_utc,
 )
 from app.db.connection import connection_scope
 from app.db.init_db import ensure_schema
@@ -28,8 +31,23 @@ from app.rag.ingest import count_ingested_chunks
 from app.services.seeding import seed_demo_data
 
 
-def _has_demo_data(conn) -> bool:
-    return conn.execute("SELECT 1 FROM motors LIMIT 1").fetchone() is not None
+def _demo_data_is_fresh(conn) -> bool:
+    """쓸 만한 데모 데이터가 이미 있는지. 존재 여부와 **신선도**를 함께 본다.
+
+    모터 존재만 확인하면, 시드한 지 며칠 지나 최근 구간이 텅 빈 DB도 "있음"으로 판정된다.
+    시드는 실행 시각 기준 최근 48시간을 채우므로(`services/seeding.py`), 앱을 오래 켜두거나
+    다음 날 다시 열면 모터 그래프(6시간 창)와 카드 스파크라인이 "데이터 없음"이 된다.
+    실제로 시드 6.6시간 뒤 그래프가 전부 비는 것을 확인했다.
+    """
+    if conn.execute("SELECT 1 FROM motors LIMIT 1").fetchone() is None:
+        return False
+
+    latest = conn.execute("SELECT MAX(time) FROM motor_telemetry").fetchone()[0]
+    if latest is None:
+        return False
+
+    age = datetime.now(timezone.utc) - parse_utc(latest)
+    return age <= timedelta(hours=DEMO_DATA_MAX_AGE_HOURS)
 
 
 class _FileLock:
@@ -83,16 +101,25 @@ def bootstrap_demo_data(force: bool = False) -> dict:
             return summary
 
         try:
-            if force:
+            # 데이터가 낡았으면 DB째로 지우고 다시 만든다. 남겨두고 덧붙이면 옛 텔레메트리와
+            # 상태 로그가 섞여 "최근 48시간"이 두 구간으로 갈라진다.
+            stale = False
+            if not force and DB_PATH.exists():
+                ensure_schema()
+                with connection_scope() as conn:
+                    stale = not _demo_data_is_fresh(conn)
+
+            if force or stale:
                 DB_PATH.unlink(missing_ok=True)
                 BOOTSTRAP_MARKER_PATH.unlink(missing_ok=True)
+                summary["reseeded_stale"] = stale
 
             started = time.monotonic()
             ensure_schema()
             summary["timings"]["schema"] = time.monotonic() - started
 
             with connection_scope() as conn:
-                if not _has_demo_data(conn):
+                if not _demo_data_is_fresh(conn):
                     started = time.monotonic()
                     summary.update(seed_demo_data(conn))
                     summary["seeded"] = True

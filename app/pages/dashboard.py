@@ -4,9 +4,11 @@ import streamlit as st
 
 from app.config import (
     DASHBOARD_EVENT_LIST_LIMIT,
+    DASHBOARD_EVENT_STATUSES,
     DASHBOARD_MOTOR_CARD_LIMIT,
     DASHBOARD_RECENT_WINDOW_HOURS,
     MOTOR_CARD_COLUMNS,
+    STATUS_KOREAN_LABELS,
     SUMMARY_DATE_FORMAT,
     format_display,
     format_relative,
@@ -34,7 +36,9 @@ _company_id = st.session_state.get("company_id")
 with connection_scope() as conn:
     motors = list_company_motors(conn, _company_id)
     summary = build_summary(conn, _company_id, motors)
-    events = list_company_events(conn, _company_id, DASHBOARD_EVENT_LIST_LIMIT)
+    events = list_company_events(
+        conn, _company_id, DASHBOARD_EVENT_LIST_LIMIT, DASHBOARD_EVENT_STATUSES
+    )
 
 # --- §3.1 상단 요약 ---
 if summary:
@@ -48,13 +52,16 @@ if summary:
     counts = summary["status_counts"]
     _collected = summary["last_collected_at"]
 
-    # 타일 색이 곧 상태다 — 조치 필요가 0대면 초록, 있으면 빨강이라 숫자를 읽기 전에
+    # 타일 색이 곧 상태다 — 조치 필요가 0대면 초록, 있으면 상태색이라 숫자를 읽기 전에
     # 색으로 먼저 안다. 상태색은 카드·배너와 같은 팔레트를 쓴다.
-    #
-    # FAULT가 있어도 fault톤(짙은 회색)을 쓰지 않는다: 이 타일은 고장+위험 합계이고,
-    # 회색 액센트는 바로 옆 warning(주황)보다 약해 보여 가장 급한 타일이 가장 흐려진다.
-    # 고장/위험 내역은 아래 보조줄이 말한다.
-    _action_tone = "danger" if summary["action_required"] else "normal"
+    # 고장이 하나라도 있으면 FAULT(빨강), 위험만 있으면 DANGER(주황)로 구분한다 —
+    # 2026-08-07 팔레트 재정리로 FAULT가 램프의 최상단이 되어 그대로 쓸 수 있다.
+    if counts["FAULT"]:
+        _action_tone = "fault"
+    elif summary["action_required"]:
+        _action_tone = "danger"
+    else:
+        _action_tone = "normal"
 
     summary_tiles(
         [
@@ -137,10 +144,17 @@ else:
 
 st.subheader("이벤트 발생 내역")
 
+# 걸러서 보여준다는 사실을 화면이 직접 말한다 — 관찰 단계(WARNING) 전이가 안 보이는 것을
+# 데이터 누락으로 오해하지 않도록. 전체 이력은 모터 상세(§4.4)에 있다.
+_event_scope = " · ".join(STATUS_KOREAN_LABELS.get(s, s) for s in DASHBOARD_EVENT_STATUSES)
+
 if not events:
-    st.info("최근 이벤트가 없습니다.")
+    st.info(f"최근 {_event_scope} 이벤트가 없습니다.")
 else:
-    st.caption(f"최근 {len(events)}건 · 상세 이력은 모터별 상세 페이지에서 볼 수 있습니다.")
+    st.caption(
+        f"{_event_scope} 전이 {len(events)}건 · "
+        "주의(WARNING)를 포함한 전체 이력은 모터별 상세 페이지에서 볼 수 있습니다."
+    )
     event_list_header(show_motor=True)
     for event in events:
         event_row(event, show_motor=True)

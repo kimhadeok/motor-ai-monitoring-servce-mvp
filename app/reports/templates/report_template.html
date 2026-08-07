@@ -12,14 +12,16 @@
         :root {
             --primary: #1e3a8a;
             --primary-light: #3b82f6;
-            --danger: #dc2626;
-            --danger-bg: #fef2f2;
+            /* config.STATUS_COLORS와 같은 값 (2026-08-07 재정리).
+               녹색 → 앰버 → 주황 → 빨강 단조 증가 램프. FAULT가 가장 강하다. */
+            --danger: #ea580c;
+            --danger-bg: #fff7ed;
             --warning: #d97706;
             --warning-bg: #fffbeb;
             --success: #16a34a;
             --success-bg: #f0fdf4;
-            --fault: #1e293b;
-            --fault-bg: #f1f5f9;
+            --fault: #dc2626;
+            --fault-bg: #fef2f2;
             --bg-gray: #f8fafc;
             --border-color: #e2e8f0;
             --text-main: #1e293b;
@@ -55,8 +57,9 @@
             min-height: 700px;
         }
         .title-ribbon { height: 10px; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); }
-        .title-ribbon.status-danger { background: linear-gradient(90deg, #991b1b 0%, var(--danger) 100%); }
-        .title-ribbon.status-fault { background: linear-gradient(90deg, #0f172a 0%, var(--fault) 100%); }
+        /* 리본은 각 상태색의 진한 톤에서 상태색으로 흐른다 */
+        .title-ribbon.status-danger { background: linear-gradient(90deg, #9a3412 0%, var(--danger) 100%); }
+        .title-ribbon.status-fault { background: linear-gradient(90deg, #991b1b 0%, var(--fault) 100%); }
 
         .title-top-row {
             display: flex; justify-content: space-between; align-items: center;
@@ -84,9 +87,9 @@
             margin-bottom: 52px;
         }
         .title-status-badge::before { content: ''; width: 10px; height: 10px; border-radius: 50%; }
-        .title-status-badge.status-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecaca; }
+        .title-status-badge.status-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid #fed7aa; }
         .title-status-badge.status-danger::before { background: var(--danger); }
-        .title-status-badge.status-fault { background: var(--fault-bg); color: var(--fault); border: 1px solid #cbd5e1; }
+        .title-status-badge.status-fault { background: var(--fault-bg); color: var(--fault); border: 1px solid #fecaca; }
         .title-status-badge.status-fault::before { background: var(--fault); }
 
         .title-info-grid {
@@ -111,7 +114,7 @@
         }
 
         /* ===== 내용 페이지 공통 ===== */
-        .content-page { padding: 30px 36px; }
+        .content-page { padding: 38px 40px; }
 
         .content-header {
             display: flex; justify-content: space-between; align-items: center;
@@ -152,7 +155,7 @@
         .event-time-banner .value svg { color: var(--primary); flex-shrink: 0; }
 
         h2 {
-            color: var(--primary); font-size: 17px; margin-top: 20px; margin-bottom: 10px;
+            color: var(--primary); font-size: 17px; margin-top: 26px; margin-bottom: 13px;
             display: flex; align-items: center; gap: 9px;
         }
         /* 페이지 맨 위에 오는 제목은 위 여백을 없앤다 — 페이지 상단 패딩과 겹쳐 뜬다. */
@@ -164,27 +167,25 @@
 
         /* 4개 지표를 한 줄에 놓는다. 2×2로 두면 이 섹션만 250px을 먹어 A4 한 장에
            센서 + AI 진단이 들어가지 않는다 (실측). 4열이면 절반으로 줄어든다. */
-        .sensor-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-        /* 4열에서는 아이콘을 옆에 두면 텍스트 폭이 110px밖에 안 남아 "정상 기준" 줄이 접힌다.
-           세로로 쌓아 텍스트가 카드 폭을 다 쓰게 한다. */
+        .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
         .sensor-card {
             background: #fff; border: 1px solid var(--border-color); border-left: 4px solid var(--border-color);
-            border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+            border-radius: 8px; padding: 16px 18px; display: flex; gap: 14px; align-items: center;
         }
         .sensor-card.status-danger { border-left-color: var(--danger); }
         .sensor-card.status-warning { border-left-color: var(--warning); }
         .sensor-card.status-normal { border-left-color: var(--success); }
         .sensor-card.status-fault { border-left-color: var(--fault); }
         .sensor-card .icon-box {
-            width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+            width: 38px; height: 38px; border-radius: 9px; flex-shrink: 0;
             display: flex; align-items: center; justify-content: center;
         }
         .sensor-card.status-danger .icon-box { background: var(--danger-bg); color: var(--danger); }
         .sensor-card.status-warning .icon-box { background: var(--warning-bg); color: var(--warning); }
         .sensor-card.status-normal .icon-box { background: var(--success-bg); color: var(--success); }
         .sensor-card.status-fault .icon-box { background: var(--fault-bg); color: var(--fault); }
-        .sensor-card .metric-name { font-size: 12px; color: var(--text-muted); font-weight: 600; }
-        .sensor-card .metric-value { font-size: 19px; font-weight: 800; margin: 2px 0; }
+        .sensor-card .metric-name { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+        .sensor-card .metric-value { font-size: 24px; font-weight: 800; margin: 3px 0 5px; }
         .sensor-card .metric-range { font-size: 11px; color: var(--text-muted); }
         .sensor-card .pill {
             display: inline-block; margin-top: 6px; font-size: 10.5px; font-weight: 700;
@@ -195,47 +196,75 @@
         .sensor-card.status-normal .pill { background: var(--success-bg); color: var(--success); }
         .sensor-card.status-fault .pill { background: var(--fault-bg); color: var(--fault); }
 
-        .card-box { background: #ffffff; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px 18px; margin-top: 8px; }
+        .card-box { background: #ffffff; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px 20px; margin-top: 10px; }
 
         .severity-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
         .severity-badge { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 12px; }
         .severity-badge.high { background: var(--danger-bg); color: var(--danger); }
         .model-tag { font-size: 12px; color: var(--text-muted); }
 
+        /* 지표별 임계값 참고표 (06_report_spec.md §2.2) — 모터마다 기준이 다르다.
+           센서 카드의 "정상 기준" 한 줄로는 현재 값이 어느 구간인지, 고장까지 얼마나
+           남았는지 알 수 없어 4구간을 함께 싣는다. */
+        .threshold-table {
+            width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px;
+        }
+        .threshold-table th {
+            text-align: left; font-weight: 600; color: var(--text-muted);
+            background: var(--bg-gray); padding: 7px 10px;
+            border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
+        }
+        .threshold-table td {
+            padding: 6px 10px; border-bottom: 1px solid var(--border-color); color: #334155;
+        }
+        .threshold-table .th-metric { font-weight: 700; color: var(--text-main); }
+        .threshold-table .th-unit { font-weight: 400; color: var(--text-muted); font-size: 10px; }
+        /* 구간별 색은 상태 팔레트를 그대로 쓴다 — 카드·배지와 같은 색이어야 헷갈리지 않는다 */
+        .threshold-table .th-normal { color: var(--success); }
+        .threshold-table .th-warning { color: var(--warning); }
+        .threshold-table .th-danger { color: var(--danger); }
+        .threshold-table .th-fault { color: var(--fault); font-weight: 600; }
+        /* 이번 이벤트를 일으킨 지표 행을 짚어준다 */
+        .threshold-table tr.is-trigger td { background: var(--bg-gray); }
+        .threshold-table tr.is-trigger .th-metric::before {
+            content: '▶'; color: var(--danger); font-size: 8px; margin-right: 4px; vertical-align: 1px;
+        }
+        .threshold-note { font-size: 11px; color: var(--text-muted); margin-top: 7px; }
+
         /* 측정 근거 (06_report_spec.md §2.3) — 추세·동반 지표를 수치로 제시 */
-        .evidence-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .evidence-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
         .evidence-chip {
             border: 1px solid var(--border-color); border-radius: 6px;
-            padding: 7px 11px; background: var(--bg-gray); min-width: 150px;
+            padding: 11px 15px; background: var(--bg-gray); min-width: 175px;
         }
-        .evidence-label { font-size: 10.5px; color: var(--text-muted); margin-bottom: 2px; }
-        .evidence-value { font-size: 12.5px; font-weight: 700; color: var(--text-main); }
+        .evidence-label { font-size: 11.5px; color: var(--text-muted); margin-bottom: 4px; }
+        .evidence-value { font-size: 13.5px; font-weight: 700; color: var(--text-main); }
         .evidence-value .up { color: var(--danger); }
         .evidence-value .down { color: var(--success); }
         .evidence-value .flat { color: var(--text-muted); }
 
         /* 지표 특성 — 4개 지표의 예지보전 신뢰도가 다르다는 참조 자료 근거 */
         .metric-note {
-            margin-top: 10px; padding: 9px 12px; border-radius: 6px;
+            margin-top: 14px; padding: 14px 16px; border-radius: 7px;
             background: var(--bg-gray); border-left: 3px solid var(--primary-light);
         }
-        .metric-note-head { font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 3px; }
-        .metric-note-body { font-size: 12.5px; color: #334155; }
-        .metric-note-src { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+        .metric-note-head { font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 5px; }
+        .metric-note-body { font-size: 13.5px; color: #334155; line-height: 1.65; }
+        .metric-note-src { font-size: 11.5px; color: var(--text-muted); margin-top: 7px; }
 
         /* 의심 고장 모드 (06_report_spec.md §2.3) — 참조 지식 기반 결정적 조회 결과 */
         .fault-list { list-style: none; padding: 0; margin: 10px 0 0; }
-        .fault-list li { border-top: 1px solid var(--border-color); padding: 6px 0 0; margin-top: 6px; }
+        .fault-list li { border-top: 1px solid var(--border-color); padding: 10px 0 0; margin-top: 10px; }
         .fault-list li:first-child { border-top: none; padding-top: 0; margin-top: 0; }
-        .fault-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-        .fault-name { font-size: 13.5px; font-weight: 700; color: var(--text-main); }
+        .fault-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .fault-name { font-size: 14.5px; font-weight: 700; color: var(--text-main); }
         .fault-lead { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: var(--warning-bg); color: var(--warning); }
         .fault-lead.days { background: var(--danger-bg); color: var(--danger); }
-        .fault-evidence { font-size: 12.5px; color: #334155; margin-bottom: 2px; line-height: 1.45; }
-        .fault-meta { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; }
+        .fault-evidence { font-size: 13.5px; color: #334155; margin-bottom: 5px; line-height: 1.6; }
+        .fault-meta { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
 
         .sop-list { padding-left: 0; list-style: none; margin: 0; }
-        .sop-list li { position: relative; padding-left: 34px; margin-bottom: 9px; font-size: 14px; }
+        .sop-list li { position: relative; padding-left: 34px; margin-bottom: 13px; font-size: 14px; }
         .sop-list li::before {
             content: attr(data-step); position: absolute; left: 0; top: 1px;
             width: 24px; height: 24px; background-color: var(--primary-light); color: #ffffff;
@@ -244,7 +273,7 @@
         }
 
         .timeline { border-left: 2px solid var(--border-color); padding-left: 22px; margin-left: 12px; line-height: 1.45; }
-        .timeline-item { position: relative; margin-bottom: 10px; }
+        .timeline-item { position: relative; margin-bottom: 15px; }
         .timeline-item .icon-dot {
             position: absolute; left: -33px; top: -2px; width: 22px; height: 22px; border-radius: 50%;
             display: flex; align-items: center; justify-content: center; color: #fff; border: 2px solid #fff;
@@ -255,7 +284,7 @@
         .timeline-time { font-size: 12px; color: var(--text-muted); font-weight: 600; }
         .timeline-content { font-size: 13px; margin-top: 2px; }
 
-        .footer { margin-top: 18px; text-align: center; font-size: 11.5px; color: var(--text-muted); border-top: 1px solid var(--border-color); padding-top: 11px; }
+        .footer { margin-top: 28px; text-align: center; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border-color); padding-top: 18px; }
 
         /* 용지 여백을 명시한다. 지정하지 않으면 변환기 기본값에 따라 본문 높이가 달라져
            페이지 분할이 환경마다 어긋난다. 12mm면 A4 세로 297mm 중 273mm를 본문에 쓴다. */
@@ -335,19 +364,10 @@
     </div>
 </div>
 
-<!-- PAGE 2 — 내용 -->
+<!-- PAGE 2 — 센서 측정 데이터 + 지표별 임계값 -->
 <div class="page content-page">
 
-    <div class="content-header">
-        <div class="doc-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="2"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            AI 모터 이상 진단 리포트
-        </div>
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span class="motor-pill">{{ motor_id }} · {{ motor_name }}</span>
-            <span class="status-badge-sm status-{{ status_class }}">{{ status }}</span>
-        </div>
-    </div>
+    {% include 'report_content_header.html' %}
 
     <div class="flow-summary">
         <div class="flow-node">
@@ -394,17 +414,50 @@
             <div>
                 <div class="metric-name">{{ sensor.label }}</div>
                 <div class="metric-value">{{ sensor.value }} {{ sensor.unit }}</div>
-                <div class="metric-range">정상 기준 {{ sensor.range_text }}</div>
+                {# "정상 기준" 줄은 두지 않는다 — 바로 아래 임계값 표가 4구간을 모두 보여준다 #}
                 <span class="pill">{{ sensor.status }}</span>
             </div>
         </div>
         {% endfor %}
     </div>
 
+    <!-- 지표별 임계값: 06_report_spec.md §2.2 — 모터마다 기준이 다르므로 참고표로 싣는다 -->
+    {% if thresholds %}
+    <table class="threshold-table">
+        <thead>
+            <tr>
+                <th>지표</th><th>정상</th><th>주의</th><th>위험</th><th>고장</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in thresholds %}
+            <tr{% if t.is_trigger %} class="is-trigger"{% endif %}>
+                <td class="th-metric">{{ t.label }} <span class="th-unit">{{ t.unit }}</span></td>
+                <td class="th-normal">{{ t.normal }}</td>
+                <td class="th-warning">{{ t.warning }}</td>
+                <td class="th-danger">{{ t.danger }}</td>
+                <td class="th-fault">{{ t.fault }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="threshold-note">이 설비에 설정된 기준값입니다. 모터마다 다르게 설정될 수 있습니다.</div>
+    {% endif %}
+
+</div>
+
+<!-- PAGE 3 — AI 진단 -->
+<!-- 섹션마다 페이지를 나눈다 (2026-08-07). 한 페이지에 몰아넣으면 SOP 문장 길이나
+     의심 고장 모드 근거 문장에 따라 높이가 50px씩 흔들려 페이지가 밀린다. 섹션 단위로
+     끊으면 어느 모터든 여유가 남고, 페이지를 따로 떼어 보여줘도 내용이 완결된다. -->
+<div class="page content-page">
+
+    {% include 'report_content_header.html' %}
+
     <!-- AI 진단: 06_report_spec.md §2.3 -->
-    <h2>
+    <h2 class="first-h2">
         <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg></span>
-        2. AI 진단 및 근본 원인 분석
+        2. AI 진단
     </h2>
     <div class="card-box">
         <div class="severity-row">
@@ -412,7 +465,7 @@
             <span class="model-tag">진단 모델: {{ diagnosis_model_label }}</span>
         </div>
         <p style="font-size: 14px; margin-bottom: 8px;"><strong>[분석 결과 요약]</strong></p>
-        <div style="font-size: 13.5px; color: #334155; white-space: pre-line;">{{ diagnosis_text }}</div>
+        <div style="font-size: 14px; line-height: 1.75; color: #334155; white-space: pre-line;">{{ diagnosis_text }}</div>
 
         {% if trend_windows or companion_metrics %}
         <p style="font-size: 14px; margin: 18px 0 0;"><strong>[측정 근거]</strong></p>
@@ -439,31 +492,34 @@
         </div>
         {% endif %}
 
+    </div>
+
+</div>
+
+<!-- PAGE 4 — 근본 원인 분석 -->
+<!-- 2번(AI 진단)과 한 장에 넣으면 여유가 28px밖에 남지 않아(실측), 분석 요약 문장이나
+     의심 고장 모드의 근거 문장이 한 줄만 길어져도 페이지가 밀린다. 섹션마다 나눈다. -->
+<div class="page content-page">
+
+    {% include 'report_content_header.html' %}
+
+    {% if metric_characteristic or suspected_faults %}
+    <!-- 근본 원인 분석: 06_report_spec.md §2.3 -->
+    <h2 class="first-h2">
+        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7l8-4z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" fill="none"/></svg></span>
+        3. 근본 원인 분석
+    </h2>
+    <div class="card-box">
         {% if metric_characteristic %}
-        <div class="metric-note">
+        <div class="metric-note" style="margin-top: 0;">
             <div class="metric-note-head">지표 특성 — {{ metric_characteristic.role }}</div>
             <div class="metric-note-body">{{ metric_characteristic.note }}</div>
             <div class="metric-note-src">출처: {{ metric_characteristic.source_doc }}</div>
         </div>
         {% endif %}
-
-    </div>
-
-</div>
-
-<!-- PAGE 3 — 의심 고장 모드 + 정비 가이드 + 대응 이력 -->
-<!-- 의심 고장 모드를 여기 둔 이유: 섹션 1~2를 A4 한 장에 담고 나면 자리가 없고(실측),
-     "무슨 고장이 의심되는가" 바로 다음에 "그럼 어떻게 조치하는가"(SOP)가 오는 편이
-     읽는 순서로도 자연스럽다. 섹션 2의 연장이므로 제목에 (계속)을 붙인다. -->
-<div class="page content-page">
-
-    {% if suspected_faults %}
-    <h2 class="first-h2">
-        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7l8-4z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" fill="none"/></svg></span>
-        2-1. 의심 고장 모드 (근본 원인 분석 계속)
-    </h2>
-    <div class="card-box">
-        <ul class="fault-list" style="margin-top: 0;">
+        {% if suspected_faults %}
+        <p style="font-size: 13px; margin: 14px 0 0;"><strong>의심 고장 모드</strong></p>
+        <ul class="fault-list" style="margin-top: 4px;">
             {% for fault in suspected_faults %}
             <li>
                 <div class="fault-head">
@@ -479,13 +535,21 @@
             </li>
             {% endfor %}
         </ul>
+        {% endif %}
     </div>
     {% endif %}
 
+</div>
+
+<!-- PAGE 5 — 정비 가이드 + 대응 이력 -->
+<div class="page content-page">
+
+    {% include 'report_content_header.html' %}
+
     <!-- 정비 가이드: 06_report_spec.md §2.4 (RAG 매뉴얼 검색 결과) -->
-    <h2{% if not suspected_faults %} class="first-h2"{% endif %}>
+    <h2 class="first-h2">
         <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 005.4-5.4l-2.8 2.8-2-2 2.8-2.8z" fill="currentColor"/></svg></span>
-        3. 매뉴얼 기반 정비 가이드 (SOP)
+        4. 매뉴얼 기반 정비 가이드 (SOP)
     </h2>
     <div class="card-box">
         <ol class="sop-list">
@@ -498,7 +562,7 @@
     <!-- 대응/통보 이력: 06_report_spec.md §2.5 -->
     <h2>
         <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg></span>
-        4. 자동 대응 및 통보 이력
+        5. 자동 대응 및 통보 이력
     </h2>
     <div class="card-box">
         <div class="timeline">

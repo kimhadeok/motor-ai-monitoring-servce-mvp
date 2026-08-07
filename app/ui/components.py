@@ -8,6 +8,7 @@ from app.config import (
     DISPLAY_DATETIME_FORMAT,
     EVENT_COLUMN_WIDTHS,
     EVENT_COLUMN_WIDTHS_WITH_MOTOR,
+    EVENT_VALUE_DECIMALS,
     MAINTENANCE_CONFIRM_COLUMNS,
     METRIC_LABELS,
     METRIC_NAMES,
@@ -516,14 +517,58 @@ def render_maintenance_dialog() -> None:
 
 
 def event_list_header(show_motor: bool) -> None:
-    """이벤트 리스트 헤더 (05 §3.3 / §4.4). 대시보드만 모터명 컬럼을 갖는다."""
-    labels = ("발생 일시", "모터명", "상태 변화", "발생 사유", "")
+    """이벤트 리스트 헤더 (05 §3.3 / §4.4). 대시보드만 모터명 컬럼을 갖는다.
+
+    `st.caption` 대신 `.event-th` 마크다운을 쓴다 — CSS가 `:has(.event-th)`로 헤더 행을
+    찾아 아래쪽 구분선을 그린다. caption은 잡을 만한 클래스가 없다.
+    """
+    labels = ("발생 일시", "모터명", "상태 변화", "값 변화", "발생 사유", "")
     widths = EVENT_COLUMN_WIDTHS_WITH_MOTOR if show_motor else EVENT_COLUMN_WIDTHS
     if not show_motor:
         labels = tuple(label for label in labels if label != "모터명")
 
     for column, label in zip(st.columns(widths), labels):
-        column.caption(label)
+        column.markdown(f'<div class="event-th">{label}</div>', unsafe_allow_html=True)
+
+
+def _value_change_html(event, direction: str) -> str:
+    """이벤트의 계측값 변화 `62.1 → 82.2 °C` (05 §3.3, 2026-08-07 추가).
+
+    상태 전이만으로는 "임계를 아슬하게 넘었는지, 크게 뛰었는지"를 알 수 없다. 담당자가
+    급한 정도를 가늠하려면 수치가 필요하다.
+
+    이전 값이 없거나(첫 수집) 계측 컬럼이 없는 지표(connectivity)는 있는 쪽만 표시한다 —
+    빈칸으로 두면 데이터가 누락된 것처럼 보인다.
+    """
+    metric = event["metric_name"]
+    unit = METRIC_UNITS.get(metric, "")
+    current, previous = event["metric_value"], event["previous_value"]
+
+    if current is None and previous is None:
+        return '<div class="event-value">-</div>'
+
+    if previous is None or current is None:
+        value = f"{(current if current is not None else previous):,.{EVENT_VALUE_DECIMALS}f}"
+        return (
+            f'<div class="event-value"><span class="ev-now">{value}</span>'
+            f'<span class="ev-unit">{unit}</span></div>'
+        )
+
+    # 기본 2자리(config.EVENT_VALUE_DECIMALS). 그래도 두 값이 같게 찍히면 자릿수를 늘린다 —
+    # 임계 바로 앞뒤에서 전이가 일어나면 반올림에 묻혀 "임계를 넘었다"는 사실이 사라진다.
+    for digits in range(EVENT_VALUE_DECIMALS, EVENT_VALUE_DECIMALS + 3):
+        before, after = f"{previous:,.{digits}f}", f"{current:,.{digits}f}"
+        if before != after:
+            break
+
+    return (
+        f'<div class="event-value">'
+        f'<span class="ev-prev">{before}</span>'
+        f'<span class="ev-arrow {direction}">→</span>'
+        f'<span class="ev-now">{after}</span>'
+        f'<span class="ev-unit">{unit}</span>'
+        f"</div>"
+    )
 
 
 def event_row(event, show_motor: bool) -> None:
@@ -558,6 +603,8 @@ def event_row(event, show_motor: bool) -> None:
         f"</div>",
         unsafe_allow_html=True,
     )
+
+    columns.pop(0).markdown(_value_change_html(event, direction), unsafe_allow_html=True)
 
     columns.pop(0).markdown(
         f'<div class="event-reason {direction}">{event["trigger_reason"] or "-"}</div>',

@@ -23,12 +23,12 @@ from app.config import (
     METRIC_THRESHOLDS,
     METRIC_UNITS,
     SHORT_TERM_BUFFER_HOURS,
+    STATUS_KOREAN_LABELS,
     TREND_SIGNIFICANT_RATIO,
     parse_utc,
 )
 from app.rag.knowledge import lookup_fault_modes, metric_characteristic
 
-_STATUS_KOREAN = {"DANGER": "위험", "FAULT": "고장/정지"}
 
 # 여유 시간대 → 방치 시 서술. MotorSense 제품소개서 p4의 징후 시간 체인을 따른다.
 _OUTLOOK_BY_LEAD_TIME = {
@@ -184,7 +184,7 @@ def build_diagnosis_text(status: str, facts: dict) -> str:
 
 
 def build_notification_message(motor_id: str, status: str, trigger_reason: str) -> str:
-    label = _STATUS_KOREAN.get(status, status)
+    label = STATUS_KOREAN_LABELS.get(status, status)
     return f"[{status}] {motor_id} 모터 {label} 감지 ({trigger_reason}). 리포트를 확인하세요."
 
 

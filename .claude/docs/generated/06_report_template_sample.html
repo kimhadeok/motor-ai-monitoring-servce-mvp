@@ -5,9 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 모터 이상 진단 리포트 (MVP 샘플)</title>
     <!--
+        ⚠️ 이 파일은 초기 설계 샘플이며 **현행 구현이 아니다** (2026-08-07 기준).
+           실제 리포트는 app/reports/templates/report_template.html이 정본이고, 그 뒤로
+           크게 갈라졌다 — 5페이지 구성(섹션당 한 장), 지표별 임계값 표, 측정 근거,
+           지표 특성, 의심 고장 모드, 상태 팔레트 재정리(FAULT 빨강).
+           내용을 참고할 때는 06_report_spec.md §2~§3과 실제 템플릿을 먼저 본다.
+
         06_report_spec.md 기준 MVP 샘플 템플릿 (v2 — 타이틀 페이지 분리 + 콘텐츠 보강)
         - 원본 .claude/docs/user/report_template.html 대비 제외된 항목: 신뢰도(%) 게이지, CMMS 부품 재고, PLC 자동 인터락, ERP 자재 예약(WO)
-        - 색상 팔레트: 05_ui_screens.md §5-3 확정값 (NORMAL 녹색 / WARNING 주황 / DANGER 적색 / FAULT 짙은 회색)
+        - 색상 팔레트: 작성 당시 값 (FAULT 짙은 회색). 현행은 05_ui_screens.md §5-3 참조 — FAULT는 빨강으로 바뀌었다.
         - 이미지: 실제 사진/로고 없이 inline SVG 아이콘/일러스트로 구성 (오프라인 PDF 변환 시에도 깨지지 않도록 외부 리소스 미사용)
         - 실제 구현 시 Jinja2로 {{ }} 변수 바인딩 예정. 데이터 출처는 각 섹션 HTML 주석에 표기 (06_report_spec.md §2 매핑)
     -->

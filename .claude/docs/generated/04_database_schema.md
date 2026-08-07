@@ -136,6 +136,12 @@ CREATE INDEX idx_motor_status_logs_lookup ON motor_status_logs (motor_id, metric
 
 PDF 생성이 불가한 환경(네이티브 라이브러리 미설치)에서는 `report_pdf`가 계속 NULL로 남고 저장된 `report_html`이 대신 제공된다 — `05_ui_screens.md` §3.3.
 
+**이벤트 목록 조회는 `motor_telemetry`를 함께 읽는다 (2026-08-07).** 화면의 "값 변화" 열(`05_ui_screens.md` §3.3)이 계측값을 요구하는데 `motor_status_logs`에는 값이 없다. `services/events.py`가 두 가지를 덧붙여 조회한다.
+
+- **이벤트 시점 값**: `LEFT JOIN motor_telemetry t ON t.motor_id = l.motor_id AND t.time = l.created_at` — 상태 로그와 계측 행이 같은 시각을 공유하는 구조(`03_state_event_logic.md`)를 이용한다. 짝이 없으면 NULL이 되고 화면은 있는 값만 보여준다.
+- **직전 값**: `l.created_at`보다 앞선 가장 최근 계측 행을 상관 서브쿼리로 가져온다. `idx_motor_telemetry_motor_time`(motor_id, time DESC)을 타므로 목록 크기(대시보드 10건 / 상세 20건)에서 부담이 없다.
+- `metric_name`이 행마다 다르므로 `CASE l.metric_name WHEN 'temperature' THEN t.temperature …`로 컬럼을 고른다. `connectivity`는 대응 컬럼이 없어 NULL이다.
+
 ### 3.6 login_logs
 
 ```sql

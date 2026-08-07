@@ -45,6 +45,12 @@ REPORT_TEMPLATE_FILENAME = "report_template.html"
 BOOTSTRAP_LOCK_PATH = BASE_DIR / "data" / ".ingest.lock"
 BOOTSTRAP_MARKER_PATH = BASE_DIR / "data" / ".ingest_done"
 BOOTSTRAP_LOCK_TIMEOUT_SECONDS = 120
+# 최신 텔레메트리가 이 시간보다 오래되면 데모 데이터를 다시 만든다 (2026-08-07).
+# 시드는 "실행 시각 기준 최근 48시간"을 채우므로 앱을 오래 켜두거나 다음 날 다시 열면
+# 최근 구간이 비어 모터 그래프(6시간 창)와 카드 스파크라인이 "데이터 없음"이 된다.
+# 모터 존재 여부만 보던 종전 판정으로는 이 상황을 잡지 못했다.
+# 그래프 창(GRAPH_TREND_HOURS=6h)보다 넉넉히 작게 잡아 창이 비기 전에 갱신되게 한다.
+DEMO_DATA_MAX_AGE_HOURS = 2
 
 # --- API 키 ---
 OPENAI_API_KEY = get_secret("OPENAI_API_KEY")
@@ -66,9 +72,21 @@ DASHBOARD_RECENT_WINDOW_HOURS = 24
 # --- 이벤트 리스트 (05_ui_screens.md §3.3 / §4.4 확정) ---
 DASHBOARD_EVENT_LIST_LIMIT = 10  # 대시보드: 최근 최대 10개
 DETAIL_EVENT_PAGE_SIZE = 20  # 상세 페이지: 페이지당 20개
-# 컬럼 폭 — 발생 일시 / (모터명) / 상태 변화 / 발생 사유 / 리포트 버튼
-EVENT_COLUMN_WIDTHS_WITH_MOTOR = (1.6, 2.0, 2.4, 2.6, 1.1)
-EVENT_COLUMN_WIDTHS = (1.6, 2.4, 2.6, 1.1)
+# 대시보드 이벤트 목록에 실을 전이 결과 상태 (2026-08-07).
+# 대시보드는 "지금 손대야 할 것"에 답하는 화면이라 NORMAL→WARNING 같은 관찰 단계 전이가
+# 섞이면 조치가 필요한 건이 10칸 안에서 밀려난다. None이면 전체를 보여준다.
+# 모터 상세(§4.4)는 이력 화면이므로 필터하지 않는다 — 어떻게 악화됐는지 과정이 보여야 한다.
+DASHBOARD_EVENT_STATUSES = ("FAULT", "DANGER")
+# 컬럼 폭 — 발생 일시 / (모터명) / 상태 변화 / 값 변화 / 발생 사유 / 리포트 버튼
+# 값 변화 컬럼 추가 (2026-08-07): 상태만으로는 임계를 아슬하게 넘었는지 크게 뛰었는지 모른다.
+# 폭은 실측 콘텐츠 필요량 기준 (1440 뷰포트, 전체 1270px):
+#   발생일시 110 · 모터명 204 · 상태변화 161 · 값변화 107 · 발생사유 82.
+# 종전에는 상태변화·발생사유에 253px씩 주고 있어 과할당이었다.
+EVENT_COLUMN_WIDTHS_WITH_MOTOR = (1.4, 2.0, 1.9, 1.5, 1.9, 1.0)
+EVENT_COLUMN_WIDTHS = (1.5, 2.0, 1.6, 2.0, 1.0)
+# 값 변화의 소수점 자릿수. 두 값이 같게 찍히면 구분될 때까지 여기서 최대 3자리까지 늘린다
+# (진동 5.97 → 6.03이 1자리에서는 "6.0 → 6.0"이 되어 임계를 넘은 사실이 사라진다).
+EVENT_VALUE_DECIMALS = 2
 
 # --- 모터 카드 그리드 (05_ui_screens.md §3.2) ---
 # 문서 미확정 — MVP 제안값
@@ -129,10 +147,16 @@ DEFAULT_GROUPING_MODE = GROUPING_MODE_ISSUE
 STATUS_GROUP_ORDER = ("FAULT", "DANGER", "WARNING", "NORMAL")
 # 확인사항 그룹핑 — 조치가 필요한 상태만 (NORMAL 제외)
 ISSUE_GROUP_ORDER = ("FAULT", "DANGER", "WARNING")
-# 한 줄에 카드 최대 몇 개 (재정리안: 가로 10개). 실제 열 수는 화면 폭에 따라 자동으로 줄어든다.
-STATUS_CARDS_PER_ROW = 10
-# 카드 최소 폭(px). 이보다 좁아지지 않고, 화면이 좁아지면 대신 한 줄에 들어가는 카드 수가 준다.
-STATUS_CARD_MIN_WIDTH_PX = 128
+# 한 줄에 카드 최대 몇 개. 실제 열 수는 화면 폭에 따라 자동으로 줄어든다.
+# 10개에서 7개로 줄임 (2026-08-07): 10개면 카드 폭이 128px가 되어 지표 줄
+# ("온도 82.2 °C · 진동 3.6 mm/s")이 24px 넘쳐 단위가 잘렸다. 200대 전체 400줄이 전부 잘림.
+STATUS_CARDS_PER_ROW = 7
+# 카드 폭(px). 이보다 좁아지지 않고, 화면이 좁아지면 대신 한 줄에 들어가는 카드 수가 준다.
+# 170px = 지표 줄 필요 폭 + 좌우 패딩 22px + 테두리 2px. 내용 폭 147px 기준 실측 여유:
+#   현재 데이터 최대 131px(여유 16) · 온도 3자리 "120.5" 137px(10) · 4개 지표 전부 3자리 142px(5).
+# 모터명 최대 필요 폭도 147px라 말줄임 없이 전부 들어간다.
+# 상한은 172px다 — 7개 행이 컨테이너(1440 뷰포트 기준 1270px)를 넘으면 6개로 떨어진다.
+STATUS_CARD_MIN_WIDTH_PX = 170
 STATUS_CARD_GRID_GAP_PX = 10
 # 카드 위를 덮는 투명 클릭 버튼 key 접두사. st.button은 웹소켓으로 처리돼 페이지 리로드가
 # 없으므로 로그인 세션이 유지된다(마크다운 앵커는 전체 리로드라 세션이 날아간다).
@@ -161,6 +185,13 @@ STATUS_LEVELS = ("NORMAL", "WARNING", "DANGER", "FAULT")
 STATUS_SEVERITY_RANK = {"NORMAL": 0, "WARNING": 1, "DANGER": 2, "FAULT": 3}
 # 대시보드 상단에서 "주의 이상"으로 집계하는 상태 (05_ui_screens.md §3.1 — NORMAL 제외)
 ATTENTION_STATUSES = ("WARNING", "DANGER", "FAULT")
+# 상태의 한글 표기 — 알림 문구·필터 안내 등 사용자에게 보이는 글에 쓴다.
+STATUS_KOREAN_LABELS = {
+    "NORMAL": "정상",
+    "WARNING": "주의",
+    "DANGER": "위험",
+    "FAULT": "고장",
+}
 
 # 지표별 표시 라벨/단위 — 대시보드, 상세 페이지, 리포트가 공유한다.
 METRIC_LABELS = {
@@ -199,20 +230,29 @@ METRIC_THRESHOLDS = {
     "sound": (40.0, 75.0, 85.0, 95.0),
 }
 
-# --- 상태별 색상 (05_ui_screens.md §5-3 확정, report_template.html과 통일) ---
+# --- 상태별 색상 (05_ui_screens.md §5-3, 2026-08-07 재정리) ---
 # 라이트 기준값. 리포트 템플릿(HTML/PDF)은 항상 흰 배경이므로 이 값을 그대로 쓴다.
+#
+# 녹색 → 앰버 → 주황 → 빨강의 단조 증가 램프. 심각도가 올라갈수록 색도 세진다.
+# 종전에는 FAULT가 슬레이트(#1e293b)라 가장 심각한 상태가 가장 약해 보였고, 그 탓에
+# 배너는 배경을 채우고, 요약 타일은 FAULT 톤을 빼고, 지표 텍스트는 색을 따로 두는 식의
+# 우회가 세 군데 생겼다. 팔레트를 바로잡아 그 우회들을 전부 없앴다.
+#
+# "노랑" 대신 앰버를 쓰는 이유: 순수 노랑(#eab308)은 흰 배경 대비가 1.92:1로 글자로
+# 읽히지 않는다. 읽히는 노랑(#a16207)은 올리브·갈색으로 보여 노랑 구실을 못 한다.
 STATUS_COLORS = {
     "NORMAL": "#16a34a",
     "WARNING": "#d97706",
-    "DANGER": "#dc2626",
-    "FAULT": "#1e293b",
+    "DANGER": "#ea580c",
+    "FAULT": "#dc2626",
 }
 STATUS_BG_COLORS = {
     "NORMAL": "#f0fdf4",
     "WARNING": "#fffbeb",
-    "DANGER": "#fef2f2",
-    "FAULT": "#f1f5f9",
+    "DANGER": "#fff7ed",
+    "FAULT": "#fef2f2",
 }
+
 BRAND_PRIMARY_COLOR = "#1e3a8a"
 BRAND_PRIMARY_LIGHT_COLOR = "#3b82f6"
 
@@ -256,17 +296,19 @@ THEMES = {
         # 남색 브랜드색은 어두운 배경에서 읽히지 않아 밝은 파랑으로 대체한다.
         "brand": "#60a5fa",
         # 상태색도 채도를 낮추고 밝기를 올려야 어두운 배경에서 대비가 확보된다.
+        # 라이트와 같은 녹색 → 앰버 → 주황 → 빨강 램프. 네 색 모두 배경(#111a2b) 대비
+        # 6:1 이상이라 텍스트로 써도 읽힌다(실측).
         "status": {
             "NORMAL": "#4ade80",
             "WARNING": "#fbbf24",
-            "DANGER": "#f87171",
-            "FAULT": "#cbd5e1",
+            "DANGER": "#fb923c",
+            "FAULT": "#f87171",
         },
         "status_bg": {
             "NORMAL": "#0f2417",
             "WARNING": "#2a2010",
-            "DANGER": "#2b1414",
-            "FAULT": "#1c2739",
+            "DANGER": "#2a1a0e",
+            "FAULT": "#2b1414",
         },
         # 어두운 배경에서 읽히도록 밝은 파랑/보라/청록/자홍으로.
         "metric_chart": {
