@@ -92,3 +92,7 @@ CREATE TABLE IF NOT EXISTS notification_logs (
   message_content      TEXT NOT NULL,
   created_at           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+
+-- 참조 지식(고장 모드 ↔ 지표 매핑)은 여기 두지 않는다. 시간에 무관한 정적 데이터라
+-- data/knowledge/fault_modes.json에 커밋하고 app/rag/knowledge.py가 직접 읽는다.
+-- 런타임 테이블과 조인할 일이 없어 DB에 넣으면 부팅 시드 비용만 붙는다 (2026-08-07 확정).

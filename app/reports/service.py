@@ -25,6 +25,7 @@ from app.config import (
 )
 from app.db.connection import connection_scope
 from app.rag.ingest import query_sop_steps
+from app.rag.knowledge import lookup_fault_modes
 from app.reports.generator import render_report_html, render_report_pdf
 from app.services.diagnosis import build_diagnosis_text, build_notification_message
 
@@ -114,6 +115,8 @@ def build_report_context(conn, log) -> dict | None:
         "sensors": sensors,
         "diagnosis_model_label": DIAGNOSIS_MODEL_LABEL,
         "diagnosis_text": build_diagnosis_text(metric, telemetry[metric], status),
+        # 참조 지식 기반 결정적 조회 — 벡터 검색과 달리 같은 지표면 항상 같은 근거가 나온다.
+        "suspected_faults": lookup_fault_modes(metric),
         "sop_steps": query_sop_steps(motor["motor_name"], metric),
         "trigger_reason": log["trigger_reason"],
         "recipient_name": recipient,
@@ -126,7 +129,12 @@ def build_report_context(conn, log) -> dict | None:
 def generate_missing_report_html(conn) -> int:
     """report_html이 비어 있는 DANGER/FAULT 로그 전건에 HTML을 생성한다.
 
-    부팅 시 호출된다. 건당 렌더 비용이 1ms 미만이라 전건 생성해도 부담이 없다.
+    **부팅 경로에서는 호출하지 않는다** (2026-08-07 확정). Jinja2 렌더 자체는 건당 1ms
+    미만이지만, `build_report_context()`가 호출하는 `query_sop_steps()`가 건당 약 0.3초의
+    임베딩 API 왕복을 유발한다. 전건 생성 시 이 왕복이 로그 수만큼 반복돼 콜드 스타트를
+    지배했다. 지금은 `get_report()`가 최초 열람 시 만들어 저장한다.
+
+    `scripts/seed_data.py --with-reports`에서 로컬 전수 확인용으로만 쓴다.
     """
     placeholders = ",".join("?" for _ in REPORTABLE_STATUSES)
     logs = conn.execute(

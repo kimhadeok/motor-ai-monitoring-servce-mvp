@@ -4,6 +4,11 @@ Streamlit Community Cloud는 재배포/재시작 시 로컬 파일시스템이 �
 git에 커밋하는 대신 앱 부팅 시 실행 환경에서 직접 생성해, 배포본이 항상 "지금 기준 최근
 48시간" 데이터를 갖도록 한다.
 
+**여기서 하는 일은 시간에 의존하는 데이터뿐이다 (2026-08-07 확정).** 정적 자산은 부팅에서
+빠졌다 — RAG 벡터는 `scripts/build_knowledge.py`로 한 번 만들어 `data/chroma/`를 커밋하고,
+고장모드 지식은 커밋된 JSON을 그때그때 읽는다. 리포트 HTML도 최초 열람 시 생성된다.
+그 결과 부팅 경로에 OpenAI API 호출이 하나도 남지 않아, 키가 없어도 앱이 정상 기동한다.
+
 동시 진입 차단이 중요하다. 시드는 기존 DB를 지우고 새로 만들 수 있으므로, 한 세션이
 삭제하는 동안 다른 세션이 읽으면 깨진 상태를 보게 된다. 파일 락 + 완료 마커로 막는다.
 """
@@ -19,8 +24,7 @@ from app.config import (
 )
 from app.db.connection import connection_scope
 from app.db.init_db import ensure_schema
-from app.rag.ingest import ingest_rag_sources
-from app.reports.service import generate_missing_report_html
+from app.rag.ingest import count_ingested_chunks
 from app.services.seeding import seed_demo_data
 
 
@@ -61,12 +65,15 @@ class _FileLock:
 
 
 def bootstrap_demo_data(force: bool = False) -> dict:
-    """스키마 보장 → (필요 시) 시드 → RAG 인제스트 → 리포트 HTML 생성.
+    """스키마 보장 → (필요 시) 데모 데이터 시드.
 
     이미 데이터가 있으면 시드를 건너뛴다(재실행 안전). `force=True`면 DB를 지우고 새로 만든다.
     각 단계 소요 시간을 함께 반환해 부팅 지연을 관측할 수 있게 한다.
+
+    RAG 벡터는 여기서 만들지 않고 적재 여부만 확인한다. 비어 있으면 `rag_ready=False`로
+    알려 SOP 조회가 키워드 폴백으로 동작 중임을 드러낸다.
     """
-    summary: dict = {"seeded": False, "rag_chunks": 0, "reports_html": 0, "timings": {}}
+    summary: dict = {"seeded": False, "rag_chunks": 0, "rag_ready": False, "timings": {}}
 
     with _FileLock(BOOTSTRAP_LOCK_PATH, BOOTSTRAP_LOCK_TIMEOUT_SECONDS) as lock:
         if not lock.acquired:
@@ -91,14 +98,11 @@ def bootstrap_demo_data(force: bool = False) -> dict:
                     summary["seeded"] = True
                     summary["timings"]["seed"] = time.monotonic() - started
 
+            # 인제스트가 아니라 적재 확인이다. count()는 임베딩을 요구하지 않아 비용이 없다.
             started = time.monotonic()
-            summary["rag_chunks"] = ingest_rag_sources(force=force)
-            summary["timings"]["rag"] = time.monotonic() - started
-
-            started = time.monotonic()
-            with connection_scope() as conn:
-                summary["reports_html"] = generate_missing_report_html(conn)
-            summary["timings"]["report_html"] = time.monotonic() - started
+            summary["rag_chunks"] = count_ingested_chunks()
+            summary["rag_ready"] = summary["rag_chunks"] > 0
+            summary["timings"]["rag_check"] = time.monotonic() - started
 
             BOOTSTRAP_MARKER_PATH.parent.mkdir(parents=True, exist_ok=True)
             BOOTSTRAP_MARKER_PATH.touch()

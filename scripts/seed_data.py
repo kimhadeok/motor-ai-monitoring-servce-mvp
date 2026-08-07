@@ -6,7 +6,9 @@
 
 부트스트랩과 동일한 `app/` 로직을 호출하며 별도 구현을 두지 않는다.
 
-실행: uv run python scripts/seed_data.py [--force]
+RAG 벡터 스토어는 여기서 만들지 않는다 — `scripts/build_knowledge.py`가 담당한다.
+
+실행: uv run python scripts/seed_data.py [--force] [--with-reports]
 """
 
 import argparse
@@ -15,6 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.db.connection import connection_scope  # noqa: E402
+from app.reports.service import generate_missing_report_html  # noqa: E402
 from app.services.bootstrap import bootstrap_demo_data  # noqa: E402
 
 
@@ -24,6 +28,12 @@ def main() -> None:
         "--force",
         action="store_true",
         help="기존 DB를 삭제하고 처음부터 다시 만든다 (기본값: 데이터가 있으면 시드 생략)",
+    )
+    parser.add_argument(
+        "--with-reports",
+        action="store_true",
+        help="리포트 HTML을 전건 미리 생성한다 (기본값: 최초 열람 시 생성). "
+        "건당 RAG 조회 왕복이 붙어 느리므로 로컬에서 전체를 훑어볼 때만 쓴다.",
     )
     args = parser.parse_args()
 
@@ -48,8 +58,17 @@ def main() -> None:
     else:
         print("  기존 데이터가 있어 시드를 건너뛰었습니다 (--force로 재생성 가능)")
 
-    print(f"  RAG 청크         {summary['rag_chunks']}개")
-    print(f"  리포트 HTML      {summary['reports_html']}건")
+    if summary.get("rag_ready"):
+        print(f"  RAG 청크         {summary['rag_chunks']}개 (적재됨)")
+    else:
+        print("  RAG 청크         0개 — SOP 조회가 키워드 폴백으로 동작합니다.")
+        print("                   벡터 검색을 쓰려면: uv run python scripts/build_knowledge.py")
+
+    if args.with_reports:
+        with connection_scope() as conn:
+            print(f"  리포트 HTML      {generate_missing_report_html(conn)}건 (미리 생성)")
+    else:
+        print("  리포트 HTML      최초 열람 시 생성 (--with-reports로 미리 생성 가능)")
 
     timings = summary.get("timings", {})
     if timings:

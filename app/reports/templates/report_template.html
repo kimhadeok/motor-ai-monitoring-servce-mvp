@@ -193,6 +193,17 @@
         .severity-badge.high { background: var(--danger-bg); color: var(--danger); }
         .model-tag { font-size: 12px; color: var(--text-muted); }
 
+        /* 의심 고장 모드 (06_report_spec.md §2.3) — 참조 지식 기반 결정적 조회 결과 */
+        .fault-list { list-style: none; padding: 0; margin: 14px 0 0; }
+        .fault-list li { border-top: 1px solid var(--border-color); padding: 11px 0 0; margin-top: 11px; }
+        .fault-list li:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+        .fault-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .fault-name { font-size: 13.5px; font-weight: 700; color: var(--text-main); }
+        .fault-lead { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: var(--warning-bg); color: var(--warning); }
+        .fault-lead.days { background: var(--danger-bg); color: var(--danger); }
+        .fault-evidence { font-size: 12.5px; color: #334155; margin-bottom: 3px; }
+        .fault-meta { font-size: 11.5px; color: var(--text-muted); }
+
         .sop-list { padding-left: 0; list-style: none; margin: 0; }
         .sop-list li { position: relative; padding-left: 34px; margin-bottom: 13px; font-size: 14px; }
         .sop-list li::before {
@@ -361,6 +372,26 @@
         </div>
         <p style="font-size: 14px; margin-bottom: 8px;"><strong>[분석 결과 요약]</strong></p>
         <div style="font-size: 13.5px; color: #334155; white-space: pre-line;">{{ diagnosis_text }}</div>
+
+        {% if suspected_faults %}
+        <p style="font-size: 14px; margin: 18px 0 0;"><strong>[의심 고장 모드]</strong></p>
+        <ul class="fault-list">
+            {% for fault in suspected_faults %}
+            <li>
+                <div class="fault-head">
+                    <span class="fault-name">{{ fault.fault_name_ko }}{% if fault.fault_name_en %} ({{ fault.fault_name_en }}){% endif %}</span>
+                    {% if fault.lead_time_band %}
+                    <span class="fault-lead {{ fault.lead_time_band|lower }}">{{ fault.lead_time_label }}</span>
+                    {% endif %}
+                </div>
+                {% if fault.evidence %}<div class="fault-evidence">{{ fault.evidence }}</div>{% endif %}
+                <div class="fault-meta">
+                    {% if fault.typical_part %}교체 대상: {{ fault.typical_part }} · {% endif %}출처: {{ fault.source_doc }}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
     </div>
 
     <!-- 정비 가이드: 06_report_spec.md §2.4 (RAG 매뉴얼 검색 결과) -->

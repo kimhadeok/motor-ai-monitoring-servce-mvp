@@ -295,6 +295,42 @@ RAG_MAX_SOP_STEPS = 4
 # RAG 이용 불가 시 마지막 폴백 문구 (02_architecture.md §2.2)
 RAG_FALLBACK_SOP_STEP = "설비 안전 정지 후 담당자 육안 점검을 진행하십시오."
 
+# 인제스트 원본 파일별 문서 유형. 청크 메타데이터로 실려 SOP 조회 시 필터로 쓰인다.
+#   manual     — 제조사 매뉴얼/정비 절차
+#   incident   — 과거 장애 이력 및 실제 고장 사례
+#   methodology— 신호 분석·판정 방법론 (근거 설명용, 정비 절차가 아님)
+# 여기 없는 파일은 doc_type을 달지 않으며, 그 경우 SOP 조회 대상에서 제외된다.
+RAG_SOURCE_DOC_TYPES = {
+    "manufacturer_manual_sample.txt": "manual",
+    "pdm_fault_modes.txt": "manual",
+    "past_incident_sample.txt": "incident",
+    "motorsense_incident_cases.txt": "incident",
+    "pdm_signal_analysis.txt": "methodology",
+    "maintenance_taxonomy.txt": "methodology",
+}
+# SOP 조회 대상 문서 유형. methodology를 빼는 이유는 "이상 대응 정비 절차" 질의에
+# 방법론 설명이 걸리면 실행 가능한 조치가 아닌 문장이 SOP로 나가기 때문이다.
+RAG_SOP_DOC_TYPES = ("manual", "incident")
+# 질의문 보강 및 리포트 노출에 쓸 의심 고장모드 최대 개수
+RAG_FAULT_LOOKUP_LIMIT = 3
+# 질의문 보강에 쓸 relevance 상한 (1=주지표, 2=보조, 3=참고).
+# 3까지 넣으면 전류 조회에 "축 정렬 불량"이 섞여 전기적 고장 절차를 밀어낸다.
+# 리포트 노출은 이 제한을 받지 않는다 — 참고 수준도 담당자에겐 정보가 된다.
+RAG_FAULT_QUERY_MAX_RELEVANCE = 2
+
+# --- 참조 지식 (2026-08-07 확정) ---
+# 지표 → 고장모드 → 부품 매핑은 시간에 무관한 정적 데이터(26행)이고 런타임 테이블과
+# 조인할 지점이 없어 DB에 넣지 않는다. 커밋된 JSON을 app/rag/knowledge.py가 직접 읽는다.
+KNOWLEDGE_DIR = BASE_DIR / "data" / "knowledge"
+FAULT_KNOWLEDGE_FILE = "fault_modes.json"
+# 징후 발생부터 실제 고장까지의 여유 시간대 표시 문구.
+# MotorSense 제품소개서 p4의 진동(Months) → 소음(Weeks) → 열/연기(Days) → 고장 체인.
+FAULT_LEAD_TIME_LABELS = {
+    "MONTHS": "수개월 여유",
+    "WEEKS": "수주 내 점검",
+    "DAYS": "수일 내 조치",
+}
+
 # --- 리포트 세션 ID (06_report_spec.md §2.1/§4 확정) ---
 REPORT_SESSION_ID_FORMAT = "motor_{motor_id}_{date}_{time}"  # 예: motor_MTR-001_20260803_171000
 

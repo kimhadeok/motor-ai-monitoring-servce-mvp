@@ -1,0 +1,211 @@
+{
+  "_comment": [
+    "uploads/Reference PDF 큐레이션 산출물 (2026-08-07).",
+    "출처 1: 'AI 기반 예지보전' 개발계획서 (주)크레오티 — 고장 모드 분류, BPFO/BPFI, 부품/발주 연동",
+    "출처 2: 이파피루스 MotorSense 제품소개서 — 4대 고장 유형(p15), 지표별 예지보전 적합성(p3),",
+    "        징후 시간 체인 진동(Months) → 소음(Weeks) → 열/연기(Days) → 고장(p4)",
+    "이 파일은 app/rag/knowledge.py가 읽어 fault_modes / metric_fault_map 테이블에 적재한다.",
+    "PDF는 도형 위주라 자동 파싱으로 이 관계를 복원할 수 없어 수작업으로 정리했다."
+  ],
+
+  "fault_modes": [
+    {
+      "fault_code": "BEARING_DEFECT_OUTER",
+      "fault_name_ko": "베어링 외륜 결함",
+      "fault_name_en": "Bearing Outer Race Defect",
+      "category": "MECHANICAL",
+      "description": "외륜 궤도면의 흠집이나 파손 부위를 굴림체가 지나가며 주기적 충격이 발생하는 상태입니다. 진동 스펙트럼에서 BPFO(외륜 결함 주파수) 대역과 그 배수에 피크가 지속적으로 관측됩니다.",
+      "typical_part": "베어링 (예: 6205-ZZ)",
+      "lead_time_band": "MONTHS",
+      "source_doc": "AI 기반 예지보전 개발계획서 p3, p19-20"
+    },
+    {
+      "fault_code": "BEARING_DEFECT_INNER",
+      "fault_name_ko": "베어링 내륜 결함",
+      "fault_name_en": "Bearing Inner Race Defect",
+      "category": "MECHANICAL",
+      "description": "축과 함께 회전하는 내륜 궤도면의 결함 부위가 굴림체와 반복 충돌하는 상태입니다. 같은 베어링에서 BPFI는 항상 BPFO보다 높은 주파수로 나타나므로 두 대역을 비교해 부위를 구분합니다.",
+      "typical_part": "베어링 (예: 6205-ZZ)",
+      "lead_time_band": "MONTHS",
+      "source_doc": "AI 기반 예지보전 개발계획서 p3, p19-20"
+    },
+    {
+      "fault_code": "MISALIGNMENT",
+      "fault_name_ko": "축 정렬 불량",
+      "fault_name_en": "Misalignment",
+      "category": "MECHANICAL",
+      "description": "모터 축과 부하측 축의 중심선이 어긋나 커플링에 굽힘 하중이 걸리는 상태입니다. 회전 주파수의 2배(2X RPM) 성분이 두드러지며, 방치하면 베어링과 커플링 수명이 함께 단축됩니다.",
+      "typical_part": "커플링, 정렬용 심(shim)",
+      "lead_time_band": "MONTHS",
+      "source_doc": "MotorSense 제품소개서 p15 / 개발계획서 p3"
+    },
+    {
+      "fault_code": "IMBALANCE",
+      "fault_name_ko": "회전체 불균형",
+      "fault_name_en": "Imbalance",
+      "category": "MECHANICAL",
+      "description": "회전체의 질량 중심이 회전 중심과 일치하지 않아 원심력이 한 방향으로 치우쳐 작용하는 상태입니다. 회전 주파수(1X RPM) 성분의 진폭이 부하와 무관하게 크게 나타납니다.",
+      "typical_part": "임펠러, 팬 블레이드, 밸런싱 웨이트",
+      "lead_time_band": "MONTHS",
+      "source_doc": "MotorSense 제품소개서 p15 / 개발계획서 p4"
+    },
+    {
+      "fault_code": "LOOSENESS",
+      "fault_name_ko": "기계적 느슨함",
+      "fault_name_en": "Looseness",
+      "category": "MECHANICAL",
+      "description": "기초 볼트나 베어링 하우징 체결부가 풀려 설비가 미세하게 들뜨는 상태입니다. 회전 주파수의 여러 배수가 동시에 나타나는 하모닉(Harmonic) 현상이 특징이며, 진행 속도가 다른 기계적 고장보다 빠릅니다.",
+      "typical_part": "기초 볼트, 앵커, 와셔",
+      "lead_time_band": "WEEKS",
+      "source_doc": "MotorSense 제품소개서 p15, p35(컨베이어 사례), p36(펌프 하모닉 사례)"
+    },
+    {
+      "fault_code": "LUBRICATION_SHORTAGE",
+      "fault_name_ko": "윤활 부족",
+      "fault_name_en": "Lubrication Shortage",
+      "category": "THERMAL",
+      "description": "윤활유 부족이나 열화로 베어링 내부 마찰이 증가한 상태입니다. 온도 상승과 진동 증가가 함께 관측되며, 조기에 보충하지 않으면 베어링 결함으로 진행됩니다.",
+      "typical_part": "윤활유, 그리스",
+      "lead_time_band": "WEEKS",
+      "source_doc": "AI 기반 예지보전 개발계획서 p4(온도 센서 — 과열 및 마찰로 인한 이상 감지)"
+    },
+    {
+      "fault_code": "OVERHEATING",
+      "fault_name_ko": "과열",
+      "fault_name_en": "Overheating",
+      "category": "THERMAL",
+      "description": "냉각 불량, 주변 온도 상승, 과부하 등으로 권선 및 표면 온도가 정격을 초과한 상태입니다. 절연 열화를 가속시키므로 원인 파악 전이라도 부하를 낮춰야 합니다.",
+      "typical_part": "냉각팬, 필터",
+      "lead_time_band": "DAYS",
+      "source_doc": "AI 기반 예지보전 개발계획서 p4 / MotorSense 제품소개서 p4"
+    },
+    {
+      "fault_code": "OVERLOAD",
+      "fault_name_ko": "과부하",
+      "fault_name_en": "Overload",
+      "category": "ELECTRICAL",
+      "description": "정격을 넘는 부하가 걸려 전류가 상승한 상태입니다. 기계적 구속이나 공정 조건 변화가 원인인 경우가 많아 전기적 점검과 부하측 점검을 함께 진행해야 합니다.",
+      "typical_part": "과부하 계전기, 벨트/기어",
+      "lead_time_band": "DAYS",
+      "source_doc": "AI 기반 예지보전 개발계획서 p4(전류/전압 센서 — 과부하 감지)"
+    },
+    {
+      "fault_code": "STATOR_ROTOR_FAULT",
+      "fault_name_ko": "고정자·회전자 결함",
+      "fault_name_en": "Stator/Rotor Fault",
+      "category": "ELECTRICAL",
+      "description": "권선 절연 열화, 층간 단락, 회전자 바 파손 등 전기적 결함 상태입니다. 전기적 고장은 단기간에 진행되므로 예지보전보다 긴급보전 대상으로 다루어야 합니다.",
+      "typical_part": "고정자 권선, 회전자 바",
+      "lead_time_band": "DAYS",
+      "source_doc": "AI 기반 예지보전 개발계획서 p4 / MotorSense 제품소개서 p3"
+    }
+  ],
+
+  "metric_fault_map": [
+    {
+      "metric_name": "vibration",
+      "fault_code": "BEARING_DEFECT_OUTER",
+      "relevance": 1,
+      "evidence": "FFT 스펙트럼에서 BPFO 대역(예: 1800RPM·볼9개 베어링 기준 108Hz) 및 배수 216/324Hz에 피크가 지속됩니다."
+    },
+    {
+      "metric_name": "vibration",
+      "fault_code": "BEARING_DEFECT_INNER",
+      "relevance": 1,
+      "evidence": "FFT 스펙트럼에서 BPFI 대역(같은 조건 기준 162Hz)에 피크가 튀어오릅니다. 첨도(Kurtosis)가 정상값 3에서 급상승합니다."
+    },
+    {
+      "metric_name": "vibration",
+      "fault_code": "MISALIGNMENT",
+      "relevance": 1,
+      "evidence": "회전 주파수의 2배(2X RPM) 성분 진폭이 1X 대비 두드러집니다."
+    },
+    {
+      "metric_name": "vibration",
+      "fault_code": "IMBALANCE",
+      "relevance": 1,
+      "evidence": "회전 주파수(1X RPM) 성분이 지배적이며 부하 변화와 무관하게 유지됩니다."
+    },
+    {
+      "metric_name": "vibration",
+      "fault_code": "LOOSENESS",
+      "relevance": 1,
+      "evidence": "회전 성분의 배수가 함께 나타나는 하모닉 현상과 축 회전 궤도 변화가 동반됩니다."
+    },
+    {
+      "metric_name": "vibration",
+      "fault_code": "LUBRICATION_SHORTAGE",
+      "relevance": 2,
+      "evidence": "고주파 대역 에너지와 파고율(Crest Factor)이 증가하며 온도 상승이 함께 관측됩니다."
+    },
+
+    {
+      "metric_name": "temperature",
+      "fault_code": "LUBRICATION_SHORTAGE",
+      "relevance": 1,
+      "evidence": "마찰열로 베어링 표면 온도가 상승합니다. 온도는 주변 기온 영향을 받으므로 진동 추세와 함께 판단합니다."
+    },
+    {
+      "metric_name": "temperature",
+      "fault_code": "OVERHEATING",
+      "relevance": 1,
+      "evidence": "표면 및 윤활유 온도가 정격을 초과합니다."
+    },
+    {
+      "metric_name": "temperature",
+      "fault_code": "OVERLOAD",
+      "relevance": 2,
+      "evidence": "부하 증가에 따른 발열로 온도가 상승합니다. 전류 지표를 함께 확인해야 구분됩니다."
+    },
+    {
+      "metric_name": "temperature",
+      "fault_code": "BEARING_DEFECT_OUTER",
+      "relevance": 2,
+      "evidence": "베어링 결함이 진행되면 마찰 증가로 온도가 뒤따라 상승합니다. 진동이 이미 수개월 전 신호를 보냈을 가능성이 큽니다."
+    },
+
+    {
+      "metric_name": "current",
+      "fault_code": "STATOR_ROTOR_FAULT",
+      "relevance": 1,
+      "evidence": "모터 제어반(MCC) 전류 파형의 불평형 및 이상 성분이 관측됩니다. 전기적 고장은 진행이 빨라 즉시 조치가 필요합니다."
+    },
+    {
+      "metric_name": "current",
+      "fault_code": "OVERLOAD",
+      "relevance": 1,
+      "evidence": "정격 전류를 초과하는 상태가 지속됩니다."
+    },
+    {
+      "metric_name": "current",
+      "fault_code": "MISALIGNMENT",
+      "relevance": 3,
+      "evidence": "정렬 불량으로 인한 기계적 저항 증가가 전류 상승으로 나타날 수 있습니다."
+    },
+
+    {
+      "metric_name": "sound",
+      "fault_code": "BEARING_DEFECT_OUTER",
+      "relevance": 2,
+      "evidence": "베어링 결함이 진행되면 진동에 이어 소음이 커집니다. 주변 설비 소음이 섞이므로 진동 지표로 교차 확인해야 합니다."
+    },
+    {
+      "metric_name": "sound",
+      "fault_code": "BEARING_DEFECT_INNER",
+      "relevance": 2,
+      "evidence": "내륜 결함의 충격음이 주기적으로 발생합니다. 소음 단독으로는 판단하지 않습니다."
+    },
+    {
+      "metric_name": "sound",
+      "fault_code": "LOOSENESS",
+      "relevance": 2,
+      "evidence": "체결부 유격에 의한 타격음이 발생합니다."
+    },
+    {
+      "metric_name": "sound",
+      "fault_code": "MISALIGNMENT",
+      "relevance": 3,
+      "evidence": "커플링부 마찰음이 동반될 수 있습니다."
+    }
+  ]
+}
