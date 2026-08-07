@@ -17,16 +17,18 @@ from functools import lru_cache
 from app.config import (
     FAULT_KNOWLEDGE_FILE,
     FAULT_LEAD_TIME_LABELS,
+    FAULT_LEAD_TIME_URGENCY,
+    FAULT_RELEVANCE_LABELS,
     KNOWLEDGE_DIR,
     RAG_FAULT_LOOKUP_LIMIT,
     RAG_FAULT_QUERY_MAX_RELEVANCE,
 )
 
-_EMPTY: dict[str, list] = {"fault_modes": [], "metric_fault_map": []}
+_EMPTY: dict = {"fault_modes": [], "metric_fault_map": [], "metric_characteristics": {}}
 
 
 @lru_cache(maxsize=1)
-def load_fault_knowledge() -> dict[str, list]:
+def load_fault_knowledge() -> dict:
     """지식 JSON을 1회 읽어 캐시한다. 읽기 실패 시 빈 구조를 반환한다.
 
     지식이 없어도 앱은 동작해야 한다 (CLAUDE.md fallback). 파일이 없거나 깨졌을 때
@@ -43,7 +45,18 @@ def load_fault_knowledge() -> dict[str, list]:
     return {
         "fault_modes": data.get("fault_modes") or [],
         "metric_fault_map": data.get("metric_fault_map") or [],
+        "metric_characteristics": data.get("metric_characteristics") or {},
     }
+
+
+def metric_characteristic(metric: str) -> dict | None:
+    """지표의 예지보전 특성(역할·주의사항·출처). 없으면 None.
+
+    4개 지표의 신뢰도가 서로 다르다는 사실(MotorSense 제품소개서 p3)을 리포트에 노출해,
+    담당자가 수치만 보고 판단하지 않도록 한다.
+    """
+    entry = load_fault_knowledge()["metric_characteristics"].get(metric)
+    return entry if isinstance(entry, dict) and entry.get("note") else None
 
 
 def lookup_fault_modes(metric: str, limit: int = RAG_FAULT_LOOKUP_LIMIT) -> list[dict]:
@@ -62,18 +75,28 @@ def lookup_fault_modes(metric: str, limit: int = RAG_FAULT_LOOKUP_LIMIT) -> list
         fault = by_code.get(row.get("fault_code"))
         if fault is None:
             continue  # 매핑은 있는데 정의가 없는 경우 — 조용히 건너뛴다
+        relevance = row.get("relevance", 3)
         matched.append(
             {
                 **fault,
-                "relevance": row.get("relevance", 3),
+                "relevance": relevance,
                 "evidence": row.get("evidence"),
                 # 리포트가 그대로 출력할 수 있도록 코드가 아닌 문구를 함께 넣는다.
                 "lead_time_label": FAULT_LEAD_TIME_LABELS.get(fault.get("lead_time_band"), ""),
+                "relevance_label": FAULT_RELEVANCE_LABELS.get(relevance, ""),
             }
         )
 
-    # relevance 동률이면 JSON에 적힌 순서를 유지한다 (sorted는 안정 정렬).
-    matched.sort(key=lambda f: f["relevance"])
+    # 급한 것 먼저 (2026-08-07 확정). 담당자가 위에서부터 읽으므로 남은 대응 시간이
+    # 짧은 고장이 반드시 위에 와야 한다. 긴급도가 같으면 relevance 순.
+    #
+    # 이 정렬은 보조(relevance 2)이면서 급한 고장이 주지표(1)이면서 여유 있는 고장보다
+    # 위에 올 수 있다. 그래서 리포트에 relevance_label("주요 연관/보조 연관/참고")을 함께
+    # 노출한다 — 순서는 급한 순으로 두되, 그것이 이 지표의 주된 원인인지는 읽는 사람이
+    # 판단할 수 있어야 한다. 동률이면 JSON에 적힌 순서를 유지한다 (sort는 안정 정렬).
+    matched.sort(
+        key=lambda f: (FAULT_LEAD_TIME_URGENCY.get(f.get("lead_time_band"), 9), f["relevance"])
+    )
     return matched[:limit]
 
 

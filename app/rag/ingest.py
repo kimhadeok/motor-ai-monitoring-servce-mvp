@@ -159,16 +159,27 @@ def query_sop_steps(motor_name: str, metric: str) -> list[str]:
     collection = get_collection(create=False)
     if collection is not None:
         suspected = " ".join(fault_names(metric, RAG_FAULT_LOOKUP_LIMIT))
-        query_text = f"{motor_name} {label} 이상 {suspected} 대응 정비 절차".replace("  ", " ")
+        base_query = f"{label} 이상 {suspected} 대응 정비 절차".replace("  ", " ")
         try:
-            result = collection.query(
-                query_texts=[query_text],
-                n_results=RAG_TOP_K,
-                # 방법론 문서가 SOP로 나가지 않도록 제한한다. doc_type이 없는 청크도 제외된다.
-                where={"doc_type": {"$in": list(RAG_SOP_DOC_TYPES)}},
-            )
-            for document in result.get("documents", [[]])[0]:
-                steps.extend(_split_steps(document))
+            # doc_type을 하나씩 순회해 manual을 incident보다 먼저 채운다. 한 번에 조회하면
+            # 사례 문단이 1순위로 올라와 "베어링 하우징 온도가 3시간에 걸쳐 상승했습니다"
+            # 같은 증상 서술이 SOP 1단계 자리를 차지한다. 절차는 매뉴얼이 우선이고,
+            # 사례는 매뉴얼이 부족할 때 보충하는 자료다.
+            # 방법론(methodology) 문서는 RAG_SOP_DOC_TYPES에 없어 애초에 조회되지 않는다.
+            for doc_type in RAG_SOP_DOC_TYPES:
+                if len(steps) >= RAG_MAX_SOP_STEPS:
+                    break
+                # 모터명은 사례 조회에만 넣는다. 매뉴얼은 기종 단위로 쓰여 특정 설비명을
+                # 담지 않으므로, 넣으면 순위만 흔들린다 (A/B 실측: 같은 온도 질의가
+                # 모터명에 따라 온도 절차와 진동 절차 사이를 오갔다).
+                query = f"{motor_name} {base_query}" if doc_type == "incident" else base_query
+                result = collection.query(
+                    query_texts=[query],
+                    n_results=RAG_TOP_K,
+                    where={"doc_type": doc_type},
+                )
+                for document in result.get("documents", [[]])[0]:
+                    steps.extend(_split_steps(document))
         except Exception:
             steps = []  # 임베딩/검색 실패 — 아래 폴백으로
 

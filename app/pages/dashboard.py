@@ -4,6 +4,7 @@ import streamlit as st
 
 from app.config import (
     DASHBOARD_EVENT_LIST_LIMIT,
+    DASHBOARD_MOTOR_CARD_LIMIT,
     DASHBOARD_RECENT_WINDOW_HOURS,
     MOTOR_CARD_COLUMNS,
     SUMMARY_DATE_FORMAT,
@@ -13,7 +14,7 @@ from app.config import (
 from app.db.connection import connection_scope
 from app.services.company import build_summary
 from app.services.events import list_company_events
-from app.services.motors import list_company_motors
+from app.services.motors import list_company_motors, select_priority_cards
 from app.ui.components import (
     alert_banner,
     event_list_header,
@@ -91,12 +92,21 @@ if _dangered:
 
 st.subheader("모터 현황")
 
+# 카드는 심각한 순으로 일부만 그린다 (config.DASHBOARD_MOTOR_CARD_LIMIT).
+# 상단 요약과 배너는 위에서 전체 목록으로 이미 계산했으므로 집계는 그대로 정확하다.
+_cards = select_priority_cards(motors, DASHBOARD_MOTOR_CARD_LIMIT)
+
 if not motors:
     st.info("등록된 모터가 없습니다.")
 else:
-    for row_start in range(0, len(motors), MOTOR_CARD_COLUMNS):
+    if len(_cards) < len(motors):
+        st.caption(
+            f"조치가 급한 순으로 {len(_cards)}대만 표시합니다 "
+            f"(전체 {len(motors)}대 · 목록 전체는 '모터 현황' 페이지에서 볼 수 있습니다)."
+        )
+    for row_start in range(0, len(_cards), MOTOR_CARD_COLUMNS):
         for column, motor in zip(
-            st.columns(MOTOR_CARD_COLUMNS), motors[row_start : row_start + MOTOR_CARD_COLUMNS]
+            st.columns(MOTOR_CARD_COLUMNS), _cards[row_start : row_start + MOTOR_CARD_COLUMNS]
         ):
             with column:
                 motor_card(motor)

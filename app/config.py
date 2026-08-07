@@ -73,6 +73,10 @@ EVENT_COLUMN_WIDTHS = (1.6, 2.4, 2.6, 1.1)
 # --- 모터 카드 그리드 (05_ui_screens.md §3.2) ---
 # 문서 미확정 — MVP 제안값
 MOTOR_CARD_COLUMNS = 5
+# 대시보드에 그릴 모터 카드 수 (2026-08-07 임시, 개수 추후 확정 — remaining_work.md #7).
+# COMP-001은 200대라 카드를 전부 그리면 렌더가 무겁다. 전체 목록은 '모터 현황' 페이지가 맡는다.
+# None이면 제한 없이 전부 그린다.
+DASHBOARD_MOTOR_CARD_LIMIT = 20
 # 정비 완료 확인 필요 목록의 한 줄 카드 수 (05 §3.1) — 모터별 정보+버튼 카드를 나열한다.
 MAINTENANCE_CONFIRM_COLUMNS = 4
 # 카드 위를 덮는 투명 버튼의 key 접두사. Streamlit이 위젯 key를 DOM의
@@ -171,6 +175,19 @@ METRIC_UNITS = {
     "current": "A",
     "sound": "dB",
 }
+
+# 지표 → motor_telemetry의 상태 컬럼명 (04_database_schema.md §3.5).
+# 리포트 컨텍스트와 진단 근거 계산이 함께 쓴다.
+METRIC_STATUS_COLUMNS = {
+    "temperature": "temp_status",
+    "vibration": "vib_status",
+    "current": "current_status",
+    "sound": "sound_status",
+}
+
+# 추이를 "상승/하락"으로 부를 최소 변화율. 이보다 작으면 "유지"로 본다.
+# 센서 노이즈를 추세로 오독해 리포트가 없는 경향을 단언하는 것을 막는다.
+TREND_SIGNIFICANT_RATIO = 0.03
 
 # 지표별 임계값 4구간 (normal_range, warning_range, danger_range, fault_range).
 # 판정 규칙: 값 >= fault → FAULT, >= danger → DANGER, >= warning → WARNING, 그 외 NORMAL.
@@ -330,6 +347,14 @@ FAULT_LEAD_TIME_LABELS = {
     "WEEKS": "수주 내 점검",
     "DAYS": "수일 내 조치",
 }
+# 정렬용 긴급도 (작을수록 급함). 리포트의 의심 고장 모드는 이 순서로 노출한다 —
+# 담당자가 먼저 봐야 할 것은 관련도가 아니라 남은 대응 시간이다.
+# 값이 없는 고장모드는 뒤로 보낸다.
+FAULT_LEAD_TIME_URGENCY = {"DAYS": 0, "WEEKS": 1, "MONTHS": 2}
+# 해당 지표와의 연관 강도 표시 문구 (metric_fault_map.relevance).
+# 긴급도 순으로 정렬하면 보조 연관 고장이 주요 연관 고장보다 위에 올 수 있으므로,
+# 읽는 사람이 그 차이를 알 수 있도록 리포트에 함께 노출한다.
+FAULT_RELEVANCE_LABELS = {1: "주요 연관", 2: "보조 연관", 3: "참고"}
 
 # --- 리포트 세션 ID (06_report_spec.md §2.1/§4 확정) ---
 REPORT_SESSION_ID_FORMAT = "motor_{motor_id}_{date}_{time}"  # 예: motor_MTR-001_20260803_171000

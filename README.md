@@ -20,28 +20,59 @@ cp .env.example .env
 uv run streamlit run main.py
 ```
 
+이게 전부입니다. RAG 벡터는 저장소에 커밋되어 있어 별도 등록 절차가 필요 없습니다.
+
 데모 계정은 `demo1@example.com` / `demo2@example.com`이고 비밀번호는 둘 다 `demo1234!`입니다. 서로 다른 회사 소속이라 각자 자기 회사 이벤트만 봅니다.
 
-## 시연용 데이터 (앱 부팅 시 자동 생성)
+## 부팅 시 무슨 일이 일어나나
 
-별도 준비 절차가 없습니다. 앱을 처음 띄우면 `app/services/bootstrap.py`가 스키마 생성 → 데모 데이터 시드 → RAG 인제스트 → 리포트 HTML 생성까지 한 번에 수행합니다.
+`app/services/bootstrap.py`가 프로세스당 1회 실행됩니다. **가르는 기준은 "데이터가 시간에 의존하는가"입니다.**
 
-Streamlit Community Cloud는 재배포/재시작 시 파일시스템이 초기화되므로 산출물을 커밋해도 소용이 없고, 커밋된 데이터는 시간이 지나면 "최근 48시간" 구간이 비어버립니다. 런타임 생성 방식은 **언제 켜도 항상 지금 기준 최근 48시간** 데이터를 갖습니다.
+```
+1. 스키마 보장    CREATE TABLE IF NOT EXISTS
+2. 데모 시드      데이터가 이미 있으면 생략 (재실행 안전)
+3. RAG 적재 확인  collection.count()만 읽음 — 인제스트 아님
+```
 
-| 경로 | 소요 (로컬 실측) | 내용 |
+**부팅 경로에 OpenAI API 호출이 없습니다.** API 키가 없어도 앱은 정상 기동하며, 키는 리포트를 열 때만 쓰입니다.
+
+| 자산 | 시간 의존 | 준비 방식 |
 |---|---|---|
-| 콜드 (배포 환경, 첫 기동) | 약 3.4초 | 스키마 0.07s · 시드 0.68s · RAG 인제스트 1.4s · 리포트 HTML 1.3s |
-| 웜 (로컬 재기동) | 약 0.5초 | 데이터·벡터가 이미 있어 시드와 인제스트를 모두 생략 |
+| 텔레메트리·상태로그 | O | 부팅 시 생성 (`data/app.db`, 커밋 안 함) |
+| RAG 벡터 | X | `data/chroma/` 커밋본 사용 — 등록 불필요 |
+| 참조 지식 (고장모드) | X | `data/knowledge/*.json` 커밋본 — 파일이 곧 데이터 |
+| 리포트 HTML | O | 최초 열람 시 생성 후 DB 캐시 |
 
-생성물은 `data/app.db`(SQLite)와 `data/chroma/`(ChromaDB)이며 **git에 커밋하지 않습니다**. 동시 진입은 `data/.ingest.lock`(파일 락)과 `data/.ingest_done`(완료 마커)으로 차단합니다. 인제스트 원본인 `data/rag_sources/`만 커밋 대상입니다.
+데모 텔레메트리를 커밋하지 않는 이유는 `app/services/seeding.py`가 **실행 시각 기준 최근 48시간**을 채우기 때문입니다. 커밋하면 며칠 뒤 빈 대시보드를 보게 됩니다.
 
-### 수동 재생성 (선택)
+| 경로 | 소요 (로컬 실측, 모터 210대) | 내용 |
+|---|---|---|
+| 콜드 (배포 환경, 첫 기동) | **4.43초** | 스키마 0.03s · 시드 3.93s · RAG 확인 0.47s |
+| 웜 (로컬 재기동) | 약 0.5초 | 데이터가 이미 있어 시드 생략 |
 
-시드 로직을 바꿨거나 `data/rag_sources/`의 내용을 수정했을 때만 사용합니다. 청크 수가 그대로면 인제스트 생략 로직이 변경을 감지하지 못하므로 `--force`가 필요합니다.
+동시 진입은 `data/.ingest.lock`(파일 락)과 `data/.ingest_done`(완료 마커)으로 차단합니다.
+
+## 수동 스크립트 (선택)
+
+### 데모 데이터 재생성
+
+시드 로직을 바꿨을 때만 사용합니다.
 
 ```bash
-uv run python scripts/seed_data.py --force   # DB를 지우고 처음부터 다시 생성
+uv run python scripts/seed_data.py --force            # DB를 지우고 처음부터 다시 생성
+uv run python scripts/seed_data.py --with-reports     # 리포트 HTML까지 전건 미리 생성
 ```
+
+### RAG 벡터 재구축
+
+**`data/rag_sources/`의 텍스트를 수정했을 때만** 실행합니다. 원본이 시간에 무관한 정적 텍스트라 한 번 만들면 끝이고, 산출물을 커밋해야 배포에 반영됩니다.
+
+```bash
+uv run python scripts/build_knowledge.py --dry-run    # 임베딩 없이 청크 구성만 확인 (API 키 불필요)
+uv run python scripts/build_knowledge.py --force      # 실제 재임베딩 (앱을 내린 상태에서)
+```
+
+> ⚠️ **앱이 떠 있는 상태로 실행하지 마세요.** ChromaDB의 persist 디렉터리는 다중 프로세스 동시 쓰기를 가정하지 않습니다. 앱이 스토어를 연 채로 갱신되면 앱 쪽 벡터 검색이 **예외 없이 조용히** 실패해 SOP가 키워드 폴백으로 떨어집니다. 재구축 후에는 앱을 재기동하세요.
 
 > ⚠️ **Windows에서는 리포트가 PDF 대신 HTML로 표시됩니다.** WeasyPrint는 Pango/GLib 네이티브 라이브러리를 요구하는데 Windows에는 기본 탑재되어 있지 않습니다. 앱은 이를 감지해 저장된 HTML을 다이얼로그에 그대로 보여주므로 **기능이 막히지는 않습니다**. PDF까지 확인하려면 WSL/Docker에서 실행하거나 GTK3 런타임을 설치하세요. Streamlit Community Cloud에서는 `packages.txt` 덕분에 PDF가 정상 생성되며, 한 번 만든 PDF는 `report_pdf` BLOB에 캐시되어 이후 즉시 응답합니다.
 
@@ -60,14 +91,15 @@ app/            # 애플리케이션 코드
   ui/           #   재사용 컴포넌트 · 전역 스타일 · 네비게이션 · 테마
   services/     #   bootstrap(부팅 시 데이터 준비), seeding, motors, company, events, diagnosis
   reports/      #   HTML/PDF 렌더 및 리포트 제공 (PDF 실패 시 HTML 폴백)
-  rag/          #   ChromaDB 인제스트 및 SOP 조회 (실패 시 키워드 매칭 폴백)
+  rag/          #   ChromaDB 인제스트·SOP 조회(실패 시 키워드 폴백), 참조 지식 조회
 data/
-  rag_sources/  #   RAG 인제스트 원본 텍스트 (git 커밋 대상)
+  rag_sources/  #   RAG 인제스트 원본 텍스트 (커밋)
+  knowledge/    #   참조 지식 — 고장모드·지표 매핑 JSON (커밋)
+  chroma/       #   ChromaDB persist — 수동 구축 후 커밋
   app.db        #   런타임 생성 — SQLite (git 제외)
-  chroma/       #   런타임 생성 — ChromaDB persist (git 제외)
   .ingest_done  #   부트스트랩 완료 마커 (git 제외)
   .ingest.lock  #   부트스트랩 파일 락 (git 제외)
-scripts/        # 선택적 수동 재생성 CLI (seed_data.py)
+scripts/        # 수동 CLI — seed_data.py(데모 데이터), build_knowledge.py(RAG 벡터)
 .claude/docs/generated/  # 확정 사양 문서 (단일 소스 오브 트루스)
 ```
 

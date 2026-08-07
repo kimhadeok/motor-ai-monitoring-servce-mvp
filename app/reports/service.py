@@ -14,6 +14,7 @@ from app.config import (
     DIAGNOSIS_MODEL_LABEL,
     METRIC_LABELS,
     METRIC_NAMES,
+    METRIC_STATUS_COLUMNS,
     METRIC_THRESHOLDS,
     METRIC_UNITS,
     REPORT_DATE_FORMAT,
@@ -27,14 +28,11 @@ from app.db.connection import connection_scope
 from app.rag.ingest import query_sop_steps
 from app.rag.knowledge import lookup_fault_modes
 from app.reports.generator import render_report_html, render_report_pdf
-from app.services.diagnosis import build_diagnosis_text, build_notification_message
-
-_TELEMETRY_STATUS_COLUMN = {
-    "temperature": "temp_status",
-    "vibration": "vib_status",
-    "current": "current_status",
-    "sound": "sound_status",
-}
+from app.services.diagnosis import (
+    build_diagnosis_facts,
+    build_diagnosis_text,
+    build_notification_message,
+)
 
 _STATUS_LABEL = {"DANGER": "위험 단계 감지", "FAULT": "고장/정지 감지"}
 
@@ -78,7 +76,7 @@ def build_report_context(conn, log) -> dict | None:
     sensors = []
     for name in METRIC_NAMES:
         _, warning, _, _ = METRIC_THRESHOLDS[name]
-        metric_status = telemetry[_TELEMETRY_STATUS_COLUMN[name]]
+        metric_status = telemetry[METRIC_STATUS_COLUMNS[name]]
         sensors.append(
             {
                 "label": METRIC_LABELS[name],
@@ -93,6 +91,11 @@ def build_report_context(conn, log) -> dict | None:
     recipient = "담당자 미지정"
     if contact is not None:
         recipient = f"{contact['contact_name']} ({_mask_phone(contact['phone_number'])})"
+
+    # 근거를 먼저 측정하고 문장은 그 근거만 서술한다 (services/diagnosis.py 모듈 주석 참조).
+    facts = build_diagnosis_facts(
+        conn, motor["motor_id"], metric, status, log["created_at"], telemetry
+    )
 
     return {
         "status": status,
@@ -114,7 +117,10 @@ def build_report_context(conn, log) -> dict | None:
         ),
         "sensors": sensors,
         "diagnosis_model_label": DIAGNOSIS_MODEL_LABEL,
-        "diagnosis_text": build_diagnosis_text(metric, telemetry[metric], status),
+        "diagnosis_text": build_diagnosis_text(status, facts),
+        "trend_windows": [w for w in (facts["short_term"], facts["long_term"]) if w],
+        "companion_metrics": facts["companions"],
+        "metric_characteristic": facts["characteristic"],
         # 참조 지식 기반 결정적 조회 — 벡터 검색과 달리 같은 지표면 항상 같은 근거가 나온다.
         "suspected_faults": lookup_fault_modes(metric),
         "sop_steps": query_sop_steps(motor["motor_name"], metric),

@@ -189,6 +189,23 @@ def list_company_motors(conn, company_id: str) -> list[dict]:
     return cards
 
 
+def select_priority_cards(cards: list[dict], limit: int | None) -> list[dict]:
+    """대시보드에 그릴 카드를 심각한 순으로 `limit`개 고른다. `limit`이 None이면 전부.
+
+    `list_company_motors()`는 등록 순(motor_id)을 유지하지만, 여기서 앞에서부터 그냥
+    자르면 흩어져 있는 위험 모터가 화면에서 사라진다 — COMP-001은 200대 중 조치 필요가
+    17대이고 motor_id 순으로는 앞 10개 안에 거의 들어오지 않는다. 문제를 발견하라고 있는
+    화면이 문제를 가리게 되므로, 제한할 때는 심각도 순으로 고른다.
+
+    같은 상태끼리는 등록 순을 유지한다(안정 정렬) — 설비가 늘 같은 자리에 있어야
+    담당자가 위치로 기억할 수 있다는 `list_company_motors()`의 의도를 그 안에서 지킨다.
+    """
+    if limit is None or len(cards) <= limit:
+        return cards
+    ordered = sorted(cards, key=lambda c: -STATUS_SEVERITY_RANK.get(c["status"], 0))
+    return ordered[:limit]
+
+
 def count_status(cards: list[dict], statuses: tuple[str, ...]) -> int:
     """대표 상태가 주어진 목록에 속하는 모터 수 (05 §3.1 '주의 이상 모터 수')."""
     return sum(1 for c in cards if c["status"] in statuses)
