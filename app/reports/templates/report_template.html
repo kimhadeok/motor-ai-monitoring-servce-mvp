@@ -231,6 +231,29 @@
         }
         .threshold-note { font-size: 11px; color: var(--text-muted); margin-top: 7px; }
 
+        /* AI 진단 4섹션 (06_report_spec.md §2.3, 2026-08-10) — 진단 에이전트가
+           요약/원인/연쇄 영향/방치 시 결과를 구조화해 내보내므로, 한 덩어리 문단이
+           아니라 섹션별로 렌더한다. 담당자가 필요한 항목만 골라 읽을 수 있다. */
+        .diag-block { margin-top: 14px; }
+        .diag-block:first-of-type { margin-top: 0; }
+        .diag-head {
+            font-size: 12.5px; font-weight: 700; color: var(--primary);
+            letter-spacing: -0.2px; margin-bottom: 5px;
+        }
+        .diag-body { font-size: 14px; line-height: 1.75; color: #334155; }
+        .diag-body ul { margin: 0; padding-left: 18px; }
+        .diag-body li { margin-bottom: 3px; }
+        .diag-body li:last-child { margin-bottom: 0; }
+        /* 요약은 한 줄로 먼저 읽히도록 강조한다. 강조선 색은 상태를 따른다 —
+           팔레트가 녹색→앰버→주황→빨강 단조 증가 램프이므로(05 §5-3), FAULT 리포트에
+           DANGER 색을 쓰면 가장 심각한 상태가 약해 보인다. */
+        .diag-summary {
+            font-size: 14.5px; font-weight: 600; color: var(--text-main); line-height: 1.65;
+            padding: 12px 14px; border-radius: 7px;
+            background: var(--bg-gray); border-left: 3px solid var(--danger);
+        }
+        .diag-summary.status-fault { border-left-color: var(--fault); }
+
         /* 측정 근거 (06_report_spec.md §2.3) — 추세·동반 지표를 수치로 제시 */
         .evidence-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
         .evidence-chip {
@@ -297,7 +320,7 @@
 
             /* 페이지 경계에서 내용이 잘리지 않게 한다.
                블록 하나가 두 페이지에 걸치면 표·절차·근거가 반토막 나 읽을 수 없다. */
-            .card-box, .sensor-card, .evidence-chip, .metric-note,
+            .card-box, .sensor-card, .evidence-chip, .metric-note, .diag-block,
             .fault-list li, .sop-list li, .timeline-item, tr {
                 page-break-inside: avoid; break-inside: avoid;
             }
@@ -464,11 +487,33 @@
             <span class="severity-badge high">{{ status_label }}</span>
             <span class="model-tag">진단 모델: {{ diagnosis_model_label }}</span>
         </div>
-        <p style="font-size: 14px; margin-bottom: 8px;"><strong>[분석 결과 요약]</strong></p>
-        <div style="font-size: 14px; line-height: 1.75; color: #334155; white-space: pre-line;">{{ diagnosis_text }}</div>
+        <div class="diag-block">
+            <div class="diag-summary status-{{ status_class }}">{{ diagnosis_summary }}</div>
+        </div>
+
+        <div class="diag-block">
+            <div class="diag-head">주요 원인</div>
+            <div class="diag-body">{{ diagnosis_cause }}</div>
+        </div>
+
+        {% if diagnosis_chained_effects %}
+        <div class="diag-block">
+            <div class="diag-head">연쇄 영향</div>
+            <div class="diag-body">
+                <ul>
+                    {% for effect in diagnosis_chained_effects %}<li>{{ effect }}</li>{% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="diag-block">
+            <div class="diag-head">방치 시 예상 결과</div>
+            <div class="diag-body">{{ diagnosis_if_ignored }}</div>
+        </div>
 
         {% if trend_windows or companion_metrics %}
-        <p style="font-size: 14px; margin: 18px 0 0;"><strong>[측정 근거]</strong></p>
+        <div class="diag-head" style="margin-top: 18px;">측정 근거</div>
         <div class="evidence-grid">
             {% for window in trend_windows %}
             <div class="evidence-chip">

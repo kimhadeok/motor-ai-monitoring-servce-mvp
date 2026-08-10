@@ -639,7 +639,10 @@ def report_button(log) -> None:
 
     log_id = log["log_id"]
     if st.button("보고서", key=f"report-{log_id}", use_container_width=True):
-        with st.spinner("리포트를 준비하는 중입니다…"):
+        # 최초 열람은 진단 에이전트 호출을 포함해 수 초가 걸린다(2026-08-10). 무엇을
+        # 기다리는지 모르는 채 멈춰 있는 것이 대기 자체보다 나쁘므로 문구로 알린다.
+        # 두 번째 열람부터는 report_html 캐시라 스피너가 사실상 보이지 않는다.
+        with st.spinner("AI 진단 리포트를 생성하는 중입니다… (최초 열람은 몇 초 걸립니다)"):
             result = get_report(log_id)
         st.session_state[_REPORT_VIEW_KEY] = {
             "basename": _report_basename(log),

@@ -8,17 +8,22 @@
 
 RAG 벡터 스토어는 여기서 만들지 않는다 — `scripts/build_knowledge.py`가 담당한다.
 
-실행: uv run python scripts/seed_data.py [--force] [--with-reports]
+실행: uv run python scripts/seed_data.py [--force] [--with-reports] [--reset-reports]
 """
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.config import REPORT_GENERATION_SECONDS_PER_ITEM  # noqa: E402
 from app.db.connection import connection_scope  # noqa: E402
-from app.reports.service import generate_missing_report_html  # noqa: E402
+from app.reports.service import (  # noqa: E402
+    count_missing_reports,
+    generate_missing_report_html,
+)
 from app.services.bootstrap import bootstrap_demo_data  # noqa: E402
 
 
@@ -33,9 +38,25 @@ def main() -> None:
         "--with-reports",
         action="store_true",
         help="리포트 HTML을 전건 미리 생성한다 (기본값: 최초 열람 시 생성). "
-        "건당 RAG 조회 왕복이 붙어 느리므로 로컬에서 전체를 훑어볼 때만 쓴다.",
+        "건당 RAG 조회 왕복 + 진단 LLM 호출이 붙어 느리므로 로컬에서 전체를 훑어볼 때만 쓴다.",
+    )
+    parser.add_argument(
+        "--reset-reports",
+        action="store_true",
+        help="저장된 리포트 HTML/PDF 캐시를 비운다. 템플릿이나 진단 로직을 바꾼 뒤 "
+        "다시 생성되게 할 때 쓴다 (06_report_spec.md §3.1).",
     )
     args = parser.parse_args()
+
+    if args.reset_reports:
+        # 시드보다 먼저 비운다. --force와 함께 쓰면 DB가 통째로 새로 만들어지므로
+        # 여기서 비운 결과는 자연히 덮인다.
+        with connection_scope() as conn:
+            cleared = conn.execute(
+                "UPDATE motor_status_logs SET report_html = NULL, report_pdf = NULL "
+                "WHERE report_html IS NOT NULL OR report_pdf IS NOT NULL"
+            ).rowcount
+        print(f"리포트 캐시 {cleared}건을 비웠습니다.")
 
     summary = bootstrap_demo_data(force=args.force)
 
@@ -65,8 +86,19 @@ def main() -> None:
         print("                   벡터 검색을 쓰려면: uv run python scripts/build_knowledge.py")
 
     if args.with_reports:
+        # 진단 에이전트가 붙은 뒤 건당 약 4초가 든다(2026-08-10). 24건이면 1분 반이므로,
+        # 아무 출력 없이 멈춰 있는 것처럼 보이지 않도록 시작 전에 예상 시간을 알린다.
         with connection_scope() as conn:
-            print(f"  리포트 HTML      {generate_missing_report_html(conn)}건 (미리 생성)")
+            pending = count_missing_reports(conn)
+            if pending:
+                estimate = pending * REPORT_GENERATION_SECONDS_PER_ITEM
+                print(
+                    f"  리포트 HTML      {pending}건 생성 중… "
+                    f"(건당 RAG 조회 + 진단 LLM 호출, 예상 {estimate:.0f}초)"
+                )
+            started = time.monotonic()
+            generated = generate_missing_report_html(conn)
+            print(f"  리포트 HTML      {generated}건 생성 완료 ({time.monotonic() - started:.1f}s)")
     else:
         print("  리포트 HTML      최초 열람 시 생성 (--with-reports로 미리 생성 가능)")
 

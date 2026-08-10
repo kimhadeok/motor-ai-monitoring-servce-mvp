@@ -69,6 +69,10 @@
 
 **임베딩 모델 선정 근거 (2026-08-04 확정)**: 로컬 ONNX 모델 다운로드(83MB)와 수백 MB 메모리 점유를 회피해 cold start를 20~60초에서 약 1.2초로 단축하고, LLM과 동일한 OpenAI 단일 프로바이더를 유지하기 위함. 실측 기준 인제스트 11청크 배치 0.60초(1,140 토큰), 검색 질의 1건 0.23초이며 비용은 인제스트 1회당 $0.00002 수준. 네트워크 의존이 생기므로 **API 호출 실패 시 키워드 매칭으로 폴백**한다(`02_architecture.md` §2.2).
 
+**추론 모델 실사용 (2026-08-10 구현)**: GPT-4o는 진단 에이전트(`app/agents/diagnosis_agent.py`)에서 `with_structured_output`으로 호출한다. 라우터 모델(GPT-4o-mini)은 MVP 화면에 자연어 입력 지점이 없어 아직 사용처가 없다 — 상수만 유지한다.
+
+**LangChain/LangGraph는 지연 import 한다.** 실측 콜드 import가 `langgraph` 3.17초 + `langchain_openai` 0.96초로, 부팅 경로에 올리면 4.43초로 줄여 놓은 콜드 스타트(`02_architecture.md` §6.1.1)가 무너진다. 두 라이브러리는 `diagnosis_agent`의 함수 내부에서만 import되며, 앱 진입 경로(`app.ui.navigation` / `app.pages.*` / `app.reports.service`) import 후 `sys.modules`에 없음을 실측 확인했다(진입 경로 import 1.33초).
+
 ### 2.5 화면 스타일링 (보강)
 
 `화면구성.md` 원본에는 상태별 컬러 코딩, 모터 이미지 → API → AI Agent 흐름의 애니메이션 효과, 카드/배지형 상태 표시 등 커스텀 디자인 요구사항이 있으나 원본 기술 스택 문서에는 이를 구현할 패키지가 누락되어 있어 보강함.

@@ -346,6 +346,32 @@ LLM_REASONING_MODEL = "gpt-4o"
 EMBEDDING_MODEL = "text-embedding-3-small"
 # 리포트에 표시할 진단 모델 라벨 (06_report_spec.md §2.3 확정)
 DIAGNOSIS_MODEL_LABEL = "GPT-4o 기반 진단 에이전트"
+# 규칙 기반 폴백으로 생성했을 때의 라벨 (2026-08-10 확정).
+# 호출하지 않은 모델명을 리포트에 적으면 담당자가 LLM 생성물로 오독한다 — 06 §2.3이 지적한
+# "측정하지 않은 것을 단언하는 진단"과 같은 문제이므로 표기를 실제 생성 경로와 일치시킨다.
+DIAGNOSIS_FALLBACK_MODEL_LABEL = "규칙 기반 진단 (LLM 미사용)"
+
+# --- 진단 에이전트 (app/agents/diagnosis_agent.py, 2026-08-10) ---
+# 오프라인 시연·폴백 검증용 강제 오프 스위치. 끄면 LLM을 호출하지 않고 규칙 기반으로 간다.
+# 키가 없을 때도 자동으로 같은 경로를 탄다.
+DIAGNOSIS_LLM_ENABLED = str(get_secret("DIAGNOSIS_LLM_ENABLED", "true")).strip().lower() not in (
+    "false",
+    "0",
+    "no",
+)
+# 같은 이벤트에는 같은 진단이 나와야 담당자가 리포트를 근거로 삼을 수 있다.
+DIAGNOSIS_LLM_TEMPERATURE = 0
+# 실측 3.69초(gpt-4o structured output, 2026-08-10) 기준 3배 여유.
+# 재시도까지 소진하면 최악 약 24초 뒤 규칙 기반으로 떨어진다 — 사용자가 스피너 앞에서
+# 기다리는 시간이므로 이 두 값을 올릴 때는 첫 열람 대기 시간을 함께 따져야 한다.
+DIAGNOSIS_LLM_TIMEOUT_SECONDS = 12
+DIAGNOSIS_LLM_MAX_RETRIES = 1
+# 연쇄 영향 항목 수 상한. 리포트 3페이지(AI 진단)의 실측 여유는 451px이므로(06 §3.1)
+# 항목이 무한정 늘면 페이지가 밀린다.
+DIAGNOSIS_MAX_CHAINED_EFFECTS = 3
+# 리포트 1건 생성 예상 소요(초) — SOP 임베딩 0.3초 + 진단 LLM 3.7초 실측 기준.
+# `scripts/seed_data.py --with-reports`가 시작 전 예상 시간을 안내하는 데만 쓴다.
+REPORT_GENERATION_SECONDS_PER_ITEM = 4.0
 
 # --- RAG (01_tech_stack.md §2.3) ---
 CHROMA_COLLECTION_NAME = "manuals_and_incidents"

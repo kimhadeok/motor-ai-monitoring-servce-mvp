@@ -1,10 +1,13 @@
 # 계획 — LangGraph 진단 에이전트 (remaining_work #1)
 
-> **상태 (2026-08-06)**: 결정 A/B/C 확정, **코드 미착수**(문서만 갱신). 다음 세션 재개 순서:
-> `app/agents/schema.py` → `app/prompts.py` → `app/agents/diagnosis_agent.py` →
-> `reports/service.py`(통합 `:116`) → `report_template.html`(`{{ diagnosis_text }}` 363행) →
-> `bootstrap.py`(부팅 `generate_missing_report_html` 제거) → 스펙/추적 문서 갱신.
+> **상태: 완료 (2026-08-10)**. (B)는 2026-08-07에, (A)·(C)는 2026-08-10에 구현됐다.
+> 구현 결과와 실측은 `.claude/docs/plan/2026-08-10_langgraph-diagnosis-agent-impl.md`,
+> 스펙 반영은 `01 §2.4` / `02 §2.4.1` / `06 §2.3`을 본다. 이 문서는 **결정 근거 기록**으로 남긴다.
+>
 > 확정: (A) 최소 LangGraph 그래프 (B) 온디맨드 생성+캐시(부팅 대량생성 제거) (C) 섹션=요약·원인·연쇄영향·방치결과.
+>
+> 아래 "확인 필요"의 A/B/C는 모두 승인됐고, 2026-08-10에 두 가지가 추가로 확정됐다 —
+> **폴백 시 진단 모델 라벨 전환**, **진단 결과 DB 미저장**(스키마 변경 없음).
 
 ## Context (왜)
 현재 진단 텍스트는 `app/services/diagnosis.py`의 **규칙 기반 템플릿**(`build_diagnosis_text`)이 만든다.

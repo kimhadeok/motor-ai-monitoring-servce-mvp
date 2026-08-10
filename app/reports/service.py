@@ -10,7 +10,10 @@
 
 from datetime import timedelta
 
+from app.agents.diagnosis_agent import run_diagnosis
+from app.agents.schema import DiagnosisContext
 from app.config import (
+    DIAGNOSIS_FALLBACK_MODEL_LABEL,
     DIAGNOSIS_MODEL_LABEL,
     METRIC_LABELS,
     METRIC_NAMES,
@@ -30,7 +33,6 @@ from app.rag.knowledge import lookup_fault_modes
 from app.reports.generator import render_report_html, render_report_pdf
 from app.services.diagnosis import (
     build_diagnosis_facts,
-    build_diagnosis_text,
     build_notification_message,
 )
 from app.services.motors import get_thresholds
@@ -98,6 +100,26 @@ def build_report_context(conn, log) -> dict | None:
         conn, motor["motor_id"], metric, status, log["created_at"], telemetry
     )
 
+    # 참조 지식 기반 결정적 조회 — 벡터 검색과 달리 같은 지표면 항상 같은 근거가 나온다.
+    # 리포트의 "의심 고장 모드" 섹션과 진단 에이전트 입력이 **같은 목록**을 봐야 한다.
+    # 각자 조회하면 조회 시점·상한이 달라져 본문과 근거가 어긋날 수 있다.
+    suspected_faults = lookup_fault_modes(metric)
+
+    # 진단 에이전트 (app/agents/diagnosis_agent.py). LLM이 불가한 환경에서는 내부에서
+    # 규칙 기반으로 폴백하므로 여기서 예외를 걱정하지 않아도 된다.
+    diagnosis = run_diagnosis(
+        DiagnosisContext(
+            motor_id=motor["motor_id"],
+            motor_name=motor["motor_name"],
+            model_name=motor["model_name"],
+            installation_location=motor["installation_location"],
+            status=status,
+            trigger_reason=log["trigger_reason"],
+            facts=facts,
+            suspected_faults=suspected_faults,
+        )
+    )
+
     # 임계값은 모터마다 다르므로 리포트에 참고표로 싣는다 — 센서 카드의 "정상 기준" 한 줄로는
     # 이 값이 어느 구간에 속하는지, FAULT까지 얼마나 남았는지 알 수 없다 (06 §2.2).
     thresholds = [
@@ -134,13 +156,19 @@ def build_report_context(conn, log) -> dict | None:
         ),
         "sensors": sensors,
         "thresholds": thresholds,
-        "diagnosis_model_label": DIAGNOSIS_MODEL_LABEL,
-        "diagnosis_text": build_diagnosis_text(status, facts),
+        # 생성 경로와 표기를 일치시킨다 (2026-08-10 확정). 호출하지 않은 모델명을 적으면
+        # 담당자가 폴백 결과를 LLM 생성물로 오독한다.
+        "diagnosis_model_label": (
+            DIAGNOSIS_MODEL_LABEL if diagnosis.source == "llm" else DIAGNOSIS_FALLBACK_MODEL_LABEL
+        ),
+        "diagnosis_summary": diagnosis.summary,
+        "diagnosis_cause": diagnosis.cause,
+        "diagnosis_chained_effects": diagnosis.chained_effects,
+        "diagnosis_if_ignored": diagnosis.if_ignored,
         "trend_windows": [w for w in (facts["short_term"], facts["long_term"]) if w],
         "companion_metrics": facts["companions"],
         "metric_characteristic": facts["characteristic"],
-        # 참조 지식 기반 결정적 조회 — 벡터 검색과 달리 같은 지표면 항상 같은 근거가 나온다.
-        "suspected_faults": lookup_fault_modes(metric),
+        "suspected_faults": suspected_faults,
         "sop_steps": query_sop_steps(motor["motor_name"], metric),
         "trigger_reason": log["trigger_reason"],
         "recipient_name": recipient,
@@ -148,6 +176,21 @@ def build_report_context(conn, log) -> dict | None:
             motor["motor_id"], status, log["trigger_reason"]
         ),
     }
+
+
+def _missing_report_logs(conn) -> list:
+    """report_html이 아직 없는 DANGER/FAULT 상태 로그."""
+    placeholders = ",".join("?" for _ in REPORTABLE_STATUSES)
+    return conn.execute(
+        f"SELECT * FROM motor_status_logs WHERE new_status IN ({placeholders}) "
+        "AND report_html IS NULL ORDER BY created_at ASC",
+        REPORTABLE_STATUSES,
+    ).fetchall()
+
+
+def count_missing_reports(conn) -> int:
+    """전건 생성 대상 건수. 호출측이 예상 소요를 미리 알릴 때 쓴다."""
+    return len(_missing_report_logs(conn))
 
 
 def generate_missing_report_html(conn) -> int:
@@ -158,14 +201,13 @@ def generate_missing_report_html(conn) -> int:
     임베딩 API 왕복을 유발한다. 전건 생성 시 이 왕복이 로그 수만큼 반복돼 콜드 스타트를
     지배했다. 지금은 `get_report()`가 최초 열람 시 만들어 저장한다.
 
+    진단 에이전트가 붙은 뒤(2026-08-10) 건당 비용이 **약 4초**로 올랐다 — SOP 임베딩
+    0.3초에 gpt-4o 구조화 출력 3.7초(실측)가 더해진다. 호출측이 건수와 예상 소요를
+    안내할 수 있도록 대상 건수는 이 함수가 아니라 `count_missing_reports()`로 먼저 센다.
+
     `scripts/seed_data.py --with-reports`에서 로컬 전수 확인용으로만 쓴다.
     """
-    placeholders = ",".join("?" for _ in REPORTABLE_STATUSES)
-    logs = conn.execute(
-        f"SELECT * FROM motor_status_logs WHERE new_status IN ({placeholders}) "
-        "AND report_html IS NULL ORDER BY created_at ASC",
-        REPORTABLE_STATUSES,
-    ).fetchall()
+    logs = _missing_report_logs(conn)
 
     generated = 0
     for log in logs:

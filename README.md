@@ -65,6 +65,14 @@ uv run python scripts/seed_data.py --force            # DB를 지우고 처음�
 uv run python scripts/seed_data.py --with-reports     # 리포트 HTML까지 전건 미리 생성
 ```
 
+`--with-reports`는 건당 RAG 조회 + 진단 LLM 호출이 붙어 **약 4초 × 대상 건수**가 걸립니다(24건이면 1분 반). 시작 전에 건수와 예상 소요를 출력합니다. 평상시에는 최초 열람 시 1건씩 생성되므로 이 플래그가 필요 없습니다.
+
+리포트 템플릿이나 진단 로직을 바꿨다면 **이미 저장된 HTML은 갱신되지 않습니다.** 캐시를 비우면 다음 열람에서 새로 생성됩니다:
+
+```bash
+uv run python scripts/seed_data.py --reset-reports
+```
+
 ### RAG 벡터 재구축
 
 **`data/rag_sources/`의 텍스트를 수정했을 때만** 실행합니다. 원본이 시간에 무관한 정적 텍스트라 한 번 만들면 끝이고, 산출물을 커밋해야 배포에 반영됩니다.
@@ -91,9 +99,11 @@ uv run python scripts/build_knowledge.py --force      # 실제 재임베딩 (앱
 app/            # 애플리케이션 코드
   pages/        #   화면: 로그인 · 메인 대시보드 · 모터 그래프 · 모터 현황 · 모터 상세
   ui/           #   재사용 컴포넌트 · 전역 스타일 · 네비게이션 · 테마
+  agents/       #   LangGraph 진단 에이전트 + 입출력 스키마 (실패 시 규칙 기반 폴백)
   services/     #   bootstrap(부팅 시 데이터 준비), seeding, motors, company, events, diagnosis
   reports/      #   HTML/PDF 렌더 및 리포트 제공 (PDF 실패 시 HTML 폴백)
   rag/          #   ChromaDB 인제스트·SOP 조회(실패 시 키워드 폴백), 참조 지식 조회
+  prompts.py    #   LLM 프롬프트 문자열 (비즈니스 코드와 분리)
 data/
   rag_sources/  #   RAG 인제스트 원본 텍스트 (커밋)
   knowledge/    #   참조 지식 — 고장모드·지표 매핑 JSON (커밋)
@@ -107,6 +117,8 @@ scripts/        # 수동 CLI — seed_data.py(데모 데이터), build_knowledge
 
 ## 현재 범위
 
-동작하는 것: 로그인/인증, 런타임 데모 데이터 부트스트랩(COMP-001 200대 포함), 메인 대시보드(상단 요약 §3.1 · 조치 배너 · 정비 완료 확인 · 모터 카드 §3.2 · 이벤트 리스트 §3.3), 모터 그래프(지표별 추이 · 상태/위치/모델 필터 · 임계선), 모터 현황(확인사항/위치/상태 그룹핑), 모터 상세(§4), 리포트 제공(PDF 우선, 불가 시 HTML).
+동작하는 것: 로그인/인증, 런타임 데모 데이터 부트스트랩(COMP-001 200대 포함), 메인 대시보드(상단 요약 §3.1 · 조치 배너 · 정비 완료 확인 · 모터 카드 §3.2 · 이벤트 리스트 §3.3), 모터 그래프(지표별 추이 · 상태/위치/모델 필터 · 임계선), 모터 현황(확인사항/위치/상태 그룹핑), 모터 상세(§4), **LangGraph 진단 에이전트**(리포트 AI 진단 4섹션), 리포트 제공(PDF 우선, 불가 시 HTML).
 
-아직 구현되지 않은 것: LangGraph 진단 에이전트(현재는 `app/services/diagnosis.py`의 규칙 기반 템플릿), 실시간 상태 전이 감지 · 자동 갱신 · 통신 두절 판정, 알림 실제 발송, 48시간 보관 배치, Python 3.14 배포 검증. 상세 추적은 [`.claude/docs/plan/remaining_work.md`](.claude/docs/plan/remaining_work.md).
+**첫 리포트 열람은 몇 초 걸립니다.** 진단은 리포트를 열 때 생성되며(부팅 경로에는 LLM 호출이 없습니다), 프로세스 최초 열람이 실측 5~9초(LangGraph 콜드 import 3.17초 포함), 이후 4초대, 재열람은 캐시로 0.03초입니다. API 키가 없거나 LLM이 실패하면 규칙 기반 진단으로 폴백하고, 리포트의 진단 모델 라벨이 "규칙 기반 진단 (LLM 미사용)"으로 바뀝니다. `DIAGNOSIS_LLM_ENABLED=false`로 강제 오프할 수 있습니다.
+
+아직 구현되지 않은 것: 실시간 상태 전이 감지 · 자동 갱신 · 통신 두절 판정, 알림 실제 발송, 48시간 보관 배치, Python 3.14 배포 검증. 상세 추적은 [`.claude/docs/plan/remaining_work.md`](.claude/docs/plan/remaining_work.md).

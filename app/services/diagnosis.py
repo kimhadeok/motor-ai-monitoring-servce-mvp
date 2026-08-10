@@ -1,19 +1,24 @@
-"""진단 근거 계산 및 진단 텍스트 생성.
+"""진단 근거 계산 및 규칙 기반 진단 생성.
 
-MVP 스캐폴딩 단계에서는 규칙 기반 템플릿으로 진단 텍스트를 만든다.
-이후 LangChain/LangGraph 진단 에이전트(02_architecture.md §2.4)가
-`build_diagnosis_text()`를 대체한다 — 호출측(app/reports/service.py)은 그대로 두고
-이 함수만 교체할 수 있도록 시그니처를 데이터 중심으로 유지한다.
+역할이 둘이다 (2026-08-10 기준).
 
-**근거 계산(`build_diagnosis_facts`)과 문장 생성(`build_diagnosis_text`)을 분리한 이유**
-(2026-08-07): 종전 구현은 추세와 연쇄 영향을 측정하지 않고 문자열에 박아 두어, 지표와
-무관하게 "온도와 진동이 함께 상승하는 패턴은 베어링 윤활 부족의 전형적 징후"가 전류 이상
-리포트에도 그대로 나갔다. 사실이 아닌 진단이 담당자에게 전달된다. 이제 근거는 텔레메트리에서
-측정하고, 문장은 그 근거만 서술한다. 에이전트로 교체할 때도 이 근거를 그대로 물려주면 된다.
+1. **근거 측정** — `build_diagnosis_facts()`가 텔레메트리에서 추세·동반 이상 지표를 계산한다.
+   이 dict는 LangGraph 진단 에이전트(`app/agents/diagnosis_agent.py`)의 grounding이자
+   리포트 "측정 근거" 칩의 원천이다. 에이전트가 도입된 뒤에도 여기가 사실의 출처다.
+2. **규칙 기반 진단** — `build_rule_based_result()`가 같은 근거로 `DiagnosisResult`를 만든다.
+   에이전트의 **폴백 경로**다. 키가 없거나 LLM이 실패해도 리포트는 항상 나온다
+   (CLAUDE.md fallback 요구사항).
+
+**근거 계산과 문장 생성을 분리한 이유** (2026-08-07): 종전 구현은 추세와 연쇄 영향을
+측정하지 않고 문자열에 박아 두어, 지표와 무관하게 "온도와 진동이 함께 상승하는 패턴은
+베어링 윤활 부족의 전형적 징후"가 전류 이상 리포트에도 그대로 나갔다. 사실이 아닌 진단이
+담당자에게 전달된다. 이제 근거는 텔레메트리에서 측정하고, 문장은 그 근거만 서술한다.
+에이전트에도 같은 제약을 프롬프트로 걸고 `_verify()`로 확인한다.
 """
 
 from datetime import timedelta
 
+from app.agents.schema import DiagnosisResult
 from app.config import (
     FAULT_LEAD_TIME_URGENCY,
     LONG_TERM_TREND_HOURS,
@@ -117,7 +122,8 @@ def _companion_metrics(telemetry, metric: str) -> list[dict]:
 def build_diagnosis_facts(conn, motor_id: str, metric: str, status: str, event_time, telemetry) -> dict:
     """리포트 섹션 2가 근거로 삼는 측정값 모음.
 
-    문장 생성과 분리해 둔다. 진단 에이전트로 교체될 때 이 dict가 그대로 근거(grounding)가 된다.
+    문장 생성과 분리해 둔다. 이 dict가 그대로 진단 에이전트의 근거(grounding)이자
+    규칙 기반 폴백의 입력이다 — 두 경로가 같은 사실을 본다.
     """
     event_dt = parse_utc(event_time)
     faults = lookup_fault_modes(metric)
@@ -141,15 +147,25 @@ def build_diagnosis_facts(conn, motor_id: str, metric: str, status: str, event_t
     }
 
 
-def build_diagnosis_text(status: str, facts: dict) -> str:
-    """06_report_spec.md §2.3 — 주요 원인 / 연쇄 영향 / 방치 시 예상 결과 3단 구성.
+def build_rule_based_result(status: str, facts: dict) -> DiagnosisResult:
+    """06_report_spec.md §2.3의 네 섹션을 규칙 기반으로 채운다.
+
+    **진단 에이전트의 폴백 경로다** (2026-08-10). `OPENAI_API_KEY` 부재·LLM 오류·타임아웃·
+    검증 실패 시 `agents/diagnosis_agent.run_diagnosis()`가 이 결과를 대신 반환한다.
+    키가 없는 시연 환경에서도 리포트는 항상 나온다.
 
     측정하지 못한 항목은 서술하지 않는다. 데이터 없이 추세를 단언하면 담당자가 리포트를
     근거로 삼을 수 없게 된다.
     """
     label, unit = facts["label"], facts["unit"]
+    status_label = STATUS_KOREAN_LABELS.get(status, status)
 
-    cause = f"주요 원인: {label} 수치가 {facts['value']}{unit}로 임계치({facts['threshold']}{unit})를 초과했습니다."
+    summary = (
+        f"{label} 수치가 {facts['value']}{unit}로 임계치({facts['threshold']}{unit})를 "
+        f"초과해 {status_label} 상태입니다."
+    )
+
+    cause = f"{label} 수치가 {facts['value']}{unit}로 임계치({facts['threshold']}{unit})를 초과했습니다."
     for window, name in ((facts["short_term"], "단기"), (facts["long_term"], "장기")):
         if window is None:
             continue
@@ -165,22 +181,32 @@ def build_diagnosis_text(status: str, facts: dict) -> str:
     companions = facts["companions"]
     if companions:
         detail = ", ".join(f"{c['label']} {c['value']}{c['unit']}({c['status']})" for c in companions)
-        chain = f"연쇄 영향 분석: 같은 시점에 {detail}도 정상 범위를 벗어났습니다. 단일 지표 이상이 아니므로 공통 원인을 함께 점검해야 합니다."
+        chained_effects = [
+            f"같은 시점에 {detail}도 정상 범위를 벗어났습니다.",
+            "단일 지표 이상이 아니므로 공통 원인을 함께 점검해야 합니다.",
+        ]
     else:
-        chain = f"연쇄 영향 분석: 같은 시점의 다른 세 지표는 정상 범위였습니다. {label} 계통에 국한된 이상일 가능성이 높습니다."
+        chained_effects = [
+            f"같은 시점의 다른 세 지표는 정상 범위였습니다. {label} 계통에 국한된 이상일 가능성이 높습니다."
+        ]
 
-    outlook = "방치 시 예상 결과: "
     if status == "FAULT":
-        outlook += "이미 고장/정지 임계를 초과했으므로 즉시 설비를 정지하고 정비를 시행해야 합니다."
+        if_ignored = "이미 고장/정지 임계를 초과했으므로 즉시 설비를 정지하고 정비를 시행해야 합니다."
     else:
-        outlook += (
+        if_ignored = (
             f"현재 값이 고장 임계({facts['fault_threshold']}{unit})에 도달하면 FAULT 단계로 전이됩니다."
         )
         lead = _OUTLOOK_BY_LEAD_TIME.get(facts["lead_time_band"])
         if lead:
-            outlook += f" {lead}"
+            if_ignored += f" {lead}"
 
-    return f"{cause}\n{chain}\n{outlook}"
+    return DiagnosisResult(
+        summary=summary,
+        cause=cause,
+        chained_effects=chained_effects,
+        if_ignored=if_ignored,
+        source="rule",
+    )
 
 
 def build_notification_message(motor_id: str, status: str, trigger_reason: str) -> str:
