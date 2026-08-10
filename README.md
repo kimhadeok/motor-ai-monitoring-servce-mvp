@@ -159,7 +159,7 @@ Secrets에 `DIAGNOSIS_LLM_ENABLED = "false"`를 둡니다. Community Cloud 앱�
 ```
 app/            # 애플리케이션 코드
   pages/        #   화면: 로그인 · 메인 대시보드 · 모터 그래프 · 모터 현황 · 모터 상세
-  ui/           #   재사용 컴포넌트 · 전역 스타일 · 네비게이션 · 테마
+  ui/           #   재사용 컴포넌트 · 전역 스타일 · 네비게이션 · 테마 · 차트(charts.py)
   agents/       #   LangGraph 진단 에이전트 + 입출력 스키마 (실패 시 규칙 기반 폴백)
   logging_setup.py  # 앱 로거 설정 — 부팅 요약·진단 결과를 프로세스 로그로 남긴다
   services/     #   bootstrap(부팅 시 데이터 준비), seeding, motors, company, events, diagnosis

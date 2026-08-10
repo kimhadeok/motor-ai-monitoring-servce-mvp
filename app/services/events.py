@@ -75,20 +75,47 @@ def list_company_events(
     ).fetchall()
 
 
-def list_motor_events(conn, motor_id: str, limit: int, offset: int = 0) -> list[sqlite3.Row]:
-    """특정 모터의 전체 지표 이벤트를 최신순으로 조회 (§4.4 페이징)."""
+def _motor_event_filter(motor_id: str, statuses: tuple[str, ...] | None) -> tuple[str, list]:
+    """`list_motor_events` / `count_motor_events`가 공유하는 WHERE 절.
+
+    두 함수가 같은 조건을 봐야 페이지 수와 실제 행 수가 어긋나지 않는다.
+    """
+    where = ["l.motor_id = ?"]
+    params: list = [motor_id]
+    if statuses:
+        where.append(f"l.new_status IN ({','.join('?' for _ in statuses)})")
+        params.extend(statuses)
+    return " AND ".join(where), params
+
+
+def list_motor_events(
+    conn,
+    motor_id: str,
+    limit: int,
+    offset: int = 0,
+    statuses: tuple[str, ...] | None = None,
+) -> list[sqlite3.Row]:
+    """특정 모터의 지표 이벤트를 최신순으로 조회 (§4.4 페이징).
+
+    `statuses`는 `list_company_events`와 같은 의미다 — 전이 결과(`new_status`)가 그 목록에
+    든 건만 남긴다. 상세 페이지도 대시보드와 같은 목록 규칙을 쓰기 위해 붙였다(05 §4.4).
+    """
+    clause, params = _motor_event_filter(motor_id, statuses)
     return conn.execute(
         f"SELECT {_COLUMNS} FROM motor_status_logs l "
         "JOIN motors m ON m.motor_id = l.motor_id "
         f"{_TELEMETRY_JOIN} "
-        "WHERE l.motor_id = ? "
+        f"WHERE {clause} "
         "ORDER BY l.created_at DESC LIMIT ? OFFSET ?",
-        (motor_id, limit, offset),
+        (*params, limit, offset),
     ).fetchall()
 
 
-def count_motor_events(conn, motor_id: str) -> int:
-    """특정 모터의 전체 이벤트 수 (§4.4 페이지 수 계산용)."""
+def count_motor_events(
+    conn, motor_id: str, statuses: tuple[str, ...] | None = None
+) -> int:
+    """특정 모터의 이벤트 수 (§4.4 페이지 수 계산용). 필터는 목록 조회와 같아야 한다."""
+    clause, params = _motor_event_filter(motor_id, statuses)
     return conn.execute(
-        "SELECT COUNT(*) FROM motor_status_logs WHERE motor_id = ?", (motor_id,)
+        f"SELECT COUNT(*) FROM motor_status_logs l WHERE {clause}", params
     ).fetchone()[0]

@@ -256,10 +256,8 @@ def inject_global_styles() -> None:
             border-color: var(--card-color);
             box-shadow: 0 4px 12px color-mix(in srgb, var(--card-color) 26%, transparent);
         }}
-        div[data-testid="stColumn"]:has(.motor-card):hover .motor-foot .go {{
-            color: var(--card-color);
-        }}
-        .motor-foot .go {{ float: right; font-weight: 700; color: {p["text_ghost"]}; }}
+        /* 종전에는 hover 시 "상세 보기 ›" 글자도 상태색으로 바뀌었다. 카드 높이를 줄이며
+           그 줄을 없앴으므로(2026-08-10) 클릭 가능 신호는 위의 떠오름·테두리색이 담당한다. */
         @media (prefers-reduced-motion: reduce) {{
             div[data-testid="stColumn"]:has(.motor-card) .motor-card {{ transition: none; }}
             div[data-testid="stColumn"]:has(.motor-card):hover .motor-card {{ transform: none; }}
@@ -297,17 +295,19 @@ def inject_global_styles() -> None:
             height: 30px; line-height: 15px; overflow: hidden;
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
         }}
-        .motor-foot {{
-            font-size: 11px; color: {p["text_faint"]}; margin-top: 12px;
-            height: 16px; line-height: 16px; white-space: nowrap; overflow: hidden;
-        }}
 
         /* 지표 블록 — 모든 카드가 4개를 같은 순서로 담는다.
            행 높이를 고정해 이상 지표의 큰 글꼴이 아래를 밀어내지 않게 한다. */
         .metric-block {{ margin-top: 9px; }}
+        /* 한 줄에 [이름 값] ... [설명]. 설명을 아래 별도 줄로 두면 지표마다 17px,
+           카드당 68px을 쓴다 (2026-08-10 변경). */
         .metric-row {{
             display: flex; align-items: baseline; justify-content: space-between;
-            gap: 6px; margin-bottom: 3px; height: 21px;
+            gap: 8px; margin-bottom: 3px; height: 21px; min-width: 0;
+        }}
+        /* 이름과 값을 한 덩어리로 묶어 왼쪽에 붙인다 — 설명이 오른쪽 끝으로 간다. */
+        .metric-lead {{
+            display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 0 1 auto;
         }}
         .metric-name {{
             font-size: 12px; color: {p["text_muted"]}; line-height: 21px;
@@ -588,12 +588,6 @@ def inject_global_styles() -> None:
             display: flex; align-items: baseline; gap: 5px;
             font-size: 15px; white-space: nowrap;
         }}
-        /* 리포트가 없는 행(NORMAL/WARNING 전이)의 버튼 자리. 버튼과 같은 높이·정렬로
-           두어야 행 높이가 들쭉날쭉해지지 않는다 (05 §4.4). */
-        .event-noreport {{
-            font-size: 12.5px; color: {p["text_faint"]}; text-align: center;
-            width: 100%; line-height: 1.2;
-        }}
         .event-value .ev-prev {{ color: {p["text_faint"]}; font-weight: 500; }}
         .event-value .ev-now {{ font-weight: 800; color: {p["text_strong"]}; }}
         .event-value .ev-unit {{ font-size: 11.5px; color: {p["text_muted"]}; }}
@@ -604,6 +598,65 @@ def inject_global_styles() -> None:
         .event-reason {{ font-size: 12px; color: {p["text"]}; line-height: 1.4; }}
         .event-reason.worse {{ color: {status_colors["DANGER"]}; font-weight: 600; }}
         .event-reason.recover {{ color: {status_colors["NORMAL"]}; }}
+
+        /* --- 모터 상세 표 (05 §4.1 / §4.2, 2026-08-10) ---
+           종전에는 기본 정보가 `st.write`로 흩어진 굵은 글씨 줄이었고 임계값은
+           `st.dataframe`이었다. 둘의 생김새가 서로 달라 같은 페이지에서 두 종류의 표가
+           보였다. 같은 테두리·같은 셀 여백을 쓰는 표 하나로 통일한다.
+           radius는 래퍼가 맡는다 — border-collapse: collapse에서는 table에 건 radius가
+           셀 모서리를 자르지 못한다. */
+        .detail-table-wrap {{
+            border: 1px solid {p["border"]}; border-radius: 10px; overflow: hidden;
+            margin-top: 4px;
+            /* 표 뒤에 남는 공백 텍스트 노드가 줄상자를 만들어 아래쪽에 몇 px이 붙는 것을 막는다.
+               셀에서 line-height를 되돌린다. */
+            line-height: 0;
+        }}
+        /* margin을 0으로 못박는다 (2026-08-10). Streamlit이 마크다운 표에
+           `.st-emotion-cache-xxxx table {{ margin-bottom: 1rem }}`을 걸어 두는데, 래퍼의
+           `overflow: hidden`이 BFC를 만들어 그 16px이 밖으로 빠지지 못하고 표 안쪽 맨
+           아래에 쌓인다. 마지막 행만 아래로 늘어난 것처럼 보였다(실측: 행 높이는 44px로
+           모두 같았고 래퍼가 표보다 18px = 마진 16 + 테두리 2 만큼 컸다).
+
+           **선택자를 래퍼로 감싸는 것이 핵심이다.** `.detail-table`만 쓰면 특정도가
+           (0,1,0)이라 Streamlit의 (0,1,1)에 져서 margin: 0이 먹지 않는다 — 실제로 그렇게
+           졌다. emotion 클래스 해시는 빌드마다 달라져 이름으로 겨냥할 수 없으므로,
+           `!important` 대신 래퍼로 특정도를 (0,2,1)까지 올려서 이긴다. */
+        .detail-table-wrap table.detail-table {{
+            width: 100%; border-collapse: collapse; border-spacing: 0;
+            margin: 0; font-size: 14px;
+        }}
+        .detail-table td, .detail-table th {{
+            padding: 11px 14px; text-align: left; line-height: 1.5;
+            border-bottom: 1px solid {p["border_soft"]};
+        }}
+        .detail-table tr:last-child td {{ border-bottom: none; }}
+        /* 항목명 칸은 배경으로 구분한다 — 값과 같은 톤이면 어디까지가 이름인지 흐려진다. */
+        .detail-table .k {{
+            color: {p["text_muted"]}; font-weight: 600; white-space: nowrap;
+            background: {p["surface_muted"]}; width: 15%;
+        }}
+        .detail-table .v {{ color: {p["text_strong"]}; font-weight: 600; width: 35%; }}
+        .detail-table th {{
+            background: {p["surface_muted"]}; color: {p["text_muted"]};
+            font-size: 13px; font-weight: 700; border-bottom: 1px solid {p["border"]};
+        }}
+        .detail-table .metric-cell {{ color: {p["text_strong"]}; font-weight: 700; white-space: nowrap; }}
+        .detail-table .metric-cell .unit {{
+            color: {p["text_faint"]}; font-size: 11.5px; font-weight: 500; margin-left: 4px;
+        }}
+        /* 구간 값은 상태색으로 읽는다 — 숫자만 보면 어느 구간이 위험한지 표를 위아래로
+           훑어야 알 수 있다. 색이 곧 심각도다 (팔레트는 05 §5-3의 단조 증가 램프). */
+        .detail-table .range {{ font-weight: 700; font-variant-numeric: tabular-nums; }}
+        .detail-table .range.normal {{ color: {status_colors["NORMAL"]}; }}
+        .detail-table .range.warning {{ color: {status_colors["WARNING"]}; }}
+        .detail-table .range.danger {{ color: {status_colors["DANGER"]}; }}
+        .detail-table .range.fault {{ color: {status_colors["FAULT"]}; }}
+        /* 머리글도 같은 상태색으로 물들여 열과 색의 대응을 한 번에 알려준다. */
+        .detail-table th.normal {{ color: {status_colors["NORMAL"]}; }}
+        .detail-table th.warning {{ color: {status_colors["WARNING"]}; }}
+        .detail-table th.danger {{ color: {status_colors["DANGER"]}; }}
+        .detail-table th.fault {{ color: {status_colors["FAULT"]}; }}
 
         /* --- 상단 헤더 (05 §5-4) — 사이드바 대신 일반 웹 서비스 형태 --- */
         .app-brand {{ display: flex; align-items: center; gap: 8px; }}
@@ -665,10 +718,18 @@ def inject_global_styles() -> None:
         .login-highlights .icon {{ font-size: 20px; line-height: 1.2; }}
         .login-highlights .title {{ font-size: 12.5px; font-weight: 700; color: {p["text"]}; }}
         .login-highlights .desc {{ font-size: 10.5px; color: {p["text_faint"]}; line-height: 1.4; }}
-        /* 설명 줄은 모든 지표에 있다(높이 균일). 정상은 회색, 이상만 상태색으로 강조 */
+        /* 설명은 지표 줄 오른쪽 끝에 붙는다 (2026-08-10). 모든 지표에 있어 줄 구성이
+           균일하다. 정상은 회색, 이상만 상태색으로 강조.
+           폭이 좁아지면 이름·값이 아니라 이 설명이 먼저 줄어들도록 flex를 잡는다. */
         .metric-note {{
-            font-size: 10.5px; color: {p["text_faint"]}; margin-top: 3px;
-            height: 14px; line-height: 14px; white-space: nowrap; overflow: hidden;
+            font-size: 10.5px; color: {p["text_faint"]}; line-height: 21px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            flex: 0 1 auto; min-width: 0; text-align: right;
+        }}
+        /* 계측값이 없는 카드의 본문 안내. `.metric-note`(지표 줄 오른쪽 끝에 붙는 설명)와
+           달리 카드 본문 자리에 블록으로 놓이므로 클래스를 나눈다. */
+        .metric-empty {{
+            font-size: 11px; color: {p["text_faint"]}; margin-top: 9px; line-height: 1.5;
         }}
         .metric-block.abnormal .metric-note {{ color: var(--metric-color); font-weight: 600; }}
         </style>

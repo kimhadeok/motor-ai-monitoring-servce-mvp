@@ -1,31 +1,35 @@
 """모터 상세 페이지. 05_ui_screens.md §4."""
 
-import pandas as pd
 import streamlit as st
 
 from app.config import (
+    DASHBOARD_EVENT_STATUSES,
     DETAIL_EVENT_PAGE_SIZE,
+    GRAPH_TREND_BUCKETS,
+    GRAPH_TREND_HOURS,
     METRIC_LABELS,
-    METRIC_UNITS,
-    format_display,
-    parse_utc,
+    STATUS_KOREAN_LABELS,
 )
 from app.db.connection import connection_scope
 from app.services.events import count_motor_events, list_motor_events
 from app.services.motors import (
     find_unconfirmed_fault_metrics,
     get_motor,
+    get_motor_metric_series,
     get_representative_status,
     get_thresholds,
 )
+from app.ui.charts import metric_graph_grid
 from app.ui.components import (
     event_list_header,
     event_row,
     maintenance_button,
+    motor_info_table,
     page_header,
     render_maintenance_dialog,
     render_report_dialog,
     status_badge,
+    threshold_table,
 )
 from app.ui.navigation import DASHBOARD_PAGE
 
@@ -59,11 +63,7 @@ with connection_scope() as conn:
     representative_status = get_representative_status(conn, motor_id)
     fault_metrics = find_unconfirmed_fault_metrics(conn, motor_id)
     thresholds = get_thresholds(conn, motor_id)
-    total_events = count_motor_events(conn, motor_id)
-
-# 뒤로가기는 모터명 위에 둔다 — 페이지 최상단에서 대시보드로 돌아갈 경로를 먼저 보인다.
-if st.button("← 대시보드"):
-    st.switch_page(DASHBOARD_PAGE)
+    total_events = count_motor_events(conn, motor_id, DASHBOARD_EVENT_STATUSES)
 
 title_col, badge_col = st.columns([4, 1])
 title_col.title(motor["motor_name"])
@@ -73,13 +73,7 @@ with badge_col:
 
 # --- §4.1 기본 정보 ---
 st.subheader("기본 정보")
-info_left, info_right = st.columns(2)
-info_left.write(f"**모터 ID** {motor['motor_id']}")
-info_left.write(f"**모델명** {motor['model_name']}")
-info_left.write(f"**시리얼 번호** {motor['serial_number'] or '-'}")
-info_right.write(f"**설치 위치** {motor['installation_location']}")
-info_right.write(f"**수집 주기** {motor['collection_interval_seconds']}초")
-info_right.write(f"**등록일자** {format_display(parse_utc(motor['created_at']))}")
+motor_info_table(motor)
 
 # --- §4.3 FAULT 정비 완료 처리 ---
 if fault_metrics:
@@ -95,55 +89,58 @@ if fault_metrics:
         type="primary",
     )
 
+# --- §4.1-A 모터 그래프 ---
+# 정비 완료 확인(§4.3) 아래에 둔다. 그래프가 위로 오면 설비가 멈춘 상태에서 가장 급한
+# 조치 버튼이 화면 아래로 밀린다.
+st.subheader("모터 그래프")
+with connection_scope() as conn:
+    _series = {motor_id: get_motor_metric_series(conn, motor_id, GRAPH_TREND_HOURS, GRAPH_TREND_BUCKETS)}
+
+# 모터 그래프 페이지(§3-A)와 같은 차트를 쓴다. 다만 여기는 한 대뿐이라 차트마다 모터명을
+# 반복하지 않는다 — 페이지 제목과 상단 상태 배지가 이미 알려준다.
+metric_graph_grid(
+    [{"motor_id": motor_id, "motor_name": motor["motor_name"], "status": representative_status}],
+    _series,
+    show_motor_row=False,
+)
+st.caption(f"최근 {GRAPH_TREND_HOURS}시간 추이입니다. 점선은 경고·위험·고장 임계선입니다.")
+
 # --- §4.2 지표별 임계값 ---
 st.subheader("지표별 임계값")
 if not thresholds:
     st.info("등록된 임계값이 없습니다.")
 else:
-    st.dataframe(
-        pd.DataFrame(
-            [
-                {
-                    "지표": METRIC_LABELS.get(t["metric_name"], t["metric_name"]),
-                    "단위": METRIC_UNITS.get(t["metric_name"], ""),
-                    "NORMAL": f"< {t['warning_range']:g}",
-                    "WARNING": f"{t['warning_range']:g} ~ {t['danger_range']:g}",
-                    "DANGER": f"{t['danger_range']:g} ~ {t['fault_range']:g}",
-                    "FAULT": f"≥ {t['fault_range']:g}",
-                }
-                for t in thresholds
-            ]
-        ),
-        hide_index=True,
-        use_container_width=True,
-    )
+    threshold_table(thresholds)
+    st.caption("이 설비에 설정된 기준값입니다. 모터마다 다르게 설정될 수 있습니다.")
 
 # --- §4.4 이벤트 발생 내역 (페이지당 20개) ---
 st.subheader("이벤트 발생 내역")
 
+_event_scope = " · ".join(STATUS_KOREAN_LABELS.get(s, s) for s in DASHBOARD_EVENT_STATUSES)
+
 if total_events == 0:
-    st.info("이벤트가 없습니다.")
+    st.info(f"{_event_scope} 이벤트가 없습니다.")
 else:
     last_page = (total_events - 1) // DETAIL_EVENT_PAGE_SIZE
     page = min(st.session_state.get(_PAGE_KEY, 0), last_page)
 
     with connection_scope() as conn:
         events = list_motor_events(
-            conn, motor_id, DETAIL_EVENT_PAGE_SIZE, page * DETAIL_EVENT_PAGE_SIZE
+            conn,
+            motor_id,
+            DETAIL_EVENT_PAGE_SIZE,
+            page * DETAIL_EVENT_PAGE_SIZE,
+            DASHBOARD_EVENT_STATUSES,
         )
 
-    # 대시보드(§3.3)와 같은 자리·같은 형식의 안내 줄. 대시보드는 조치가 필요한 전이만
-    # 걸러 보여주고 "전체 이력은 상세에서"라고 안내하므로, 이쪽에서도 무엇을 보고 있는지를
-    # 같은 방식으로 말해준다. 건수는 페이지가 없을 때도 항상 보여준다 —
-    # 종전에는 20건을 넘겨 페이지네이션이 생겨야만 총 건수를 알 수 있었다.
-    _caption = f"전체 상태 전이 {total_events}건"
+    _caption = f"{_event_scope} 전이 {total_events}건"
     if last_page > 0:
         _caption += f" · {page + 1}/{last_page + 1} 페이지"
-    st.caption(f"{_caption} · 메인 대시보드는 이 중 고장·위험 전이만 모아서 보여줍니다.")
+    st.caption(f"{_caption} · 이 모터의 이력만 모아서 보여줍니다.")
 
-    event_list_header(show_motor=False)
+    event_list_header(show_motor=True)
     for event in events:
-        event_row(event, show_motor=False)
+        event_row(event, show_motor=True)
 
     if last_page > 0:
         prev_col, label_col, next_col = st.columns([1, 2, 1])

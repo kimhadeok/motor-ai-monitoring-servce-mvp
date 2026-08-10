@@ -17,7 +17,7 @@
 | 기술 | 용도 |
 |---|---|
 | Streamlit | 웹 대시보드 UI 프레임워크 |
-| Altair (Vega-Lite) | 모터 그래프 시계열 차트 — `st.altair_chart` (온도/진동/전류/소음). 라인+포인트 마커+상태 임계선. *(Plotly는 의존성에 있으나 현재 미사용 — 그래프는 Altair로 구현)* |
+| Altair (Vega-Lite) | 시계열 차트 — `st.altair_chart` (온도/진동/전류/소음). 라인+포인트 마커+상태 임계선. 모터 그래프 페이지(`05 §3-A`)와 모터 상세(`05 §4.1-A`)가 `app/ui/charts.py`를 **공유**한다 — 축 구성·임계선·Y범위 규칙이 한 벌이어야 두 화면을 같은 눈으로 비교할 수 있다. *(Plotly는 의존성에 있으나 현재 미사용 — 그래프는 Altair로 구현)* |
 | Jinja2 | 리포트 HTML 템플릿 렌더링 |
 | WeasyPrint | HTML → PDF 변환 |
 | Pango, Cairo, GLib | WeasyPrint의 렌더링 의존 라이브러리 (PDF 생성 시 폰트/레이아웃 처리) |

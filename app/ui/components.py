@@ -1,5 +1,7 @@
 """재사용 UI 조각. 05_ui_screens.md 기준."""
 
+from html import escape
+
 import streamlit as st
 
 from app.config import (
@@ -23,6 +25,7 @@ from app.config import (
     SPARKLINE_HEIGHT_PX,
     SPARKLINE_WIDTH_PX,
     STATUS_CARD_BUTTON_PREFIX,
+    STATUS_KOREAN_LABELS,
     THEME_HINT,
     THEME_HINT_TOOLTIP,
     THEME_LABELS,
@@ -40,12 +43,19 @@ from app.ui.theme import current_theme, palette
 
 _REPORT_VIEW_KEY = "report_view"
 
+# 임계값 표의 구간 열 순서 (05 §4.2). 상태 심각도 오름차순이라 왼쪽에서 오른쪽으로
+# 읽으면 그대로 악화 순서가 된다.
+_THRESHOLD_COLUMNS = ("NORMAL", "WARNING", "DANGER", "FAULT")
+
 
 def _page_nav(active: str | None) -> None:
     """상단 페이지 이동 내비 (메인 대시보드 / 모터 그래프 / 모터 현황).
 
     사이드바를 숨긴 구조라 메인 페이지 3개를 오갈 경로가 필요하다. 현재 페이지는
     primary 버튼으로 강조하고, 나머지는 클릭 시 해당 페이지로 전환한다.
+
+    `active`가 None이면 아무 버튼도 강조하지 않는다 — 모터 상세처럼 내비에 없는
+    하위 화면에서 쓴다. 그 화면도 세 곳으로 바로 갈 수 있어야 한다 (2026-08-10).
     """
     from app.ui.navigation import HEADER_NAV_PAGES  # 순환 import 방지를 위한 지연 import
 
@@ -67,8 +77,10 @@ def page_header(active: str | None = None) -> None:
     사이드바 대신 일반 웹 서비스처럼 상단에 둔다. 로그인 화면에서 세운 브랜드가
     로그인 후에도 이어지고, 담당자는 지금 어느 회사 계정으로 보고 있는지 늘 확인할 수 있다.
 
-    `active`는 페이지 이동 내비에서 현재 페이지를 강조하는 키다. None이면 내비를 그리지
-    않는다 (모터 상세처럼 자체 뒤로가기를 갖는 하위 화면).
+    `active`는 페이지 이동 내비에서 현재 페이지를 강조하는 키다. **내비는 모든 화면에
+    그린다** (2026-08-10 변경) — 종전에는 `active=None`이면 내비를 그리지 않아, 모터
+    상세에서 다른 페이지로 가려면 `← 대시보드`로 한 번 나갔다가 다시 눌러야 했다.
+    이제 상세에서도 세 곳으로 바로 간다. `None`이면 강조만 하지 않는다.
     """
     from app.auth.session import end_session  # 순환 import 방지를 위한 지연 import
 
@@ -103,8 +115,7 @@ def page_header(active: str | None = None) -> None:
             end_session()
             st.rerun()
 
-    if active is not None:
-        _page_nav(active)
+    _page_nav(active)
 
     st.markdown('<div class="app-header-rule"></div>', unsafe_allow_html=True)
 
@@ -154,6 +165,82 @@ def alert_banner(status: str, message: str) -> None:
 def status_badge(status: str) -> None:
     st.markdown(
         f'<span class="status-badge status-{status.lower()}">{status}</span>',
+        unsafe_allow_html=True,
+    )
+
+
+def motor_info_table(motor) -> None:
+    """모터 기본 정보 표 (05 §4.1, 2026-08-10).
+
+    종전에는 `st.write("**항목** 값")`을 두 열로 흩뿌렸다. 항목명과 값이 같은 줄에서
+    굵기만 다르게 붙어 있어 어디까지가 이름인지 눈으로 잘라 읽어야 했고, 바로 아래
+    임계값 표(`st.dataframe`)와 생김새가 달라 한 페이지에 두 종류의 표가 보였다.
+    같은 테두리·같은 셀 여백을 쓰는 표로 통일한다.
+
+    한 줄에 두 쌍(항목·값·항목·값)을 넣어 종전의 2열 배치가 주던 밀도를 유지한다.
+    """
+    pairs = (
+        ("모터 ID", motor["motor_id"]),
+        ("설치 위치", motor["installation_location"]),
+        ("모델명", motor["model_name"]),
+        ("수집 주기", f"{motor['collection_interval_seconds']}초"),
+        ("시리얼 번호", motor["serial_number"] or "-"),
+        ("등록일자", format_display(parse_utc(motor["created_at"]))),
+    )
+
+    rows = []
+    for left, right in zip(pairs[::2], pairs[1::2]):
+        cells = "".join(
+            f'<td class="k">{escape(str(key))}</td><td class="v">{escape(str(value))}</td>'
+            for key, value in (left, right)
+        )
+        rows.append(f"<tr>{cells}</tr>")
+
+    st.markdown(
+        f'<div class="detail-table-wrap"><table class="detail-table">'
+        f"{''.join(rows)}</table></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def threshold_table(thresholds) -> None:
+    """지표별 임계값 표 (05 §4.2, 2026-08-10).
+
+    `st.dataframe`을 쓰지 않는 이유: 네 구간이 전부 같은 검은 글씨라 어느 값이 위험한
+    구간인지 표를 훑어야 알 수 있었다. 구간 값을 상태색으로 칠하면 색이 곧 심각도라
+    한눈에 읽힌다. 머리글도 같은 색으로 물들여 열과 색의 대응을 알려준다.
+
+    색은 `05 §5-3`의 단조 증가 램프(녹색 → 앰버 → 주황 → 빨강)를 그대로 쓰며,
+    테마별 팔레트(`config.THEMES[...]["status"]`)라 다크에서도 대비가 확보된다.
+    """
+    header = "".join(
+        f'<th class="{status.lower()}">{STATUS_KOREAN_LABELS.get(status, status)}</th>'
+        for status in _THRESHOLD_COLUMNS
+    )
+
+    rows = []
+    for threshold in thresholds:
+        metric = threshold["metric_name"]
+        label = METRIC_LABELS.get(metric, metric)
+        unit = METRIC_UNITS.get(metric, "")
+        ranges = (
+            f"< {threshold['warning_range']:g}",
+            f"{threshold['warning_range']:g} ~ {threshold['danger_range']:g}",
+            f"{threshold['danger_range']:g} ~ {threshold['fault_range']:g}",
+            f"≥ {threshold['fault_range']:g}",
+        )
+        cells = "".join(
+            f'<td class="range {status.lower()}">{escape(text)}</td>'
+            for status, text in zip(_THRESHOLD_COLUMNS, ranges)
+        )
+        rows.append(
+            f'<tr><td class="metric-cell">{escape(label)}'
+            f'<span class="unit">{escape(unit)}</span></td>{cells}</tr>'
+        )
+
+    st.markdown(
+        f'<div class="detail-table-wrap"><table class="detail-table">'
+        f'<tr><th>지표</th>{header}</tr>{"".join(rows)}</table></div>',
         unsafe_allow_html=True,
     )
 
@@ -236,15 +323,19 @@ def _metric_gauge(reading: dict) -> str:
 
 
 def _metric_html(reading: dict) -> str:
-    """지표 1건 — 이름, 값, 게이지, (이상일 때만) 고장까지 남은 여유.
+    """지표 1건 — 한 줄에 이름·값·설명, 그 아래 게이지.
 
     모든 카드가 4개 지표를 같은 순서로 담아 높이가 일정해진다. 이상 지표는 위치가 아니라
     색·굵기와 여유 문구로 구분한다.
+
+    **설명을 값과 같은 줄에 둔다 (2026-08-10).** 종전에는 게이지 아래 별도 줄이라
+    지표마다 17px(14px + margin 3px), 카드당 68px을 썼다. 대시보드는 카드를 20개
+    깔아 두는 화면이라 카드 높이가 곧 스크롤 양이다 — 한 줄로 합쳐 그만큼 줄인다.
     """
     abnormal = reading["status"] in CARD_HIGHLIGHT_STATUSES
     remaining = reading["remaining"]
 
-    # 설명 줄은 모든 지표에 둔다. 이상일 때만 넣으면 카드마다 줄 수가 달라져 높이가 어긋난다.
+    # 설명은 모든 지표에 둔다. 이상일 때만 넣으면 카드마다 줄 구성이 달라져 높이가 어긋난다.
     if not abnormal:
         note = f"고장 임계의 {reading['ratio'] * 100:.0f}%"
     elif remaining > 0:
@@ -256,12 +347,14 @@ def _metric_html(reading: dict) -> str:
         f'<div class="metric-block status-{reading["status"].lower()}'
         f'{" abnormal" if abnormal else ""}">'
         f'<div class="metric-row">'
+        f'<span class="metric-lead">'
         f'<span class="metric-name">{reading["label"]}</span>'
         f'<span class="metric-value">{reading["value"]:,.1f}'
         f'<span class="metric-unit">{reading["unit"]}</span></span>'
+        f"</span>"
+        f'<span class="metric-note">{note}</span>'
         f"</div>"
         f"{_metric_gauge(reading)}"
-        f'<div class="metric-note">{note}</div>'
         f"</div>"
     )
 
@@ -309,15 +402,12 @@ def motor_card(motor: dict) -> None:
         body = "".join(_metric_html(reading) for reading in ordered)
         body += _trend_html(worst, motor.get("trend", []))
     else:
-        body = '<div class="metric-note">수집된 계측값이 없습니다.</div>'
+        body = '<div class="metric-empty">수집된 계측값이 없습니다.</div>'
 
-    last_changed = motor.get("last_changed_at")
-    footer = (
-        f"{format_relative(parse_utc(last_changed))} 상태 변경"
-        if last_changed
-        else "상태 변경 이력 없음"
-    )
-
+    # 하단 줄(상태 변경 시각 + "상세 보기 ›")은 두지 않는다 (2026-08-10).
+    # 28px(16px + margin 12px)을 카드마다 쓰는데, 상태 변경 시각은 바로 위 추이 줄과
+    # 이벤트 목록에도 있고, 진입 안내는 카드 전체가 클릭 영역이라는 hover 효과(살짝
+    # 떠오르고 테두리가 상태색으로 바뀜)가 대신한다.
     st.markdown(
         f'<div class="motor-card status-{status.lower()}">'
         f"{_data_flow_html(status)}"
@@ -327,7 +417,6 @@ def motor_card(motor: dict) -> None:
         f"</div>"
         f'<div class="motor-meta">{motor["model_name"]} · {motor["installation_location"]}</div>'
         f"{body}"
-        f'<div class="motor-foot">{footer}<span class="go">상세 보기 ›</span></div>'
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -647,10 +736,6 @@ def report_button(log) -> None:
     표 레이아웃이 무너지기 때문이다.
     """
     if log["new_status"] not in REPORTABLE_STATUSES:
-        # 대시보드는 DANGER/FAULT만 보여줘 모든 행에 버튼이 있지만, 모터 상세는 전체
-        # 이력을 보여주므로 리포트가 없는 행이 섞인다(05 §4.4). 칸을 비워 두면 버튼이
-        # 렌더에 실패한 것처럼 보이므로, 리포트가 없는 상태임을 옅게 표시한다.
-        st.markdown('<div class="event-noreport">리포트 없음</div>', unsafe_allow_html=True)
         return
 
     log_id = log["log_id"]

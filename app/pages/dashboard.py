@@ -145,7 +145,7 @@ else:
 st.subheader("이벤트 발생 내역")
 
 # 걸러서 보여준다는 사실을 화면이 직접 말한다 — 관찰 단계(WARNING) 전이가 안 보이는 것을
-# 데이터 누락으로 오해하지 않도록. 전체 이력은 모터 상세(§4.4)에 있다.
+# 데이터 누락으로 오해하지 않도록. 모터 상세(§4.4)는 같은 규칙으로 그 모터 것만 보여준다.
 _event_scope = " · ".join(STATUS_KOREAN_LABELS.get(s, s) for s in DASHBOARD_EVENT_STATUSES)
 
 if not events:
@@ -153,7 +153,7 @@ if not events:
 else:
     st.caption(
         f"{_event_scope} 전이 {len(events)}건 · "
-        "주의(WARNING)를 포함한 전체 이력은 모터별 상세 페이지에서 볼 수 있습니다."
+        "모터별 이력은 상세 페이지에서 볼 수 있습니다."
     )
     event_list_header(show_motor=True)
     for event in events:
