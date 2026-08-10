@@ -82,6 +82,9 @@ def build_report_context(conn, log) -> dict | None:
         metric_status = telemetry[METRIC_STATUS_COLUMNS[name]]
         sensors.append(
             {
+                # 템플릿이 지표별 아이콘을 고르는 키 (06 §2.2). 라벨은 표시용이라
+                # 문구가 바뀔 수 있으므로 아이콘 선택에는 지표명을 쓴다.
+                "metric": name,
                 "label": METRIC_LABELS[name],
                 "value": telemetry[name],
                 "unit": METRIC_UNITS[name],

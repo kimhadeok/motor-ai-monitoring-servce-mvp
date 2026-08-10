@@ -1,3 +1,22 @@
+{# 지표별 센서 아이콘 (06_report_spec.md §2.2, 2026-08-10).
+   4장을 같은 온도계 아이콘으로 두면 카드를 훑을 때 어느 것이 어느 지표인지 라벨을
+   읽어야만 구분된다. 아이콘이 지표를 가리키면 담당자가 이상 지표를 먼저 잡아낸다.
+
+   외부 리소스 없이 inline SVG로만 그린다 — 오프라인 PDF 변환에서도 깨지지 않아야 한다.
+   WeasyPrint가 확실히 지원하는 기본 도형(rect/circle/path)과 stroke 속성만 쓴다. #}
+{% macro metric_icon(metric) -%}
+{%- if metric == 'temperature' -%}
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="10" y="3" width="4" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="4" fill="currentColor"/></svg>
+{%- elif metric == 'vibration' -%}
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M2 12h3l2.5-7 3.5 14 3.5-11 2 4h5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+{%- elif metric == 'current' -%}
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg>
+{%- elif metric == 'sound' -%}
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 9h3l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 9a4 4 0 0 1 0 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6a8 8 0 0 1 0 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+{%- else -%}
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/></svg>
+{%- endif -%}
+{%- endmacro %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -436,7 +455,9 @@
     <div class="flow-summary">
         <div class="flow-node">
             <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="10" y="3" width="4" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="4" fill="currentColor"/></svg>
+                <!-- 계기판(측정) 아이콘. 온도계는 이제 '온도' 지표 전용이므로
+                     '센서 일반'을 뜻하는 자리에는 쓰지 않는다 (2026-08-10). -->
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 17a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 17l4.5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.8" fill="currentColor"/></svg>
             </div>
             <span>센서 데이터 수집</span>
         </div>
@@ -466,15 +487,13 @@
 
     <!-- 센서 측정 데이터: 06_report_spec.md §2.2 -->
     <h2>
-        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="10" y="3" width="4" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="4" fill="currentColor"/></svg></span>
+        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 17a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 17l4.5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.8" fill="currentColor"/></svg></span>
         1. 실시간 센서 측정 데이터
     </h2>
     <div class="sensor-grid">
         {% for sensor in sensors %}
         <div class="sensor-card status-{{ sensor.status_class }}">
-            <div class="icon-box">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="10" y="3" width="4" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="4" fill="currentColor"/></svg>
-            </div>
+            <div class="icon-box">{{ metric_icon(sensor.metric) }}</div>
             <div>
                 <div class="metric-name">{{ sensor.label }}</div>
                 <div class="metric-value">{{ sensor.value }} {{ sensor.unit }}</div>
