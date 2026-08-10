@@ -480,17 +480,29 @@ def render_maintenance_confirm(motors: list[dict]) -> None:
                     maintenance_button(_motor, key_prefix="banner", type="primary")
 
 
+def _discard_maintenance_pending() -> None:
+    """다이얼로그를 확인/취소 없이 닫았을 때 대기 상태를 버린다.
+
+    바깥 클릭·X·ESC로 닫으면 Streamlit은 콜백 없이 창만 닫는다. 그래서 세션에 담아 둔
+    대상이 그대로 남아, 다음에 대시보드나 모터 상세로 들어갈 때 창이 저절로 다시 떴다
+    (2026-08-10 배포본에서 확인). `on_dismiss`로 그 경로를 막는다.
+    """
+    st.session_state.pop(_MAINTENANCE_KEY, None)
+
+
 def render_maintenance_dialog() -> None:
     """정비 완료 확인 다이얼로그. 페이지 끝에서 1회 호출한다.
 
     확인 대상을 세션에 담아 두는 이유: 버튼 클릭 여부로만 열면 다이얼로그 안의 체크박스를
-    누르는 순간 rerun이 일어나 창이 닫히고 절차를 마칠 수 없다.
+    누르는 순간 rerun이 일어나 창이 닫히고 절차를 마칠 수 없다. 대신 닫히는 모든 경로에서
+    대기 상태를 반드시 비워야 한다 — 확인/취소는 아래 버튼이, 그 밖의 닫기는
+    `on_dismiss`가 맡는다.
     """
     pending = st.session_state.get(_MAINTENANCE_KEY)
     if not pending:
         return
 
-    @st.dialog("정비 완료 확인")
+    @st.dialog("정비 완료 확인", on_dismiss=_discard_maintenance_pending)
     def _dialog() -> None:
         labels = ", ".join(METRIC_LABELS.get(m, m) for m in pending["metrics"])
         st.write(f"**{pending['motor_name']}** 의 고장 상태를 정비 완료로 처리합니다.")
@@ -635,6 +647,10 @@ def report_button(log) -> None:
     표 레이아웃이 무너지기 때문이다.
     """
     if log["new_status"] not in REPORTABLE_STATUSES:
+        # 대시보드는 DANGER/FAULT만 보여줘 모든 행에 버튼이 있지만, 모터 상세는 전체
+        # 이력을 보여주므로 리포트가 없는 행이 섞인다(05 §4.4). 칸을 비워 두면 버튼이
+        # 렌더에 실패한 것처럼 보이므로, 리포트가 없는 상태임을 옅게 표시한다.
+        st.markdown('<div class="event-noreport">리포트 없음</div>', unsafe_allow_html=True)
         return
 
     log_id = log["log_id"]

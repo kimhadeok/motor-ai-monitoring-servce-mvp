@@ -132,6 +132,15 @@ else:
             conn, motor_id, DETAIL_EVENT_PAGE_SIZE, page * DETAIL_EVENT_PAGE_SIZE
         )
 
+    # 대시보드(§3.3)와 같은 자리·같은 형식의 안내 줄. 대시보드는 조치가 필요한 전이만
+    # 걸러 보여주고 "전체 이력은 상세에서"라고 안내하므로, 이쪽에서도 무엇을 보고 있는지를
+    # 같은 방식으로 말해준다. 건수는 페이지가 없을 때도 항상 보여준다 —
+    # 종전에는 20건을 넘겨 페이지네이션이 생겨야만 총 건수를 알 수 있었다.
+    _caption = f"전체 상태 전이 {total_events}건"
+    if last_page > 0:
+        _caption += f" · {page + 1}/{last_page + 1} 페이지"
+    st.caption(f"{_caption} · 메인 대시보드는 이 중 고장·위험 전이만 모아서 보여줍니다.")
+
     event_list_header(show_motor=False)
     for event in events:
         event_row(event, show_motor=False)
@@ -141,9 +150,9 @@ else:
         if prev_col.button("← 이전", disabled=page == 0, use_container_width=True):
             st.session_state[_PAGE_KEY] = page - 1
             st.rerun()
+        # 총 건수는 위 캡션이 이미 말한다 — 여기서는 현재 위치만 표시한다.
         label_col.markdown(
-            f"<div style='text-align:center'>{page + 1} / {last_page + 1} "
-            f"(총 {total_events}건)</div>",
+            f"<div style='text-align:center'>{page + 1} / {last_page + 1}</div>",
             unsafe_allow_html=True,
         )
         if next_col.button("다음 →", disabled=page == last_page, use_container_width=True):

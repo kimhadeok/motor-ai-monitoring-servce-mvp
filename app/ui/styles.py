@@ -588,6 +588,12 @@ def inject_global_styles() -> None:
             display: flex; align-items: baseline; gap: 5px;
             font-size: 15px; white-space: nowrap;
         }}
+        /* 리포트가 없는 행(NORMAL/WARNING 전이)의 버튼 자리. 버튼과 같은 높이·정렬로
+           두어야 행 높이가 들쭉날쭉해지지 않는다 (05 §4.4). */
+        .event-noreport {{
+            font-size: 12.5px; color: {p["text_faint"]}; text-align: center;
+            width: 100%; line-height: 1.2;
+        }}
         .event-value .ev-prev {{ color: {p["text_faint"]}; font-weight: 500; }}
         .event-value .ev-now {{ font-weight: 800; color: {p["text_strong"]}; }}
         .event-value .ev-unit {{ font-size: 11.5px; color: {p["text_muted"]}; }}
