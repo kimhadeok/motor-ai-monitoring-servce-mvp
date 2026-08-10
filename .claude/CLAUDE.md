@@ -56,3 +56,15 @@ description: You are the comprehensive core agent for the Streamlit MVP applicat
 
 - When coreagent drafts a Plan (Claude Code Plan Mode) for project setup or code implementation, also save the plan as a `.md` file under `.claude/docs/plan/` in this repo, in addition to the default plan-mode file location.
 - The user reviews the plan in `.claude/docs/plan/` and decides whether to **추가 (add to)**, **변경 (change)**, or **승인 (approve)** it before implementation begins.
+
+## Commit Workflow (2026-08-10 추가):
+
+**git 커밋은 사용자 승인을 받고 진행한다.** 작업을 마쳤다고 바로 커밋하지 않는다.
+
+- 변경이 끝나면 `git status` / `git diff --stat`으로 **대상 파일과 커밋 메시지 초안을 먼저 제시**하고 승인을 기다린다.
+- 승인 전까지는 워킹트리에 둔다. 여러 작업이 쌓였다면 **커밋 단위를 어떻게 나눌지도 함께 묻는다.**
+- **검증이 끝나지 않은 변경은 그 사실을 명시**해 사용자가 "이건 검증 후에"라고 나눌 수 있게 한다.
+- push도 같은 기준이다. 다만 사용자가 직접 `git push`를 실행했다가 실패해 도움을 요청한 경우는 push 의도가 명시된 것으로 본다.
+- 커밋 메시지는 기존 관행을 따른다: 제목은 `motor-NNN` 순번, 본문은 **무엇을 왜 바꿨는지와 실측 근거**를 적고 미검증 항목을 밝힌다.
+
+**배경**: 2026-08-10 세션에서 coreagent가 작업 단위마다 스스로 판단해 9건(`motor-039`~`motor-047`)을 연속 커밋했다. 사용자가 커밋 시점과 단위를 통제할 수 없었고, 화면 검증이 끝나지 않은 변경도 커밋에 섞여 들어갔다.
