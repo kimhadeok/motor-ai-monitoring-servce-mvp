@@ -222,13 +222,18 @@ def generate_missing_report_html(conn) -> int:
     return generated
 
 
-def get_report(log_id: int) -> tuple[str, bytes | str] | None:
-    """리포트를 제공한다. `("pdf", bytes)` 또는 `("html", str)`을 반환.
+def get_report(log_id: int) -> dict | None:
+    """리포트를 제공한다. `{"html": str, "pdf": bytes | None}`.
 
-    05_ui_screens.md §3.3 확정 동작:
-      1. report_pdf 캐시가 있으면 그대로 제공
-      2. 없으면 저장된 HTML로 PDF 변환을 시도하고 성공 시 캐시
-      3. 변환 불가 환경이면 HTML을 반환
+    **HTML은 항상 돌려준다** (2026-08-10 변경). 종전에는 PDF가 있으면 PDF만 반환해
+    화면이 다운로드 버튼 하나로 끝났다 — 담당자가 내려받기 전에는 내용을 볼 수 없었다.
+    지금은 화면에 항상 HTML을 띄우고, 내려받기만 PDF/HTML 중 가능한 쪽으로 준다
+    (05_ui_screens.md §3.3).
+
+    동작 순서:
+      1. 저장된 HTML이 없으면 지금 만들어 저장 (최초 열람 경로)
+      2. `report_pdf` 캐시가 있으면 그대로 사용
+      3. 없으면 PDF 변환을 시도하고 성공 시 캐시. 변환 불가 환경이면 `pdf=None`
     """
     with connection_scope() as conn:
         row = conn.execute(
@@ -238,12 +243,9 @@ def get_report(log_id: int) -> tuple[str, bytes | str] | None:
         if row is None:
             return None
 
-        if row["report_pdf"] is not None:
-            return "pdf", row["report_pdf"]
-
         html = row["report_html"]
         if html is None:
-            # 진단 시 HTML이 만들어지지 않은 예외적 경우 — 지금 만들어 저장한다.
+            # 최초 열람 — 여기서 진단 에이전트가 돌고 HTML이 만들어진다.
             log = conn.execute(
                 "SELECT * FROM motor_status_logs WHERE log_id = ?", (log_id,)
             ).fetchone()
@@ -255,13 +257,16 @@ def get_report(log_id: int) -> tuple[str, bytes | str] | None:
                 "UPDATE motor_status_logs SET report_html = ? WHERE log_id = ?", (html, log_id)
             )
 
+        if row["report_pdf"] is not None:
+            return {"html": html, "pdf": row["report_pdf"]}
+
         try:
             pdf_bytes = render_report_pdf(html)
         except Exception:
-            # WeasyPrint 네이티브 라이브러리 미설치 등 — HTML로 폴백 (06 §1)
-            return "html", html
+            # WeasyPrint 네이티브 라이브러리 미설치 등 — HTML만 제공한다 (06 §1)
+            return {"html": html, "pdf": None}
 
         conn.execute(
             "UPDATE motor_status_logs SET report_pdf = ? WHERE log_id = ?", (pdf_bytes, log_id)
         )
-        return "pdf", pdf_bytes
+        return {"html": html, "pdf": pdf_bytes}

@@ -93,6 +93,14 @@ uv run python scripts/build_knowledge.py --force      # 실제 재임베딩 (앱
 
 > ⚠️ **앱이 떠 있는 상태로 실행하지 마세요.** ChromaDB의 persist 디렉터리는 다중 프로세스 동시 쓰기를 가정하지 않습니다. 앱이 스토어를 연 채로 갱신되면 앱 쪽 벡터 검색이 **예외 없이 조용히** 실패해 SOP가 키워드 폴백으로 떨어집니다. 재구축 후에는 앱을 재기동하세요.
 
+### 리포트 PDF 검증 (레이아웃을 바꿨을 때)
+
+WeasyPrint는 flexbox 처리가 Chromium과 달라 **브라우저로는 PDF 레이아웃을 검증할 수 없습니다.** 배포 환경과 같은 Debian trixie 컨테이너에서 확인하세요 — 방법과 Dockerfile은 `02_architecture.md` §6.6에 있습니다. 배포본에서 내려받은 PDF를 그냥 눈으로 확인만 할 때는 컨테이너 없이:
+
+```bash
+uv run --with pymupdf --no-project python -c "import pymupdf,sys; d=pymupdf.open(sys.argv[1]); [p.get_pixmap(dpi=90).save(f'page{i}.png') for i,p in enumerate(d,1)]" report.pdf
+```
+
 > ⚠️ **Windows에서는 리포트가 PDF 대신 HTML로 표시됩니다.** WeasyPrint는 Pango/GLib 네이티브 라이브러리를 요구하는데 Windows에는 기본 탑재되어 있지 않습니다. 앱은 이를 감지해 저장된 HTML을 다이얼로그에 그대로 보여주므로 **기능이 막히지는 않습니다**. PDF까지 확인하려면 WSL/Docker에서 실행하거나 GTK3 런타임을 설치하세요. Streamlit Community Cloud에서는 `packages.txt` 덕분에 PDF가 정상 생성되며, 한 번 만든 PDF는 `report_pdf` BLOB에 캐시되어 이후 즉시 응답합니다.
 
 ## 배포 (Streamlit Community Cloud)

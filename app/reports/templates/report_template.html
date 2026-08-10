@@ -39,8 +39,16 @@
             background-color: var(--bg-gray);
         }
 
+        /* 폭을 A4 본문 폭에 고정한다 (2026-08-10).
+           종전 `max-width: 900px`는 화면에서만 넓게 잡혀, 브라우저로 잰 페이지 높이가
+           실제 PDF와 달랐다. A4 210mm에서 @page margin 12mm씩을 빼면 본문은 186mm이고
+           WeasyPrint는 그 폭으로 레이아웃한다. 화면이 더 넓으면 줄바꿈이 덜 일어나
+           "화면에서는 5페이지인데 PDF는 6페이지"가 된다 — 실제로 표지 꼬리말이 2페이지로
+           밀렸다. 같은 폭으로 맞춰야 브라우저 실측이 PDF 검증을 대신할 수 있고,
+           다이얼로그에 표시되는 HTML도 PDF와 같은 모습이 된다. */
         .page {
-            max-width: 900px;
+            width: 186mm;
+            max-width: 100%;
             margin: 0 auto 24px;
             background: #ffffff;
             border-radius: 12px;
@@ -49,12 +57,14 @@
             overflow: hidden;
         }
 
-        /* ===== 표지(타이틀) 페이지 ===== */
+        /* ===== 표지(타이틀) 페이지 =====
+           블록 레이아웃으로 둔다 (2026-08-10). 종전에는 세로 flex 컨테이너에
+           `.title-hero { flex: 1 }`로 남는 공간을 채워 세로 가운데 정렬을 만들었는데,
+           그 "남는 공간"의 크기가 변환기마다 다르게 계산돼 표지 높이가 달라졌다.
+           배포본 PDF에서 표지가 넘쳐 꼬리말만 있는 6번째 페이지가 생겼다.
+           블록으로 두면 높이가 내용만으로 정해져 브라우저와 PDF가 같아진다. */
         .title-page {
             padding: 0;
-            display: flex;
-            flex-direction: column;
-            min-height: 700px;
         }
         .title-ribbon { height: 10px; background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%); }
         /* 리본은 각 상태색의 진한 톤에서 상태색으로 흐른다 */
@@ -65,28 +75,52 @@
             display: flex; justify-content: space-between; align-items: center;
             padding: 24px 44px 0; font-size: 12px; color: var(--text-muted);
         }
-        .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--primary); font-size: 13px; }
+        /* flex 항목에는 줄바꿈 금지를 명시한다 (2026-08-10).
+           WeasyPrint의 flexbox 구현은 Chromium과 달라, 오른쪽에 빈 공간이 남아 있는데도
+           항목 폭을 내용보다 좁게 잡는다. 실제 배포본 PDF에서 "모터 AI 모니터링 서비/스",
+           "AI 모터 이상 진단 리포/트", "MTR-227 · 137호기 원심분리기 모/터"처럼 단어
+           중간에서 줄이 깨졌고, 머리글이 두 줄이 되면서 표지가 다음 장으로 넘쳤다.
+           nowrap + flex-shrink: 0 이면 변환기의 폭 계산과 무관하게 한 줄로 유지된다. */
+        .brand {
+            display: flex; align-items: center; gap: 8px; font-weight: 700;
+            color: var(--primary); font-size: 13px; white-space: nowrap; flex-shrink: 0;
+        }
         .doc-tag {
             border: 1px solid var(--border-color); border-radius: 20px; padding: 4px 12px;
-            font-weight: 600; letter-spacing: 0.03em;
+            font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; flex-shrink: 0;
         }
 
+        /* 표지 세로 여백 (2026-08-10 재조정). 종전 배치는 A4 본문(774pt) 대비 여유가
+           33pt뿐이라, 배지의 줄 높이가 조금만 늘어도 꼬리말이 다음 장으로 밀려 꼬리말만
+           있는 빈 페이지가 생겼다 — `::before`에 display 한 줄을 더했을 때 실제로 그렇게
+           됐다. 지금은 여유 54pt(본문 텍스트 하단 753.6pt 기준, trixie 컨테이너 실측).
+           표지는 내용이 고정이라 이 값이 모터에 따라 흔들리지 않는다. */
         .title-hero {
-            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            text-align: center; padding: 20px 44px 30px;
+            display: flex; flex-direction: column; align-items: center;
+            text-align: center; padding: 14px 44px 20px;
         }
-        .title-hero .motor-icon { color: var(--primary); margin-bottom: 18px; }
+        .title-hero .motor-icon { color: var(--primary); margin-bottom: 10px; }
         .title-hero h1 { font-size: 30px; color: var(--primary); margin: 0 0 8px; }
         .title-hero .subtitle-en { font-size: 13px; color: var(--text-muted); letter-spacing: 0.04em; margin: 0 0 22px; }
 
         .title-status-badge {
             padding: 10px 22px; border-radius: 24px; font-weight: 800; font-size: 16px;
             display: inline-flex; align-items: center; gap: 8px;
+            white-space: nowrap; flex-shrink: 0;
             /* 표지는 여백이 넉넉해야 한다. 상태 배지와 정보 블록이 붙으면 배지가
                제목의 부제처럼 읽혀 '이 리포트가 무슨 상태인가'라는 핵심이 묻힌다. */
-            margin-bottom: 52px;
+            margin-bottom: 28px;
         }
-        .title-status-badge::before { content: ''; width: 10px; height: 10px; border-radius: 50%; }
+        /* display와 vertical-align을 함께 명시한다 (2026-08-10).
+           Chromium은 flex 컨테이너의 ::before를 flex 항목으로 만들어 width/height가
+           먹지만, WeasyPrint는 인라인 박스로 두어 크기가 무시된다 — 배포본 PDF에서
+           상태 점이 원이 아니라 가는 세로 막대로 나왔다.
+           inline-block만 주면 baseline 정렬 때문에 줄 높이가 늘어난다. 실제로 이 한 줄이
+           표지를 넘치게 해 페이지가 5→6장이 됐다. middle 정렬로 그 증가를 없앤다. */
+        .title-status-badge::before {
+            content: ''; display: inline-block; vertical-align: middle;
+            width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+        }
         .title-status-badge.status-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid #fed7aa; }
         .title-status-badge.status-danger::before { background: var(--danger); }
         .title-status-badge.status-fault { background: var(--fault-bg); color: var(--fault); border: 1px solid #fecaca; }
@@ -109,7 +143,7 @@
         .title-info-row .v { font-weight: 600; text-align: right; }
 
         .title-footer {
-            border-top: 1px solid var(--border-color); padding: 18px 44px; text-align: center;
+            border-top: 1px solid var(--border-color); padding: 14px 44px 18px; text-align: center;
             font-size: 12px; color: var(--text-muted);
         }
 
@@ -120,10 +154,17 @@
             display: flex; justify-content: space-between; align-items: center;
             padding-bottom: 14px; margin-bottom: 20px; border-bottom: 2px solid var(--primary);
         }
-        .content-header .doc-title { font-size: 13px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; }
-        .content-header .motor-pill { font-size: 12px; color: var(--text-muted); }
+        /* 머리글은 어떤 변환기에서도 한 줄이어야 한다 (근거는 .brand 주석 참조).
+           두 줄이 되면 내용 페이지마다 20px씩 밀려 페이지 분할이 어긋난다. */
+        .content-header .doc-title {
+            font-size: 13px; font-weight: 700; color: var(--primary);
+            display: flex; align-items: center; gap: 8px;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .content-header .motor-pill { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
         .content-header .status-badge-sm {
             font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px;
+            white-space: nowrap; flex-shrink: 0;
         }
         .status-badge-sm.status-danger { background: var(--danger-bg); color: var(--danger); }
         .status-badge-sm.status-fault { background: var(--fault-bg); color: var(--fault); }

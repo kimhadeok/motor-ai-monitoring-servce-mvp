@@ -665,27 +665,31 @@ def render_report_dialog() -> None:
             st.warning("리포트를 생성할 수 없습니다. 관련 데이터가 남아 있지 않습니다.")
             return
 
-        kind, payload = result
-        if kind == "pdf":
-            st.success("PDF 리포트가 준비되었습니다.")
+        # 내용은 환경과 무관하게 항상 화면에 띄운다 (2026-08-10 확정, 05 §3.3).
+        # 종전에는 PDF가 만들어지면 다운로드 버튼만 보여줘, 담당자가 파일을 내려받아
+        # 열기 전에는 진단 내용을 확인할 수 없었다.
+        # HTML 문자열을 그대로 넘기면 srcdoc으로 렌더된다 — 파일시스템을 경유하지 않는다.
+        # st.components.v1.html은 2026-06-01자로 제거 예고된 API라 st.iframe을 쓴다.
+        st.iframe(result["html"], height=REPORT_VIEWER_HEIGHT_PX)
+
+        # 내려받기는 만들 수 있는 형식으로 하나만 제공한다. 두 개를 함께 두면
+        # 담당자가 무엇을 받아야 하는지 고민하게 된다 — PDF가 되면 PDF가 정답이다.
+        if result["pdf"] is not None:
             st.download_button(
-                "PDF 다운로드",
-                data=payload,
+                "PDF 문서 다운로드",
+                data=result["pdf"],
                 file_name=f"{view['basename']}.pdf",
                 mime="application/pdf",
+                use_container_width=True,
             )
-            return
-
-        # PDF 생성이 불가한 환경 — 저장된 HTML을 그대로 보여준다 (06 §1)
-        st.caption("이 환경에서는 PDF를 만들 수 없어 HTML로 표시합니다.")
-        # HTML 문자열을 그대로 넘기면 srcdoc으로 렌더된다 — 파일시스템을 경유하지 않는다(05 §3.3).
-        # st.components.v1.html은 2026-06-01자로 제거 예고된 API라 st.iframe을 쓴다.
-        st.iframe(payload, height=REPORT_VIEWER_HEIGHT_PX)
-        st.download_button(
-            "HTML 다운로드",
-            data=payload,
-            file_name=f"{view['basename']}.html",
-            mime="text/html",
-        )
+        else:
+            st.download_button(
+                "HTML 문서 다운로드",
+                data=result["html"],
+                file_name=f"{view['basename']}.html",
+                mime="text/html",
+                use_container_width=True,
+            )
+            st.caption("이 환경에서는 PDF를 만들 수 없어 HTML로만 내려받을 수 있습니다.")
 
     _show()

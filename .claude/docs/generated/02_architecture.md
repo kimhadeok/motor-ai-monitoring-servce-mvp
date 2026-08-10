@@ -259,6 +259,28 @@ INFO  [app.agents.diagnosis_agent] 진단 생성 | MTR-227 sound | source=rule (
 
 **로그 스트림은 UTF-8로 강제한다.** 배포 대상(Linux)은 UTF-8이라 무관하지만, Windows 콘솔은 기본 코드페이지가 cp949라 한글 로그가 깨져 로컬에서 읽을 수 없었다. `_log_stream()`이 인코딩이 UTF-8이 아닐 때만 `TextIOWrapper`로 감싼다(래퍼가 GC되면 버퍼까지 닫히므로 모듈 레벨에서 참조를 붙든다).
 
+### 6.6 PDF 검증 — 배포 환경과 같은 조건으로 로컬에서 (2026-08-10 추가)
+
+**리포트 레이아웃은 브라우저로 검증할 수 없다.** WeasyPrint의 flexbox 구현이 Chromium과 달라, 브라우저에서 멀쩡한 문서가 PDF에서는 단어 중간에서 줄이 깨지고 페이지가 밀린다(`06_report_spec.md` §3.1의 차이 표). 실제로 첫 배포에서 6페이지 PDF와 잘린 머리글이 나왔고, 배포→확인→수정을 반복할 뻔했다.
+
+Windows에는 WeasyPrint의 네이티브 라이브러리(Pango 등)가 없어 로컬 생성이 불가능하다. **배포 환경과 같은 Debian trixie 컨테이너를 쓴다.**
+
+```dockerfile
+FROM python:3.14-trixie
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-noto-cjk \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir weasyprint==69.0 pymupdf
+```
+
+apt 목록은 저장소의 `packages.txt`와 같게 유지한다 — 이 컨테이너가 배포 환경의 대역이 되려면 두 목록이 어긋나면 안 된다.
+
+절차: 앱에서 리포트 HTML을 파일로 뽑는다 → 컨테이너에서 `HTML(filename=...).write_pdf(...)` → `pymupdf`로 페이지 수·페이지별 내용 하단 y좌표·머리글 문자열이 조각났는지 확인. 페이지 이미지를 PNG로 뽑으면 눈으로도 확인할 수 있다.
+
+**PDF를 읽기만 할 때는 컨테이너도 필요 없다.** `uv run --with pymupdf` 한 줄이면 PDF를 PNG로 변환해 확인할 수 있다(poppler 설치 불필요). 배포본에서 내려받은 PDF를 점검할 때 쓴다.
+
+검증할 것: ① 페이지 수가 5장인가 ② 각 페이지 내용이 본문 774pt 안에 들어오는가 ③ 머리글·배지 문자열이 한 줄로 유지되는가.
+
 ---
 
 승인해주시면 다음 문서(`03_state_event_logic.md`) 작성을 진행하겠습니다.
