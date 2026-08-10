@@ -254,6 +254,18 @@ INFO  [app.agents.diagnosis_agent] 진단 생성 | MTR-227 sound | source=rule (
 
 환경 줄 하나로 배포 검증 항목 다수가 정리된다 — 선택된 Python 버전, `chromadb`가 커밋된 persist 포맷과 같은 버전인지, 키가 Secrets에 들어갔는지. **API 키 값 자체는 절대 남기지 않는다.** 설정 여부만 찍는다.
 
+**배포본 실측 (2026-08-10)** — Streamlit Community Cloud, `motor-049` 반영본:
+
+```
+환경 | python=3.14.7 streamlit=1.60.0 chromadb=1.5.9 langgraph=1.2.10 | openai_key=설정됨 diagnosis_llm=off
+부트스트랩 완료 | 모터 210대 텔레메트리 288,210행 상태로그 80건 | rag_ready=True rag_chunks=44
+  | 23.28s (schema=0.10s seed=21.74s rag_check=1.45s)
+```
+
+**Python 3.14가 그대로 선택된다** — `requires-python = ">=3.14"`를 낮출 필요가 없었다. 커밋한 `data/chroma/`도 정상 로드돼(`rag_ready=True`) SOP가 실제 벡터 검색으로 동작한다.
+
+**콜드 부팅은 로컬 4.49초 대비 23.28초로 약 5배**다. 차이는 거의 전부 시드(3.94초 → 21.74초)이며 배포 환경의 CPU·디스크가 느린 탓이다. 앱이 잠들었다 깨거나 데모 데이터가 낡아 재시드될 때 **첫 방문자가 그만큼 기다린다** — `remaining_work #12`에서 다룬다.
+
 **배포본은 진단 LLM을 끈다 (2026-08-10 결정).** Secrets에 `DIAGNOSIS_LLM_ENABLED = "false"`를 둔다. Community Cloud 앱은 URL을 아는 누구나 접근할 수 있고 로그인 화면에 시연 계정이 노출되어 있어(`05_ui_screens.md` §2), 리포트 열람마다 나가는 GPT-4o 호출을 통제할 수단이 없다. 배포본 리포트는 규칙 기반으로 생성되고 라벨이 `"규칙 기반 진단 (LLM 미사용)"`으로 표시된다 — 섹션 구성과 측정 근거는 동일하다. AI 진단 시연은 로컬에서 스위치를 켜고 보여준다.
 
 **단, `OPENAI_API_KEY`는 Secrets에 유지한다.** 이 스위치는 진단 LLM만 끈다. 키를 비우면 `get_collection()`이 임베딩 함수 없이 열리지 않아 `rag_ready=False`가 되고 SOP까지 키워드 폴백으로 떨어진다(실측 확인). 임베딩 비용은 질의당 $0.00002 수준이라 통제 대상이 아니다.

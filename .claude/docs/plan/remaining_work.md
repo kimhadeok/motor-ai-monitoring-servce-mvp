@@ -54,9 +54,9 @@
   - 스펙(`04_database_schema.md §5-5`)의 삭제 쿼리는 정식 서비스용 설계로 유지한다.
   - 상태: **MVP 제외**
 
-## 🟡 배포·검증 (미검증)
+## 🟡 배포·검증
 
-- [ ] **5. 배포 검증**
+- [x] **5. 배포 검증** (2026-08-10 완료)
   - Python 3.14 + Streamlit Community Cloud 실배포, PDF(WeasyPrint) 배포 환경 동작 확인.
   - **1차 배포 실패 → 수정 완료 (2026-08-10)**: `packages.txt`의 `libgdk-pixbuf2.0-0`이 설치 불가로 빌드가 멈췄다. Streamlit 문서는 "Debian 11(bullseye) 패키지 참조"라고 안내하지만 **실제 이미지는 trixie(13)** 였다(빌드 로그에서 확인). 이름만 고치지 않고 WeasyPrint 공식 문서가 요구하는 목록으로 교체했다 — `libpango-1.0-0` / `libpangoft2-1.0-0` / `libharfbuzz-subset0` / `fonts-noto-cjk`. 네 개 모두 trixie 존재 확인. gdk-pixbuf·cairo는 WeasyPrint 53+에서 불필요해 제거. **`libharfbuzz-subset0`과 `libpangoft2-1.0-0`은 원래 목록에 아예 없었으므로**, 이름만 고쳤다면 다음 단계에서 다시 막혔을 가능성이 있다.
   - **배포 설정 확정(2026-08-10)**: Secrets에 `DIAGNOSIS_LLM_ENABLED="false"`. 공개 URL + 로그인 화면의 시연 계정 노출로 GPT-4o 호출을 통제할 수단이 없다. **`OPENAI_API_KEY`는 유지** — 비우면 RAG까지 죽어 `rag_ready=False`가 된다(실측). AI 진단 시연은 로컬에서 스위치를 켜고 한다.
@@ -66,8 +66,39 @@
     `부트스트랩 완료 | … rag_ready=… rag_chunks=… | N초` → RAG 적재 여부와 부팅 시드 소요.
     RAG 미적재 시 WARNING이 함께 뜬다. 리포트를 열면 `진단 생성 | … source=llm|rule` 이 남아 LLM 동작 여부도 확인된다.
   - **추가 확인 항목(2026-08-07)**: 커밋한 `data/chroma/`(1.3MB)가 배포본에서 정상 로드되는지. 부팅 summary의 `rag_ready`가 `True`이고 `rag_chunks=44`(2026-08-10 로컬 실측치)면 성공, `False`면 SOP가 키워드 폴백으로 동작 중. 종전 이 항목에 적혀 있던 46은 실제 적재량과 다른 값이었다. chromadb 버전이 빌드 환경과 달라지면 persist 포맷 호환이 깨질 수 있으므로 `pyproject.toml` 핀 확인 필요. **미검증**.
-  - **2차 배포 결과 (2026-08-10)**: apt 통과, 앱 기동, **PDF 생성 성공**. 다만 출력이 6페이지였고 머리글이 단어 중간에서 잘렸다 — WeasyPrint와 Chromium의 flexbox 차이. 수정 후 **Debian trixie 컨테이너(배포 환경과 동일 조건)에서 5페이지·줄바꿈 없음을 실측 확인**했다. 검증 방법은 `02_architecture.md §6.6`에 정리. 남은 미검증은 배포본에서의 최종 확인뿐이다.
-  - 상태: 미검증 (배포본 재확인 필요)
+  - **2차 배포 결과 (2026-08-10)**: apt 통과, 앱 기동, **PDF 생성 성공**. 다만 출력이 6페이지였고 머리글이 단어 중간에서 잘렸다 — WeasyPrint와 Chromium의 flexbox 차이. 수정 후 **Debian trixie 컨테이너(배포 환경과 동일 조건)에서 5페이지·줄바꿈 없음을 실측 확인**했다. 검증 방법은 `02_architecture.md §6.6`에 정리.
+  - **3차 배포 확인 (2026-08-10, `motor-049` 반영본)** — 사용자가 배포본에서 직접 확인:
+
+    | 항목 | 결과 |
+    |---|---|
+    | 리포트 PDF 출력 | **정상** — 컨테이너 검증(5페이지·줄바꿈 없음)과 배포본이 일치 |
+    | 정비 완료 확인 창 (바깥 클릭 후 페이지 이동) | **정상** — 재출현 없음 (`on_dismiss` 콜백) |
+    | 모터 상세 (3버튼 내비 · 모터 그래프 · 표 2종 · 이벤트 목록) | **정상** |
+    | 대시보드 카드 높이 | **정상** |
+
+    이로써 **배포 파이프라인 전체가 검증됐다** — 빌드(apt/trixie), 기동, WeasyPrint PDF, 한글 글리프(`fonts-noto-cjk`), Secrets 반영(`DIAGNOSIS_LLM_ENABLED=false`가 리포트 라벨에 반영), 최신 UI. **컨테이너 검증이 배포본과 일치한다는 것도 함께 확인됐다** — 앞으로 레이아웃 변경은 `02 §6.6` 절차로 배포 전에 잡을 수 있다.
+  - **부팅 로그 판정 완료 (2026-08-10)** — 배포본 로그 원문:
+
+    ```
+    08:56:18 INFO [app.services.bootstrap] 환경 | python=3.14.7 streamlit=1.60.0
+      chromadb=1.5.9 langgraph=1.2.10 | openai_key=설정됨 diagnosis_llm=off
+    08:56:41 INFO [app.services.bootstrap] 부트스트랩 완료 | 모터 210대 텔레메트리 288,210행
+      상태로그 80건 | reseeded_stale=False | rag_ready=True rag_chunks=44
+      | 23.28s (schema=0.10s seed=21.74s rag_check=1.45s)
+    08:56:55 INFO [app.agents.diagnosis_agent] 진단 생성 | MTR-233 temperature
+      | source=rule (DIAGNOSIS_LLM_ENABLED=false) | 1.60s
+    ```
+
+    | 확인 항목 | 결과 |
+    |---|---|
+    | **Python 3.14** | **`3.14.7` — Community Cloud가 지원한다.** `requires-python = ">=3.14"` 그대로 통과. 우려했던 3.13 폴백은 없었다 |
+    | chromadb 버전 | `1.5.9` — 커밋된 persist를 만든 버전과 동일. 포맷 호환 문제 없음 |
+    | **RAG 적재** | **`rag_ready=True` `rag_chunks=44`** — 커밋한 `data/chroma/`(1.3MB)가 배포본에서 정상 로드. SOP가 **실제 벡터 검색**이며 키워드 폴백이 아니다 |
+    | Secrets 반영 | `openai_key=설정됨` · `diagnosis_llm=off` — 의도대로 |
+    | 진단 경로 | `source=rule (DIAGNOSIS_LLM_ENABLED=false)` 1.60초 — 배포본 설정대로 규칙 기반 |
+    | apt 설치 | `fonts-noto-cjk` · `libharfbuzz-subset0` · `libpango-1.0-0` · `libpangoft2-1.0-0` 포함 22개 신규 설치, 오류 없음 |
+  - 상태: **완료 (2026-08-10)** — 배포 파이프라인·화면·PDF·부팅 로그 전부 확인.
+  - **로그에서 새로 드러난 것 3건은 12·13·14번으로 분리했다.**
 
 ## 🟢 정리 (문서·성능)
 
@@ -113,6 +144,26 @@
   - 할 일: `build_report_context()`가 해당 상태 로그의 `notification_logs` 행을 조회해 쓰고, 발송 채널을 리포트에 노출. 행이 없으면(쿨다운 억제) "발송 없음"으로 사실대로 적는다.
   - 시연 가치: "AI가 진단하고 담당자에게 알렸다"는 흐름이 **실제 기록으로 증명**되고 채널(카카오/SMS/이메일)이 드러난다.
   - 관련: 3번(알림 범위 확정), `06_report_spec.md §2.5`
+  - 상태: 미착수
+
+- [ ] **12. 배포본 콜드 부팅 23초 — 첫 방문자 대기** (2026-08-10 발견, 시연 리스크)
+  - 배포 로그 실측: **23.28초** (schema 0.10 · **seed 21.74** · rag_check 1.45). 로컬 4.49초의 **약 5배**이고, 대부분이 시드다(로컬 3.94초 → 배포 21.74초).
+  - **왜 시연 리스크인가**: Community Cloud 앱은 일정 시간 접속이 없으면 잠들고, 깨어날 때 이 경로를 다시 탄다. 데모 데이터도 `DEMO_DATA_MAX_AGE_HOURS`(2h)가 지나면 재시드된다. 즉 **시연 직전에 앱을 열면 23초 동안 빈 화면 + 스피너**를 볼 수 있다.
+  - 원인은 시드 규모다 — 모터 210대 · 텔레메트리 288,210행을 SQLite에 넣는다(`02 §6.1`). 배포 환경 CPU/디스크가 로컬보다 느려 그대로 5배가 된다.
+  - 검토할 선택지: ① 벌크 190대의 수집주기를 더 늘려 행 수 축소 ② 시드를 상태 판정에 필요한 최근 구간만 조밀하게, 나머지는 성기게 ③ 시연 전 미리 한 번 열어 워밍업(운영으로 회피). **①·②는 시연 밀도(200대 그리드·6시간 그래프)를 해치지 않는 선에서 실측하며 정해야 한다.**
+  - 상태: 미착수
+
+- [ ] **13. `use_container_width` 폐기 예고** (2026-08-10 발견)
+  - 배포 로그 경고: ``Please replace `use_container_width` with `width`. `use_container_width` will be removed after 2025-12-31.`` — **이미 예고일이 지났고** 현재 1.60.0에서는 경고만 뜬다.
+  - 사용처 **14곳** — `app/ui/components.py`, `app/ui/charts.py`, `app/pages/motor_detail.py`, `app/pages/login.py`.
+  - 대체 파라미터 `width`는 1.60.0의 `button` / `download_button` / `dataframe` / `altair_chart` 모두에 **이미 존재**함을 확인했다. `use_container_width=True` → `width="stretch"`로 바꾸면 된다.
+  - Streamlit이 실제로 제거하면 앱이 죽으므로, 배포본이 Streamlit 최신을 따라가는 구조에서는 미루지 않는 편이 낫다.
+  - 상태: 미착수
+
+- [ ] **14. 배포는 `requirements.txt`가 아니라 `uv.lock`을 쓴다 — 문서 정정** (2026-08-10 발견)
+  - 배포 로그: `🐍 Python dependencies were installed from … uv.lock using uv-sync.` + `WARN: More than one requirements file detected … Used: uv-sync with uv.lock`
+  - 그런데 `README` 배포 절차 1번과 `01_tech_stack.md §3`은 "`uv export`로 `requirements.txt`를 갱신해 커밋"하라고 안내한다. **실제로 쓰이지 않는 파일을 관리하라고 시키고 있다.**
+  - 정리할 것: 우선순위가 `uv.lock`임을 문서에 명시하고, `requirements.txt`를 남길지(폴백·타 환경용) 지울지 정한다. 남긴다면 "Cloud는 uv.lock을 쓴다"는 사실을 함께 적어 혼동을 없앤다.
   - 상태: 미착수
 
 ---

@@ -105,7 +105,7 @@ uv run --with pymupdf --no-project python -c "import pymupdf,sys; d=pymupdf.open
 
 ## 배포 (Streamlit Community Cloud)
 
-1. `uv export --format requirements-txt --no-dev --no-hashes -o requirements.txt` 로 배포용 `requirements.txt`를 최신 상태로 갱신 후 커밋 (uv/pyproject.toml 변경 시마다 재실행).
+1. 의존성은 **`uv.lock`이 그대로 쓰인다** — Community Cloud가 `uv-sync`로 설치한다(2026-08-10 배포 로그로 확인). 저장소에 `uv.lock`·`requirements.txt`·`pyproject.toml`이 함께 있어 Cloud가 `WARN: More than one requirements file detected`를 남기지만, 실제 선택은 `uv.lock`이다. `requirements.txt`는 다른 환경용 폴백으로만 유지하며 `uv export --format requirements-txt --no-dev --no-hashes -o requirements.txt`로 갱신한다.
 2. Community Cloud 앱 설정의 **Secrets**에 `.streamlit/secrets.toml.example` 내용을 그대로 붙여넣고 `OPENAI_API_KEY`를 채웁니다.
 3. `packages.txt`(WeasyPrint용 apt 패키지)가 저장소 루트에 있는지 확인 — 없으면 PDF 생성이 빌드/런타임에 실패합니다. **패키지 이름은 Debian 13(trixie) 기준입니다** (아래 참고).
 4. 배포 시점에 Python 3.14가 지원되지 않으면 `runtime.txt`로 지원 버전을 별도 지정해야 할 수 있습니다.
