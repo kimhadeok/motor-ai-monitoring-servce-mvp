@@ -99,8 +99,29 @@ uv run python scripts/build_knowledge.py --force      # 실제 재임베딩 (앱
 
 1. `uv export --format requirements-txt --no-dev --no-hashes -o requirements.txt` 로 배포용 `requirements.txt`를 최신 상태로 갱신 후 커밋 (uv/pyproject.toml 변경 시마다 재실행).
 2. Community Cloud 앱 설정의 **Secrets**에 `.streamlit/secrets.toml.example` 내용을 그대로 붙여넣고 `OPENAI_API_KEY`를 채웁니다.
-3. `packages.txt`(WeasyPrint용 apt 패키지)가 저장소 루트에 있는지 확인 — 없으면 PDF 생성이 빌드/런타임에 실패합니다. Community Cloud는 이 목록을 **Debian 11(bullseye)** 기준으로 `apt-get` 합니다.
+3. `packages.txt`(WeasyPrint용 apt 패키지)가 저장소 루트에 있는지 확인 — 없으면 PDF 생성이 빌드/런타임에 실패합니다. **패키지 이름은 Debian 13(trixie) 기준입니다** (아래 참고).
 4. 배포 시점에 Python 3.14가 지원되지 않으면 `runtime.txt`로 지원 버전을 별도 지정해야 할 수 있습니다.
+
+### packages.txt는 Debian 13(trixie) 기준입니다 (2026-08-10 배포 로그로 확인)
+
+Streamlit 문서는 `packages.txt`가 "Debian 11(bullseye) 패키지를 참조해야 한다"고 안내하지만, **실제 빌드 이미지는 trixie였습니다.** 첫 배포가 여기서 실패했습니다:
+
+```
+Package libgdk-pixbuf2.0-0 is not available, but is referred to by another package.
+However the following packages replace it: libgdk-pixbuf-xlib-2.0-0 libgdk-pixbuf-2.0-0
+E: Package 'libgdk-pixbuf2.0-0' has no installation candidate
+```
+
+현재 목록은 [WeasyPrint 공식 설치 문서](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html)가 Debian ≥ 11에 요구하는 것만 담았고, 네 개 모두 trixie에 존재하는 것을 확인했습니다.
+
+| 패키지 | 용도 |
+|---|---|
+| `libpango-1.0-0` | 텍스트 레이아웃 |
+| `libpangoft2-1.0-0` | Pango FreeType 백엔드 |
+| `libharfbuzz-subset0` | 폰트 서브셋 (PDF 임베딩) |
+| `fonts-noto-cjk` | **한글 글리프** — 없으면 PDF에서 한글이 깨집니다 |
+
+`libgdk-pixbuf`·`libcairo2`·`libpangocairo`·`libffi-dev`·`shared-mime-info`는 뺐습니다. WeasyPrint는 53버전부터 cairo와 gdk-pixbuf를 쓰지 않고(래스터 이미지는 Pillow가 처리), 공식 문서의 의존성 목록에도 없습니다. 불필요한 패키지는 빌드만 늦추고 배포판이 바뀔 때 이름 문제를 다시 일으킵니다.
 
 ### 배포본은 진단 LLM을 끕니다 (2026-08-10 결정)
 

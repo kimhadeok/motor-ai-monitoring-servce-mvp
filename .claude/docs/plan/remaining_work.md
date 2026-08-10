@@ -54,7 +54,8 @@
 ## 🟡 배포·검증 (미검증)
 
 - [ ] **5. 배포 검증**
-  - Python 3.14 + Streamlit Community Cloud 실배포, PDF(WeasyPrint) 배포 환경 동작 확인. `packages.txt` 점검(Cloud는 **Debian 11 bullseye** 기준으로 apt 설치 — 현재 목록의 `libgdk-pixbuf2.0-0`은 bullseye 이름이라 맞다).
+  - Python 3.14 + Streamlit Community Cloud 실배포, PDF(WeasyPrint) 배포 환경 동작 확인.
+  - **1차 배포 실패 → 수정 완료 (2026-08-10)**: `packages.txt`의 `libgdk-pixbuf2.0-0`이 설치 불가로 빌드가 멈췄다. Streamlit 문서는 "Debian 11(bullseye) 패키지 참조"라고 안내하지만 **실제 이미지는 trixie(13)** 였다(빌드 로그에서 확인). 이름만 고치지 않고 WeasyPrint 공식 문서가 요구하는 목록으로 교체했다 — `libpango-1.0-0` / `libpangoft2-1.0-0` / `libharfbuzz-subset0` / `fonts-noto-cjk`. 네 개 모두 trixie 존재 확인. gdk-pixbuf·cairo는 WeasyPrint 53+에서 불필요해 제거. **`libharfbuzz-subset0`과 `libpangoft2-1.0-0`은 원래 목록에 아예 없었으므로**, 이름만 고쳤다면 다음 단계에서 다시 막혔을 가능성이 있다.
   - **배포 설정 확정(2026-08-10)**: Secrets에 `DIAGNOSIS_LLM_ENABLED="false"`. 공개 URL + 로그인 화면의 시연 계정 노출로 GPT-4o 호출을 통제할 수단이 없다. **`OPENAI_API_KEY`는 유지** — 비우면 RAG까지 죽어 `rag_ready=False`가 된다(실측). AI 진단 시연은 로컬에서 스위치를 켜고 한다.
   - **사전 확인 완료(2026-08-10)**: `requirements.txt`는 `uv.lock`과 동기화됨(langgraph 1.2.10 포함). 메모리 실측 228MB — Cloud 한도 690MB~2.7GB 대비 여유. 타임존은 `DISPLAY_TIMEZONE="Asia/Seoul"` 고정이라 Cloud UTC 무관.
   - **판정 방법 (2026-08-10 마련)**: 배포 후 Manage app 로그의 부팅 두 줄로 대부분을 판정한다 (`02_architecture.md §6.5`).
