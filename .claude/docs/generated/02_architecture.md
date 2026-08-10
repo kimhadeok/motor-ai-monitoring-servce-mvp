@@ -253,6 +253,10 @@ INFO  [app.agents.diagnosis_agent] 진단 생성 | MTR-227 sound | source=rule (
 
 환경 줄 하나로 배포 검증 항목 다수가 정리된다 — 선택된 Python 버전, `chromadb`가 커밋된 persist 포맷과 같은 버전인지, 키가 Secrets에 들어갔는지. **API 키 값 자체는 절대 남기지 않는다.** 설정 여부만 찍는다.
 
+**배포본은 진단 LLM을 끈다 (2026-08-10 결정).** Secrets에 `DIAGNOSIS_LLM_ENABLED = "false"`를 둔다. Community Cloud 앱은 URL을 아는 누구나 접근할 수 있고 로그인 화면에 시연 계정이 노출되어 있어(`05_ui_screens.md` §2), 리포트 열람마다 나가는 GPT-4o 호출을 통제할 수단이 없다. 배포본 리포트는 규칙 기반으로 생성되고 라벨이 `"규칙 기반 진단 (LLM 미사용)"`으로 표시된다 — 섹션 구성과 측정 근거는 동일하다. AI 진단 시연은 로컬에서 스위치를 켜고 보여준다.
+
+**단, `OPENAI_API_KEY`는 Secrets에 유지한다.** 이 스위치는 진단 LLM만 끈다. 키를 비우면 `get_collection()`이 임베딩 함수 없이 열리지 않아 `rag_ready=False`가 되고 SOP까지 키워드 폴백으로 떨어진다(실측 확인). 임베딩 비용은 질의당 $0.00002 수준이라 통제 대상이 아니다.
+
 **로그 스트림은 UTF-8로 강제한다.** 배포 대상(Linux)은 UTF-8이라 무관하지만, Windows 콘솔은 기본 코드페이지가 cp949라 한글 로그가 깨져 로컬에서 읽을 수 없었다. `_log_stream()`이 인코딩이 UTF-8이 아닐 때만 `TextIOWrapper`로 감싼다(래퍼가 GC되면 버퍼까지 닫히므로 모듈 레벨에서 참조를 붙든다).
 
 ---

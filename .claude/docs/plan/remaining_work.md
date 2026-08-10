@@ -54,7 +54,9 @@
 ## 🟡 배포·검증 (미검증)
 
 - [ ] **5. 배포 검증**
-  - Python 3.14 + Streamlit Community Cloud 실배포, PDF(WeasyPrint) 배포 환경 동작 확인. `packages.txt` 점검.
+  - Python 3.14 + Streamlit Community Cloud 실배포, PDF(WeasyPrint) 배포 환경 동작 확인. `packages.txt` 점검(Cloud는 **Debian 11 bullseye** 기준으로 apt 설치 — 현재 목록의 `libgdk-pixbuf2.0-0`은 bullseye 이름이라 맞다).
+  - **배포 설정 확정(2026-08-10)**: Secrets에 `DIAGNOSIS_LLM_ENABLED="false"`. 공개 URL + 로그인 화면의 시연 계정 노출로 GPT-4o 호출을 통제할 수단이 없다. **`OPENAI_API_KEY`는 유지** — 비우면 RAG까지 죽어 `rag_ready=False`가 된다(실측). AI 진단 시연은 로컬에서 스위치를 켜고 한다.
+  - **사전 확인 완료(2026-08-10)**: `requirements.txt`는 `uv.lock`과 동기화됨(langgraph 1.2.10 포함). 메모리 실측 228MB — Cloud 한도 690MB~2.7GB 대비 여유. 타임존은 `DISPLAY_TIMEZONE="Asia/Seoul"` 고정이라 Cloud UTC 무관.
   - **판정 방법 (2026-08-10 마련)**: 배포 후 Manage app 로그의 부팅 두 줄로 대부분을 판정한다 (`02_architecture.md §6.5`).
     `환경 | python=… chromadb=… | openai_key=… diagnosis_llm=…` → Python 버전·chromadb 버전·Secrets 반영 여부.
     `부트스트랩 완료 | … rag_ready=… rag_chunks=… | N초` → RAG 적재 여부와 부팅 시드 소요.

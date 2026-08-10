@@ -98,9 +98,32 @@ uv run python scripts/build_knowledge.py --force      # 실제 재임베딩 (앱
 ## 배포 (Streamlit Community Cloud)
 
 1. `uv export --format requirements-txt --no-dev --no-hashes -o requirements.txt` 로 배포용 `requirements.txt`를 최신 상태로 갱신 후 커밋 (uv/pyproject.toml 변경 시마다 재실행).
-2. Community Cloud 앱 설정의 **Secrets**에 `.streamlit/secrets.toml.example` 내용을 참고해 `OPENAI_API_KEY` 등을 입력.
-3. `packages.txt`(WeasyPrint용 apt 패키지)가 저장소 루트에 있는지 확인 — 없으면 PDF 생성이 빌드/런타임에 실패합니다.
+2. Community Cloud 앱 설정의 **Secrets**에 `.streamlit/secrets.toml.example` 내용을 그대로 붙여넣고 `OPENAI_API_KEY`를 채웁니다.
+3. `packages.txt`(WeasyPrint용 apt 패키지)가 저장소 루트에 있는지 확인 — 없으면 PDF 생성이 빌드/런타임에 실패합니다. Community Cloud는 이 목록을 **Debian 11(bullseye)** 기준으로 `apt-get` 합니다.
 4. 배포 시점에 Python 3.14가 지원되지 않으면 `runtime.txt`로 지원 버전을 별도 지정해야 할 수 있습니다.
+
+### 배포본은 진단 LLM을 끕니다 (2026-08-10 결정)
+
+Secrets에 `DIAGNOSIS_LLM_ENABLED = "false"`를 둡니다. Community Cloud 앱은 URL을 아는 누구나 접근할 수 있고 **로그인 화면에 시연 계정이 노출되어 있어**, 리포트를 열 때마다 나가는 GPT-4o 호출을 통제할 수단이 없기 때문입니다.
+
+- 배포본의 리포트는 규칙 기반 진단으로 생성되고, 진단 모델 라벨이 `규칙 기반 진단 (LLM 미사용)`으로 표시됩니다. 4개 섹션 구성과 측정 근거는 동일합니다.
+- **`OPENAI_API_KEY`는 그대로 둡니다.** 이 스위치는 진단 LLM만 끄며, 키를 비우면 SOP 벡터 검색까지 죽어 `rag_ready=False`가 됩니다. 임베딩 비용은 질의당 $0.00002 수준입니다.
+- **AI 진단 시연은 로컬에서** `DIAGNOSIS_LLM_ENABLED=true`로 두고 보여줍니다.
+
+### 배포 후 확인 (Manage app → 로그)
+
+부팅 두 줄로 대부분이 판정됩니다 — 자세한 배경은 `02_architecture.md` §6.5.
+
+| 확인할 것 | 로그에서 볼 값 | 기대값 |
+|---|---|---|
+| Python 버전 | `환경 \| python=` | 선택한 버전 |
+| chromadb 버전 | `환경 \| chromadb=` | `1.5.9` (커밋된 persist 포맷 기준) |
+| Secrets 반영 | `환경 \| openai_key=` / `diagnosis_llm=` | `설정됨` / `off` |
+| RAG 적재 | `부트스트랩 완료 \| rag_ready=` `rag_chunks=` | `True` / `44` |
+| 부팅 시드 소요 | `부트스트랩 완료 \| … N초` | 로컬 4.49초 대비 비교 |
+| 진단 경로 | 리포트를 열면 `진단 생성 \| … source=` | `rule` (배포본 설정상 정상) |
+
+`rag_ready=False`면 WARNING이 함께 뜹니다. PDF는 로그가 아니라 화면으로 확인합니다 — 리포트가 다운로드 버튼(PDF)으로 나오면 성공, 다이얼로그에 HTML로 표시되면 WeasyPrint가 실패한 것입니다.
 
 ## 프로젝트 구조
 
