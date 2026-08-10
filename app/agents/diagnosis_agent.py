@@ -16,6 +16,7 @@ LLM 가용성에 걸리면 안 된다 (CLAUDE.md fallback 요구사항).
 
 import logging
 import re
+import time
 from typing import TypedDict
 
 from app.agents.schema import DiagnosisContext, DiagnosisPayload, DiagnosisResult
@@ -195,18 +196,29 @@ def run_diagnosis(context: DiagnosisContext) -> DiagnosisResult:
 
     반환값의 `source`가 `"llm"`이면 에이전트 생성물, `"rule"`이면 규칙 기반 폴백이다.
     리포트는 이 값으로 진단 모델 라벨을 고른다 (06 §2.3, 2026-08-10 확정).
+
+    결과를 로그로 남긴다. 배포 환경에서 "진단이 실제로 LLM으로 나갔는지"를 확인할 통로가
+    Manage app 로그뿐이기 때문이다 (`app/logging_setup.py`).
     """
+    started = time.monotonic()
     try:
         state = _get_graph().invoke({"context": context})
     except Exception as exc:
         # 그래프 자체가 실패한 경우 (langgraph import 실패 등)
-        logger.warning("진단 그래프 실행 실패 (%s): %s", context.motor_id, exc)
+        logger.warning("진단 그래프 실행 실패 | %s | %s", context.motor_id, exc)
         return build_rule_based_result(context.status, context.facts)
 
-    if reason := state.get("fallback_reason"):
-        logger.info("진단 폴백 (%s): %s", context.motor_id, reason)
-
     result = state.get("result")
-    if isinstance(result, DiagnosisResult):
-        return result
-    return build_rule_based_result(context.status, context.facts)
+    if not isinstance(result, DiagnosisResult):
+        logger.warning("진단 결과 없음 | %s | 규칙 기반으로 대체", context.motor_id)
+        return build_rule_based_result(context.status, context.facts)
+
+    logger.info(
+        "진단 생성 | %s %s | source=%s%s | %.2fs",
+        context.motor_id,
+        context.facts.get("metric", ""),
+        result.source,
+        f" ({state['fallback_reason']})" if state.get("fallback_reason") else "",
+        time.monotonic() - started,
+    )
+    return result

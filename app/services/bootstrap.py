@@ -13,9 +13,12 @@ git에 커밋하는 대신 앱 부팅 시 실행 환경에서 직접 생성해, 
 삭제하는 동안 다른 세션이 읽으면 깨진 상태를 보게 된다. 파일 락 + 완료 마커로 막는다.
 """
 
+import logging
 import os
+import sys
 import time
 from datetime import datetime, timedelta, timezone
+from importlib.metadata import PackageNotFoundError, version
 
 from app.config import (
     BOOTSTRAP_LOCK_PATH,
@@ -23,12 +26,16 @@ from app.config import (
     BOOTSTRAP_MARKER_PATH,
     DB_PATH,
     DEMO_DATA_MAX_AGE_HOURS,
+    DIAGNOSIS_LLM_ENABLED,
+    OPENAI_API_KEY,
     parse_utc,
 )
 from app.db.connection import connection_scope
 from app.db.init_db import ensure_schema
 from app.rag.ingest import count_ingested_chunks
 from app.services.seeding import seed_demo_data
+
+logger = logging.getLogger(__name__)
 
 
 def _demo_data_is_fresh(conn) -> bool:
@@ -48,6 +55,72 @@ def _demo_data_is_fresh(conn) -> bool:
 
     age = datetime.now(timezone.utc) - parse_utc(latest)
     return age <= timedelta(hours=DEMO_DATA_MAX_AGE_HOURS)
+
+
+def _package_version(name: str) -> str:
+    try:
+        return version(name)
+    except PackageNotFoundError:
+        return "미설치"
+
+
+def _log_environment() -> None:
+    """배포본에서 무엇이 깔려 돌고 있는지 한 줄로 남긴다.
+
+    배포 검증 항목(`remaining_work #5`)을 로그 한 줄로 판정하기 위한 것이다 —
+    Python 버전이 선택한 값과 같은지, `chromadb`가 커밋된 persist 포맷과 같은 버전인지,
+    키가 Secrets에 들어갔는지. **키 값 자체는 절대 남기지 않는다.** 설정 여부만 찍는다.
+    """
+    logger.info(
+        "환경 | python=%s streamlit=%s chromadb=%s langgraph=%s | openai_key=%s diagnosis_llm=%s",
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        _package_version("streamlit"),
+        _package_version("chromadb"),
+        _package_version("langgraph"),
+        "설정됨" if OPENAI_API_KEY else "없음",
+        "on" if DIAGNOSIS_LLM_ENABLED else "off",
+    )
+
+
+def _log_summary(summary: dict) -> None:
+    """부팅 결과 한 줄. Manage app 로그에서 grep 할 수 있게 형식을 고정한다."""
+    if summary.get("error"):
+        logger.error("부트스트랩 실패 | %s", summary["error"])
+        return
+
+    if summary.get("skipped_concurrent"):
+        logger.info("부트스트랩 생략 | 다른 세션이 이미 완료함")
+        return
+
+    timings = summary.get("timings", {})
+    detail = " ".join(f"{k}={v:.2f}s" for k, v in timings.items() if k != "total")
+
+    if summary.get("seeded"):
+        scale = (
+            f"모터 {summary.get('motors', 0)}대 "
+            f"텔레메트리 {summary.get('telemetry', 0):,}행 "
+            f"상태로그 {summary.get('status_logs', 0)}건"
+        )
+    else:
+        scale = "기존 데이터 재사용 (시드 생략)"
+
+    logger.info(
+        "부트스트랩 완료 | %s | reseeded_stale=%s | rag_ready=%s rag_chunks=%s | %.2fs (%s)",
+        scale,
+        summary.get("reseeded_stale", False),
+        summary.get("rag_ready"),
+        summary.get("rag_chunks"),
+        timings.get("total", 0.0),
+        detail,
+    )
+
+    # RAG 미적재는 화면에 아무 신호가 없다 — SOP가 키워드 폴백으로 조용히 떨어진다.
+    # 배포본에서 이걸 알아챌 수 있는 유일한 지점이므로 WARNING으로 올린다.
+    if not summary.get("rag_ready"):
+        logger.warning(
+            "RAG 벡터가 비어 있음 | SOP 조회가 키워드 폴백으로 동작합니다. "
+            "커밋된 data/chroma/ 가 배포본에 들어왔는지, chromadb 버전이 빌드 시점과 같은지 확인하십시오."
+        )
 
 
 class _FileLock:
@@ -92,12 +165,14 @@ def bootstrap_demo_data(force: bool = False) -> dict:
     알려 SOP 조회가 키워드 폴백으로 동작 중임을 드러낸다.
     """
     summary: dict = {"seeded": False, "rag_chunks": 0, "rag_ready": False, "timings": {}}
+    _log_environment()
 
     with _FileLock(BOOTSTRAP_LOCK_PATH, BOOTSTRAP_LOCK_TIMEOUT_SECONDS) as lock:
         if not lock.acquired:
             # 다른 세션이 부트스트랩 중이었고 그 사이 완료됨 — 스키마만 확인하고 반환
             ensure_schema()
             summary["skipped_concurrent"] = True
+            _log_summary(summary)
             return summary
 
         try:
@@ -139,6 +214,7 @@ def bootstrap_demo_data(force: bool = False) -> dict:
             summary["error"] = f"{type(exc).__name__}: {exc}"
 
     summary["timings"]["total"] = sum(summary["timings"].values())
+    _log_summary(summary)
     return summary
 
 

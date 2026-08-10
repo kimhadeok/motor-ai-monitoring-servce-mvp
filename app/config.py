@@ -55,6 +55,13 @@ DEMO_DATA_MAX_AGE_HOURS = 2
 # --- API 키 ---
 OPENAI_API_KEY = get_secret("OPENAI_API_KEY")
 
+# --- 로깅 (2026-08-10) ---
+# 배포 환경(Streamlit Community Cloud)에서 앱 상태를 확인할 통로는 Manage app 로그뿐이다.
+# 부팅 요약과 진단 폴백 사유가 여기로 나가야 "RAG가 적재됐는지", "LLM이 실제로 돌았는지"를
+# 화면 없이 판정할 수 있다 (02_architecture.md §6.5).
+LOG_LEVEL = (get_secret("LOG_LEVEL") or "INFO").strip().upper()
+LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
+
 # --- 시간 윈도우 (02_architecture.md §4~5 확정값) ---
 DB_RETENTION_HOURS = 48
 SHORT_TERM_BUFFER_HOURS = 2

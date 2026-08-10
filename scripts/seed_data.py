@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import REPORT_GENERATION_SECONDS_PER_ITEM  # noqa: E402
 from app.db.connection import connection_scope  # noqa: E402
+from app.logging_setup import configure_logging  # noqa: E402
 from app.reports.service import (  # noqa: E402
     count_missing_reports,
     generate_missing_report_html,
@@ -47,6 +48,9 @@ def main() -> None:
         "다시 생성되게 할 때 쓴다 (06_report_spec.md §3.1).",
     )
     args = parser.parse_args()
+
+    # 스크립트도 같은 로거를 쓴다 — 리포트 전건 생성 시 진단 폴백 사유를 봐야 한다.
+    configure_logging()
 
     if args.reset_reports:
         # 시드보다 먼저 비운다. --force와 함께 쓰면 DB가 통째로 새로 만들어지므로

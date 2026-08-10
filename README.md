@@ -36,6 +36,15 @@ uv run streamlit run main.py
 
 **부팅 경로에 OpenAI API 호출이 없습니다.** API 키가 없어도 앱은 정상 기동하며, 키는 리포트를 열 때만 쓰입니다.
 
+부팅 결과는 프로세스 로그(배포 환경에서는 Manage app 로그)에 두 줄로 남습니다. 화면에 드러나지 않는 실패 — 특히 **RAG 미적재 시 SOP가 조용히 키워드 폴백으로 떨어지는 것** — 을 판정하는 통로입니다.
+
+```
+INFO [app.services.bootstrap] 환경 | python=3.14.6 streamlit=1.60.0 chromadb=1.5.9 langgraph=1.2.10 | openai_key=설정됨 diagnosis_llm=on
+INFO [app.services.bootstrap] 부트스트랩 완료 | 모터 210대 텔레메트리 288,210행 상태로그 80건 | rag_ready=True rag_chunks=44 | 4.49s (...)
+```
+
+리포트를 열면 `진단 생성 | MTR-227 sound | source=llm | 6.31s`가 추가로 남아 LLM이 실제로 돌았는지 확인됩니다. API 키 값은 로그에 남지 않습니다 — 설정 여부만 찍습니다.
+
 | 자산 | 시간 의존 | 준비 방식 |
 |---|---|---|
 | 텔레메트리·상태로그 | O | 부팅 시 생성 (`data/app.db`, 커밋 안 함) |
@@ -100,6 +109,7 @@ app/            # 애플리케이션 코드
   pages/        #   화면: 로그인 · 메인 대시보드 · 모터 그래프 · 모터 현황 · 모터 상세
   ui/           #   재사용 컴포넌트 · 전역 스타일 · 네비게이션 · 테마
   agents/       #   LangGraph 진단 에이전트 + 입출력 스키마 (실패 시 규칙 기반 폴백)
+  logging_setup.py  # 앱 로거 설정 — 부팅 요약·진단 결과를 프로세스 로그로 남긴다
   services/     #   bootstrap(부팅 시 데이터 준비), seeding, motors, company, events, diagnosis
   reports/      #   HTML/PDF 렌더 및 리포트 제공 (PDF 실패 시 HTML 폴백)
   rag/          #   ChromaDB 인제스트·SOP 조회(실패 시 키워드 폴백), 참조 지식 조회

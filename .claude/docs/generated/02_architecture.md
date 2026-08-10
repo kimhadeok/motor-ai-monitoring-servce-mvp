@@ -227,6 +227,34 @@ PDF는 이 단계에 포함하지 않는다. 건당 약 0.5초로 전건 생성 
 
 **`build_knowledge.py`는 앱을 내린 상태에서 실행한다 (2026-08-07 검증 중 확인).** Chroma의 persist 디렉터리는 다중 프로세스 동시 쓰기를 가정하지 않는다. 앱이 클라이언트를 연 채로 스토어가 갱신되면 앱 쪽 벡터 검색이 **예외 없이 조용히 실패**해 SOP가 키워드 폴백으로 떨어진다 — 검증 중 실제로 재현했고, 앱을 재기동하자 정상 복귀했다. 폴백이 예외를 삼키는 설계(§2.2)라 로그에도 남지 않으므로, SOP가 갑자기 옛 매뉴얼 문구로 돌아갔다면 이 상황을 먼저 의심한다. 배포 환경은 Streamlit 프로세스 하나만 스토어를 읽으므로 해당하지 않는다.
 
+### 6.5 관측 — 부팅 요약 로그 (2026-08-10 추가)
+
+**배포 환경에서 앱 내부 상태를 볼 통로는 Manage app 로그(프로세스 stdout/stderr)뿐이다.** 화면에 드러나지 않는 실패가 셋 있는데, 그중 둘은 사용자도 관리자도 알아챌 방법이 없었다.
+
+| 실패 | 사용자에게 보이는가 | 판정 방법 |
+|---|---|---|
+| RAG 미적재 → SOP 키워드 폴백 | **안 보인다** (문구가 그럴듯해 구분 불가) | 부팅 로그 `rag_ready` + WARNING |
+| 진단 LLM 실패 → 규칙 기반 | 리포트의 "진단 모델" 라벨로 보인다 (§2.4.1) | 진단 로그 `source=` + 폴백 사유 |
+| PDF 변환 불가 → HTML 제공 | 보인다 (HTML로 표시됨) | — |
+
+`app/logging_setup.py`의 `configure_logging()`이 `app.*` 네임스페이스에 stderr 핸들러를 1회 붙인다. 진입점(`main.py`, `scripts/seed_data.py`)에서 호출한다.
+
+**왜 별도 설정이 필요한가.** 핸들러가 없는 로거의 INFO는 버려지고 WARNING 이상만 `lastResort`로 나간다. Streamlit이 붙이는 핸들러는 `streamlit` 네임스페이스 전용이라 앱 로그에 걸리지 않는다. `propagate = False`로 루트에 올리지 않아 중복 출력도 막는다. 레벨은 `LOG_LEVEL`(기본 `INFO`)로 조절하며, 알 수 없는 값이 들어와도 INFO로 떨어지고 앱은 죽지 않는다.
+
+**남기는 것 (실측 출력)**
+
+```
+INFO  [app.services.bootstrap] 환경 | python=3.14.6 streamlit=1.60.0 chromadb=1.5.9 langgraph=1.2.10 | openai_key=설정됨 diagnosis_llm=on
+INFO  [app.services.bootstrap] 부트스트랩 완료 | 모터 210대 텔레메트리 288,210행 상태로그 80건 | reseeded_stale=False | rag_ready=True rag_chunks=44 | 4.49s (schema=0.03s seed=3.94s rag_check=0.51s)
+WARN  [app.services.bootstrap] RAG 벡터가 비어 있음 | SOP 조회가 키워드 폴백으로 동작합니다. …
+INFO  [app.agents.diagnosis_agent] 진단 생성 | MTR-227 sound | source=llm | 6.31s
+INFO  [app.agents.diagnosis_agent] 진단 생성 | MTR-227 sound | source=rule (DIAGNOSIS_LLM_ENABLED=false) | 0.34s
+```
+
+환경 줄 하나로 배포 검증 항목 다수가 정리된다 — 선택된 Python 버전, `chromadb`가 커밋된 persist 포맷과 같은 버전인지, 키가 Secrets에 들어갔는지. **API 키 값 자체는 절대 남기지 않는다.** 설정 여부만 찍는다.
+
+**로그 스트림은 UTF-8로 강제한다.** 배포 대상(Linux)은 UTF-8이라 무관하지만, Windows 콘솔은 기본 코드페이지가 cp949라 한글 로그가 깨져 로컬에서 읽을 수 없었다. `_log_stream()`이 인코딩이 UTF-8이 아닐 때만 `TextIOWrapper`로 감싼다(래퍼가 GC되면 버퍼까지 닫히므로 모듈 레벨에서 참조를 붙든다).
+
 ---
 
 승인해주시면 다음 문서(`03_state_event_logic.md`) 작성을 진행하겠습니다.

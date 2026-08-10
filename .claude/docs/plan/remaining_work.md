@@ -55,6 +55,10 @@
 
 - [ ] **5. 배포 검증**
   - Python 3.14 + Streamlit Community Cloud 실배포, PDF(WeasyPrint) 배포 환경 동작 확인. `packages.txt` 점검.
+  - **판정 방법 (2026-08-10 마련)**: 배포 후 Manage app 로그의 부팅 두 줄로 대부분을 판정한다 (`02_architecture.md §6.5`).
+    `환경 | python=… chromadb=… | openai_key=… diagnosis_llm=…` → Python 버전·chromadb 버전·Secrets 반영 여부.
+    `부트스트랩 완료 | … rag_ready=… rag_chunks=… | N초` → RAG 적재 여부와 부팅 시드 소요.
+    RAG 미적재 시 WARNING이 함께 뜬다. 리포트를 열면 `진단 생성 | … source=llm|rule` 이 남아 LLM 동작 여부도 확인된다.
   - **추가 확인 항목(2026-08-07)**: 커밋한 `data/chroma/`(1.3MB)가 배포본에서 정상 로드되는지. 부팅 summary의 `rag_ready`가 `True`이고 `rag_chunks=44`(2026-08-10 로컬 실측치)면 성공, `False`면 SOP가 키워드 폴백으로 동작 중. 종전 이 항목에 적혀 있던 46은 실제 적재량과 다른 값이었다. chromadb 버전이 빌드 환경과 달라지면 persist 포맷 호환이 깨질 수 있으므로 `pyproject.toml` 핀 확인 필요. **미검증**.
   - 상태: 미검증
 
