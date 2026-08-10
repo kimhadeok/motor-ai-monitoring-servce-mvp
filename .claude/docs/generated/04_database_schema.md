@@ -168,6 +168,8 @@ CREATE TABLE notification_logs (
 );
 ```
 
+> **MVP에서 이 테이블은 "적재"까지만이다 (2026-08-10 확정).** 실제 채널 발송(KAKAO/SMS/EMAIL 어댑터, 발신번호 등록, 실패 재시도)은 정식 서비스 개발 시 적용한다. MVP는 시연을 위해 시드가 DANGER/FAULT 전이에 쿨다운을 적용해 샘플 행을 만든다(실측 24건 — KAKAO 11 · SMS 8 · EMAIL 5). `external_message_id`는 실제 발송이 없으므로 채워지지 않는다.
+
 ## 4. 관계 요약
 
 ```
@@ -208,6 +210,8 @@ company_contacts 1─N motor_status_logs (관리자 수동 조치 시)
 DELETE FROM motor_telemetry
 WHERE time < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-48 hours');
 ```
+
+> **이 배치는 MVP 범위 밖이다 (2026-08-10 확정).** 정식 서비스 개발 시 적용한다. MVP에서 문제가 되지 않는 이유는 데모 DB가 부팅 때 만들어지고 낡으면 통째로 재생성되기 때문이다(`02_architecture.md` §6.1, `DEMO_DATA_MAX_AGE_HOURS`) — 48시간을 넘겨 쌓이는 구간 자체가 생기지 않는다. `apscheduler` 의존성과 `RETENTION_BATCH_CRON_HOUR` 상수는 정식 서비스를 위해 남겨 둔다. 위 쿼리는 그때 쓸 설계다.
 
 MVP 실행 방식: 별도 스케줄러(APScheduler, `02_architecture.md` §3 참고) 잡으로 1일 1회 실행. 정식 서비스 단계에서 필요 시 별도 아카이브 테이블/파일로 이관 검토.
 

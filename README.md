@@ -183,4 +183,8 @@ scripts/        # 수동 CLI — seed_data.py(데모 데이터), build_knowledge
 
 **첫 리포트 열람은 몇 초 걸립니다.** 진단은 리포트를 열 때 생성되며(부팅 경로에는 LLM 호출이 없습니다), 프로세스 최초 열람이 실측 5~9초(LangGraph 콜드 import 3.17초 포함), 이후 4초대, 재열람은 캐시로 0.03초입니다. API 키가 없거나 LLM이 실패하면 규칙 기반 진단으로 폴백하고, 리포트의 진단 모델 라벨이 "규칙 기반 진단 (LLM 미사용)"으로 바뀝니다. `DIAGNOSIS_LLM_ENABLED=false`로 강제 오프할 수 있습니다.
 
-아직 구현되지 않은 것: 실시간 상태 전이 감지 · 자동 갱신 · 통신 두절 판정, 알림 실제 발송, 48시간 보관 배치, Python 3.14 배포 검증. 상세 추적은 [`.claude/docs/plan/remaining_work.md`](.claude/docs/plan/remaining_work.md).
+아직 구현되지 않은 것: 실시간 상태 전이 감지 · 자동 갱신 · 통신 두절 판정, 리포트의 실제 알림 이력 연결, 배포본 최종 확인.
+
+**MVP 범위 밖 (정식 서비스 개발 시 적용, 2026-08-10 확정)**: 알림 실제 발송(KAKAO/SMS/EMAIL 어댑터) — MVP는 시연용 `notification_logs` 샘플까지. 48시간 보관 배치 — 데모 DB는 부팅 때 재생성되어 넘칠 구간이 없다.
+
+상세 추적은 [`.claude/docs/plan/remaining_work.md`](.claude/docs/plan/remaining_work.md).
