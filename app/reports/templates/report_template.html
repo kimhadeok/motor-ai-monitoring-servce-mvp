@@ -6,15 +6,15 @@
    WeasyPrint가 확실히 지원하는 기본 도형(rect/circle/path)과 stroke 속성만 쓴다. #}
 {% macro metric_icon(metric) -%}
 {%- if metric == 'temperature' -%}
-<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="10" y="3" width="4" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="4" fill="currentColor"/></svg>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="10" y="3" width="4" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="4" fill="currentColor"/></svg>
 {%- elif metric == 'vibration' -%}
-<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M2 12h3l2.5-7 3.5 14 3.5-11 2 4h5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M2 12h3l2.5-7 3.5 14 3.5-11 2 4h5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
 {%- elif metric == 'current' -%}
-<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg>
 {%- elif metric == 'sound' -%}
-<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 9h3l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 9a4 4 0 0 1 0 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6a8 8 0 0 1 0 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 9h3l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 9a4 4 0 0 1 0 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M19 6a8 8 0 0 1 0 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
 {%- else -%}
-<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/></svg>
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/></svg>
 {%- endif -%}
 {%- endmacro %}
 <!DOCTYPE html>
@@ -457,7 +457,7 @@
             <div class="icon-circle">
                 <!-- 계기판(측정) 아이콘. 온도계는 이제 '온도' 지표 전용이므로
                      '센서 일반'을 뜻하는 자리에는 쓰지 않는다 (2026-08-10). -->
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 17a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 17l4.5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.8" fill="currentColor"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 17a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 17l4.5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.8" fill="currentColor"/></svg>
             </div>
             <span>센서 데이터 수집</span>
         </div>
@@ -466,7 +466,7 @@
         </div>
         <div class="flow-node">
             <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg>
             </div>
             <span>AI 에이전트 진단</span>
         </div>
@@ -475,7 +475,7 @@
         </div>
         <div class="flow-node">
             <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>
             </div>
             <span>리포트 발행 및 알림</span>
         </div>
@@ -487,7 +487,10 @@
 
     <!-- 센서 측정 데이터: 06_report_spec.md §2.2 -->
     <h2>
-        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 17a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 17l4.5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.8" fill="currentColor"/></svg></span>
+        <!-- 번개 아이콘 (2026-08-10 사용자 지정). 전류 카드와 같은 기호이지만,
+             섹션 제목은 카드와 다른 층위라 혼동 소지가 적고 16px 안팎에서 면으로 채워져
+             선 아이콘보다 또렷하다. -->
+        <span class="h2-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg></span>
         1. 실시간 센서 측정 데이터
     </h2>
     <div class="sensor-grid">
@@ -539,7 +542,7 @@
 
     <!-- AI 진단: 06_report_spec.md §2.3 -->
     <h2 class="first-h2">
-        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg></span>
+        <span class="h2-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg></span>
         2. AI 진단
     </h2>
     <div class="card-box">
@@ -611,7 +614,7 @@
     {% if metric_characteristic or suspected_faults %}
     <!-- 근본 원인 분석: 06_report_spec.md §2.3 -->
     <h2 class="first-h2">
-        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7l8-4z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" fill="none"/></svg></span>
+        <span class="h2-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4v6c0 4.4-3.4 7.4-8 8-4.6-.6-8-3.6-8-8V7l8-4z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" fill="none"/></svg></span>
         3. 근본 원인 분석
     </h2>
     <div class="card-box">
@@ -653,7 +656,7 @@
 
     <!-- 정비 가이드: 06_report_spec.md §2.4 (RAG 매뉴얼 검색 결과) -->
     <h2 class="first-h2">
-        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 005.4-5.4l-2.8 2.8-2-2 2.8-2.8z" fill="currentColor"/></svg></span>
+        <span class="h2-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 005.4-5.4l-2.8 2.8-2-2 2.8-2.8z" fill="currentColor"/></svg></span>
         4. 매뉴얼 기반 정비 가이드 (SOP)
     </h2>
     <div class="card-box">
@@ -666,23 +669,23 @@
 
     <!-- 대응/통보 이력: 06_report_spec.md §2.5 -->
     <h2>
-        <span class="h2-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg></span>
+        <span class="h2-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg></span>
         5. 자동 대응 및 통보 이력
     </h2>
     <div class="card-box">
         <div class="timeline">
             <div class="timeline-item detect">
-                <div class="icon-dot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg></div>
+                <div class="icon-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg></div>
                 <div class="timeline-time">{{ event_time }}</div>
                 <div class="timeline-content"><strong>이상 감지</strong> — {{ trigger_reason }}</div>
             </div>
             <div class="timeline-item diagnose">
-                <div class="icon-dot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg></div>
+                <div class="icon-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg></div>
                 <div class="timeline-time">{{ report_generated_at }}</div>
                 <div class="timeline-content"><strong>AI 진단 완료</strong> — 단기(2h)+장기(6h) 데이터 및 RAG 매뉴얼 결합 분석 완료, 본 리포트 생성</div>
             </div>
             <div class="timeline-item notify">
-                <div class="icon-dot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/></svg></div>
+                <div class="icon-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/></svg></div>
                 <div class="timeline-time">{{ report_generated_at }}</div>
                 <div class="timeline-content"><strong>알림 발송</strong> — 담당자에게 리포트 다운로드 안내 발송</div>
             </div>
