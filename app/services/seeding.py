@@ -27,10 +27,12 @@ from app.config import (
     SEED_BULK_INTERVAL_SECONDS,
     SEED_BULK_MOTOR_TOTAL,
     SEED_BULK_STATUS_TARGETS,
+    SEED_DENSE_WINDOW_HOURS,
     SEED_EQUIPMENT_POOL,
     SEED_LOCATION_POOL,
     SEED_MODEL_POOL,
     SEED_RNG_SEED,
+    SEED_SPARSE_INTERVAL_SECONDS,
     SEED_TELEMETRY_HOURS,
     STATUS_LEVELS,
     STATUS_SEVERITY_RANK,
@@ -283,9 +285,22 @@ def _metric_value(
 def _generate_series(
     motor: dict, now: datetime, rng: random.Random, scenarios: dict[str, dict[str, dict]]
 ) -> tuple[list[tuple], list[dict]]:
-    """텔레메트리 행과 확정된 상태 전이를 한 번의 패스로 생성한다."""
+    """텔레메트리 행과 확정된 상태 전이를 한 번의 패스로 생성한다.
+
+    **걷는 것과 저장하는 것을 분리한다** (2026-08-11, remaining_work #12). 루프는 원래
+    수집 주기 그대로 48시간을 걷는다 — 이력폭 판정과 확정 샘플 수가 그 촘촘함에 의존하므로
+    걸음을 성기게 하면 전이 이력 자체가 달라진다. 대신 저장은 세 가지만 한다:
+
+      ① 최근 `SEED_DENSE_WINDOW_HOURS` 안의 모든 행 (화면이 보는 구간)
+      ② **전이가 확정된 시각의 행과 그 직전 행** — 이벤트 목록의 "값 변화"가
+         `time = created_at`으로 정확히 조인하고 직전 행을 서브쿼리로 가져온다
+         (`services/events.py`). 리포트도 같은 시각의 행이 없으면 아예 생성되지 않는다
+         (`reports/service.py`). 이 두 행이 빠지면 화면이 조용히 비어버린다.
+      ③ 그 밖의 구간은 `SEED_SPARSE_INTERVAL_SECONDS` 간격으로 솎아낸 행
+    """
     interval = motor["collection_interval_seconds"]
     window_start = now - timedelta(hours=SEED_TELEMETRY_HOURS)
+    dense_start = now - timedelta(hours=SEED_DENSE_WINDOW_HOURS)
     total_seconds = (now - window_start).total_seconds()
     baselines = {metric: _baseline(metric, rng) for metric in METRIC_NAMES}
     # 확정에 필요한 연속 샘플 수 = 확정 시간 / 수집 주기 (주기가 달라도 같은 시간이 걸린다)
@@ -296,6 +311,10 @@ def _generate_series(
     confirmed = {metric: "NORMAL" for metric in METRIC_NAMES}
     pending = {metric: None for metric in METRIC_NAMES}
     pending_count = {metric: 0 for metric in METRIC_NAMES}
+
+    previous_row: tuple | None = None  # 직전 샘플의 행 (담겼는지와 무관)
+    previous_kept = False
+    last_sparse_at: datetime | None = None
 
     current_time = window_start
     while current_time <= now:
@@ -308,21 +327,20 @@ def _generate_series(
         }
         statuses = {m: classify(m, values[m]) for m in METRIC_NAMES}
 
-        rows.append(
-            (
-                timestamp,
-                motor["motor_id"],
-                motor["company_id"],
-                values["temperature"],
-                statuses["temperature"],
-                values["vibration"],
-                statuses["vibration"],
-                values["current"],
-                statuses["current"],
-                values["sound"],
-                statuses["sound"],
-            )
+        row = (
+            timestamp,
+            motor["motor_id"],
+            motor["company_id"],
+            values["temperature"],
+            statuses["temperature"],
+            values["vibration"],
+            statuses["vibration"],
+            values["current"],
+            statuses["current"],
+            values["sound"],
+            statuses["sound"],
         )
+        transitioned = False
 
         for metric in METRIC_NAMES:
             # 이력폭을 적용해 판정한다 — 임계선 근처의 미세한 흔들림을 회복으로 보지 않는다.
@@ -354,10 +372,27 @@ def _generate_series(
                         "value": values[metric],
                     }
                 )
+                transitioned = True
                 confirmed[metric] = observed
                 pending[metric] = None
                 pending_count[metric] = 0
 
+        in_dense = current_time >= dense_start
+        due_sparse = (
+            last_sparse_at is None
+            or (current_time - last_sparse_at).total_seconds() >= SEED_SPARSE_INTERVAL_SECONDS
+        )
+        keep = in_dense or transitioned or due_sparse
+
+        if keep:
+            # 전이 행만 담고 직전 행을 빠뜨리면 이벤트 목록의 "값 변화"가 한쪽만 남는다.
+            if transitioned and previous_row is not None and not previous_kept:
+                rows.append(previous_row)
+            rows.append(row)
+            if not in_dense and due_sparse:
+                last_sparse_at = current_time
+
+        previous_row, previous_kept = row, keep
         current_time += timedelta(seconds=interval)
 
     return rows, transitions
