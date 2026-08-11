@@ -66,7 +66,7 @@ def _page_nav(active: str | None) -> None:
                 label,
                 key=f"nav-{key}",
                 type="primary" if key == active else "secondary",
-                use_container_width=True,
+                width="stretch",
             ) and key != active:
                 st.switch_page(path)
 
@@ -111,7 +111,7 @@ def page_header(active: str | None = None) -> None:
     )
 
     with action_col:
-        if st.button("로그아웃", use_container_width=True):
+        if st.button("로그아웃", width="stretch"):
             end_session()
             st.rerun()
 
@@ -425,7 +425,7 @@ def motor_card(motor: dict) -> None:
     if st.button(
         f"{motor['motor_name']} 상세 보기",
         key=f"{MOTOR_CARD_BUTTON_PREFIX}{motor_id}",
-        use_container_width=True,
+        width="stretch",
     ):
         st.session_state["selected_motor_id"] = motor_id
         st.switch_page(MOTOR_DETAIL_PAGE)
@@ -503,7 +503,7 @@ def status_card(motor: dict) -> None:
     if st.button(
         f"{motor['motor_name']} 상세 보기",
         key=f"{STATUS_CARD_BUTTON_PREFIX}{motor_id}",
-        use_container_width=True,
+        width="stretch",
     ):
         st.session_state["selected_motor_id"] = motor_id
         st.switch_page(MOTOR_DETAIL_PAGE)
@@ -601,7 +601,7 @@ def render_maintenance_dialog() -> None:
         agreed = st.checkbox("정비가 완료되었음을 확인했습니다.")
         confirm_col, cancel_col = st.columns(2)
         if confirm_col.button(
-            "정비 완료 처리", type="primary", disabled=not agreed, use_container_width=True
+            "정비 완료 처리", type="primary", disabled=not agreed, width="stretch"
         ):
             with connection_scope() as conn:
                 for metric in pending["metrics"]:
@@ -610,7 +610,7 @@ def render_maintenance_dialog() -> None:
                     )
             st.session_state.pop(_MAINTENANCE_KEY, None)
             st.rerun()
-        if cancel_col.button("취소", use_container_width=True):
+        if cancel_col.button("취소", width="stretch"):
             st.session_state.pop(_MAINTENANCE_KEY, None)
             st.rerun()
 
@@ -739,7 +739,7 @@ def report_button(log) -> None:
         return
 
     log_id = log["log_id"]
-    if st.button("보고서", key=f"report-{log_id}", use_container_width=True):
+    if st.button("보고서", key=f"report-{log_id}", width="stretch"):
         # 최초 열람은 진단 에이전트 호출을 포함해 수 초가 걸린다(2026-08-10). 무엇을
         # 기다리는지 모르는 채 멈춰 있는 것이 대기 자체보다 나쁘므로 문구로 알린다.
         # 두 번째 열람부터는 report_html 캐시라 스피너가 사실상 보이지 않는다.
@@ -781,7 +781,7 @@ def render_report_dialog() -> None:
                 data=result["pdf"],
                 file_name=f"{view['basename']}.pdf",
                 mime="application/pdf",
-                use_container_width=True,
+                width="stretch",
             )
         else:
             st.download_button(
@@ -789,7 +789,7 @@ def render_report_dialog() -> None:
                 data=result["html"],
                 file_name=f"{view['basename']}.html",
                 mime="text/html",
-                use_container_width=True,
+                width="stretch",
             )
             st.caption("이 환경에서는 PDF를 만들 수 없어 HTML로만 내려받을 수 있습니다.")
 

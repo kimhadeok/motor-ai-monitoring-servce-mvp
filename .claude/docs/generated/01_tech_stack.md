@@ -114,7 +114,8 @@ uv run python scripts/screenshot.py --out <디렉터리> --theme dark --detail
 |---|---|
 | 배포 타겟 | **Streamlit Community Cloud** (공개 무료 호스팅) |
 | 의존성 관리 | **uv** (`pyproject.toml` + `uv.lock`) |
-| 배포용 의존성 파일 | `requirements.txt` — `uv export --format requirements-txt --no-dev --no-hashes`로 생성해 커밋. uv/pyproject 변경 시마다 재실행 |
+| 배포 시 실제 설치 경로 | **`uv.lock` (uv-sync)** — Community Cloud가 저장소의 `uv.lock`을 그대로 쓴다. 2026-08-10 배포 로그로 확인: `🐍 Python dependencies were installed from … uv.lock using uv-sync.` |
+| `requirements.txt` | **Cloud 배포에는 쓰이지 않는다.** 다른 환경(pip 전용)용 폴백으로만 유지하며 `uv export --format requirements-txt --no-dev --no-hashes -o requirements.txt`로 갱신한다 |
 | OS 패키지 | `packages.txt` — WeasyPrint 네이티브 의존(Pango 등) 및 한글 폰트(`fonts-noto-cjk`) apt 설치용. Community Cloud가 빌드 시 자동 적용 |
 | 시크릿 | 대시보드 Secrets UI(TOML). 로컬은 `.env`(python-dotenv). 조회 우선순위는 `st.secrets` → `os.getenv` |
 
@@ -122,7 +123,9 @@ uv run python scripts/screenshot.py --out <디렉터리> --theme dark --detail
 
 **데이터 영속성 제약**: Community Cloud는 재배포/재시작 시 로컬 파일시스템이 초기화된다. 이 제약에 대한 대응(데모 데이터 런타임 부트스트랩)은 `02_architecture.md` §6에서 확정한다.
 
-**Python 버전**: `pyproject.toml`은 `requires-python = ">=3.14"`이나, Community Cloud의 지원 버전은 배포 시점에 별도 확인이 필요하다. 미지원 시 `runtime.txt`로 버전을 지정하고 `uv lock`/`export`를 재실행한다.
+**Python 버전**: `pyproject.toml`의 `requires-python = ">=3.14"`가 **Community Cloud에서 그대로 통과한다** — 2026-08-10 배포 로그에서 `python=3.14.7` 확인. 우려했던 3.13 폴백은 없었고 `runtime.txt`도 필요하지 않다.
+
+**의존성 파일이 여럿이라는 경고**: 저장소에 `uv.lock`·`requirements.txt`·`pyproject.toml`이 함께 있어 빌드 로그에 `WARN: More than one requirements file detected`가 남는다. 실제 선택은 `uv.lock`이므로 동작에는 문제가 없다. **`requirements.txt`만 고치고 `uv.lock`을 갱신하지 않으면 배포본에 반영되지 않는다** — 의존성 변경은 반드시 `uv.lock`을 거쳐야 한다.
 
 ## 3. MVP 범위 관련 참고
 

@@ -59,7 +59,7 @@ with _center:
         password = st.text_input(
             "비밀번호", key=_PASSWORD_KEY, type="password", placeholder="••••••••"
         )
-        submitted = st.form_submit_button("로그인", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("로그인", type="primary", width="stretch")
 
     if submitted:
         # 스캐폴딩 단계: 실제 배포 시 프록시/헤더 기반 클라이언트 IP 추출 로직으로 대체 필요
@@ -85,7 +85,7 @@ with _center:
                 # 계정을 오갈 때 다시 타이핑하지 않도록 폼에 바로 채워준다.
                 # 여기서 위젯 key를 직접 바꿀 수 없어(위젯이 이미 생성됨) 요청만 남긴다.
                 if action_col.button(
-                    "채우기", key=f"fill-{account['email']}", use_container_width=True
+                    "채우기", key=f"fill-{account['email']}", width="stretch"
                 ):
                     st.session_state[_PENDING_KEY] = account["email"]
                     st.rerun()

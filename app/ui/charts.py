@@ -130,7 +130,7 @@ def _motor_charts(motor, series, metric: str) -> None:
     frame = pd.DataFrame({"t": pd.to_datetime(times, utc=True), "v": values})
     # UTC → 표시 타임존, tz 제거(naive) — Vega가 브라우저 tz로 재해석하지 않게.
     frame["t"] = frame["t"].dt.tz_convert(DISPLAY_TIMEZONE).dt.tz_localize(None)
-    st.altair_chart(metric_chart(frame, metric), use_container_width=True)
+    st.altair_chart(metric_chart(frame, metric), width="stretch")
 
 
 def metric_graph_grid(motors, series, *, show_motor_row: bool = True) -> None:

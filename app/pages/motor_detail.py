@@ -144,7 +144,7 @@ else:
 
     if last_page > 0:
         prev_col, label_col, next_col = st.columns([1, 2, 1])
-        if prev_col.button("← 이전", disabled=page == 0, use_container_width=True):
+        if prev_col.button("← 이전", disabled=page == 0, width="stretch"):
             st.session_state[_PAGE_KEY] = page - 1
             st.rerun()
         # 총 건수는 위 캡션이 이미 말한다 — 여기서는 현재 위치만 표시한다.
@@ -152,7 +152,7 @@ else:
             f"<div style='text-align:center'>{page + 1} / {last_page + 1}</div>",
             unsafe_allow_html=True,
         )
-        if next_col.button("다음 →", disabled=page == last_page, use_container_width=True):
+        if next_col.button("다음 →", disabled=page == last_page, width="stretch"):
             st.session_state[_PAGE_KEY] = page + 1
             st.rerun()
 
