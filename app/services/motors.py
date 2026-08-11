@@ -141,51 +141,91 @@ def get_representative_status(conn, motor_id: str) -> str:
     return _worst(get_latest_metric_statuses(conn, motor_id).values())
 
 
+def list_unconfirmed_fault_metrics(conn, company_id: str) -> dict[str, list[str]]:
+    """회사 전체의 미확인 FAULT 지표를 **한 번에** 조회한다 (03 §4.3).
+
+    `find_unconfirmed_fault_metrics()`를 모터마다 부르면 200대에 200회가 되는데,
+    `motor_status_logs`는 작은 테이블이라 윈도우 함수로 묶는 편이 훨씬 싸다.
+    `list_company_motor_status()`가 이미 쓰던 전략과 같다.
+    """
+    rows = conn.execute(
+        "SELECT motor_id, metric_name FROM ("
+        "  SELECT l.motor_id, l.metric_name, l.new_status, ROW_NUMBER() OVER ("
+        "    PARTITION BY l.motor_id, l.metric_name ORDER BY l.created_at DESC) rn"
+        "  FROM motor_status_logs l JOIN motors m ON m.motor_id = l.motor_id"
+        "  WHERE m.company_id = ?"
+        ") WHERE rn = 1 AND new_status = 'FAULT'",
+        (company_id,),
+    ).fetchall()
+    result: dict[str, list[str]] = {}
+    for row in rows:
+        result.setdefault(row["motor_id"], []).append(row["metric_name"])
+    return {motor_id: sorted(metrics) for motor_id, metrics in result.items()}
+
+
 def list_company_motors(conn, company_id: str) -> list[dict]:
     """대시보드 카드용 목록 (05 §3.2).
 
-    모터 정보 + 대표 상태 + 최근 상태 변경 일시 + 지표별 최신 수치, 그리고 가장 심각한
-    지표의 추이를 담는다. 추이는 카드마다 한 지표만 그리므로 모터당 쿼리 1회로 끝난다.
-    카드 순서는 등록 순(motor_id)을 유지한다 — 설비가 늘 같은 자리에 있어야 담당자가
-    위치로 기억할 수 있기 때문이다. 위험 여부는 정렬이 아니라 색으로 드러낸다.
+    모터 정보 + 대표 상태 + 지표별 최신 수치를 담는다. 카드 순서는 등록 순(motor_id)을
+    유지한다 — 설비가 늘 같은 자리에 있어야 담당자가 위치로 기억할 수 있기 때문이다.
+    위험 여부는 정렬이 아니라 색으로 드러낸다.
+
+    **추이(스파크라인)는 여기서 채우지 않는다** (2026-08-11). 전체 목록은 상단 요약·배너
+    집계에 필요해 전건을 조회하지만, 카드는 심각한 순 `DASHBOARD_MOTOR_CARD_LIMIT`대만
+    그린다(05 §3.2). 그리지도 않을 180대분의 GROUP BY를 돌리던 것이 종전 구조에서 가장
+    비싼 부분이었다 — 선정이 끝난 뒤 `attach_card_trends()`로 표시할 카드에만 채운다.
+
+    **`last_changed_at`도 담지 않는다** (2026-08-11). 카드 하단 줄을 없애면서 대시보드가
+    이 값을 쓰지 않게 됐다(05 §3.2). 모터 현황 카드(§3-B)는 여전히 쓰므로
+    `list_company_motor_status()`에는 그대로 남아 있다.
+
+    최신 텔레메트리를 윈도우 함수로 묶지 않는 이유는 `list_company_motor_status()`의
+    docstring에 적힌 실측 근거와 같다 — 인덱스 점조회가 전체 스캔보다 싸다.
     """
     motors = conn.execute(
         "SELECT * FROM motors WHERE company_id = ? ORDER BY motor_id",
         (company_id,),
     ).fetchall()
+    if not motors:
+        return []
+
+    # 대표 상태 판정에 이미 쓰이는 값이라 카드에도 함께 실어 보낸다 —
+    # 대시보드에서 정비 완료 확인 버튼을 띄우려면 어떤 지표가 FAULT인지 알아야 한다.
+    fault_metrics_by_motor = list_unconfirmed_fault_metrics(conn, company_id)
 
     cards = []
     for motor in motors:
         motor_id = motor["motor_id"]
-        last_changed = conn.execute(
-            "SELECT MAX(created_at) FROM motor_status_logs WHERE motor_id = ?",
-            (motor_id,),
-        ).fetchone()[0]
-
         readings = build_metric_readings(get_latest_telemetry(conn, motor_id))
-        trend: list[float] = []
-        if readings:
-            trend = get_metric_trend(
-                conn, motor_id, readings[0]["metric"], TREND_WINDOW_HOURS, TREND_BUCKETS
-            )
-
-        # 대표 상태 판정에 이미 쓰이는 값이라 카드에도 함께 실어 보낸다 —
-        # 대시보드에서 정비 완료 확인 버튼을 띄우려면 어떤 지표가 FAULT인지 알아야 한다.
-        fault_metrics = find_unconfirmed_fault_metrics(conn, motor_id)
-        status = "FAULT" if fault_metrics else _worst(
-            r["status"] for r in readings
-        )
+        fault_metrics = fault_metrics_by_motor.get(motor_id, [])
+        status = "FAULT" if fault_metrics else _worst(r["status"] for r in readings)
 
         cards.append(
             {
                 **dict(motor),
                 "status": status,
                 "fault_metrics": fault_metrics,
-                "last_changed_at": last_changed,
                 "readings": readings,
-                "trend": trend,
+                # 키는 항상 둔다 — 카드 렌더가 존재를 전제하므로 채워지기 전에도 비어 있어야 한다.
+                "trend": [],
             }
         )
+    return cards
+
+
+def attach_card_trends(conn, cards: list[dict]) -> list[dict]:
+    """표시할 카드에만 스파크라인 추이를 채운다 (05 §3.2, 2026-08-11).
+
+    `select_priority_cards()`로 그릴 카드를 고른 **뒤에** 부른다. 카드는 가장 심각한
+    지표 하나만 그리므로 카드당 쿼리 1회다. 전달된 dict를 그대로 수정한다 —
+    호출측의 전체 목록과 같은 객체라 집계·배너가 이미 참조하고 있다.
+    """
+    for card in cards:
+        readings = card.get("readings") or []
+        if readings:
+            card["trend"] = get_metric_trend(
+                conn, card["motor_id"], readings[0]["metric"], TREND_WINDOW_HOURS, TREND_BUCKETS
+            )
     return cards
 
 

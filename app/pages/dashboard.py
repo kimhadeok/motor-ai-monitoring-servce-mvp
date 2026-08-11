@@ -16,7 +16,11 @@ from app.config import (
 from app.db.connection import connection_scope
 from app.services.company import build_summary
 from app.services.events import list_company_events
-from app.services.motors import list_company_motors, select_priority_cards
+from app.services.motors import (
+    attach_card_trends,
+    list_company_motors,
+    select_priority_cards,
+)
 from app.ui.components import (
     alert_banner,
     event_list_header,
@@ -35,6 +39,11 @@ _company_id = st.session_state.get("company_id")
 
 with connection_scope() as conn:
     motors = list_company_motors(conn, _company_id)
+    # 카드는 심각한 순으로 일부만 그린다 (config.DASHBOARD_MOTOR_CARD_LIMIT).
+    # 상단 요약과 배너는 전체 목록으로 계산하므로 집계는 그대로 정확하다.
+    # 스파크라인 추이는 **여기서 고른 카드에만** 채운다 — 그리지 않을 모터의 GROUP BY를
+    # 돌리지 않기 위해서다(services/motors.py `list_company_motors` docstring 참조).
+    _cards = attach_card_trends(conn, select_priority_cards(motors, DASHBOARD_MOTOR_CARD_LIMIT))
     summary = build_summary(conn, _company_id, motors)
     events = list_company_events(
         conn, _company_id, DASHBOARD_EVENT_LIST_LIMIT, DASHBOARD_EVENT_STATUSES
@@ -122,10 +131,6 @@ if _dangered:
     )
 
 st.subheader("모터 현황")
-
-# 카드는 심각한 순으로 일부만 그린다 (config.DASHBOARD_MOTOR_CARD_LIMIT).
-# 상단 요약과 배너는 위에서 전체 목록으로 이미 계산했으므로 집계는 그대로 정확하다.
-_cards = select_priority_cards(motors, DASHBOARD_MOTOR_CARD_LIMIT)
 
 if not motors:
     st.info("등록된 모터가 없습니다.")
