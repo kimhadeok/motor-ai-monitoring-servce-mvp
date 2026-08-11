@@ -96,7 +96,7 @@ RUNTIME_TICK_FAULT_HEADROOM = 1.15
 # 자동 갱신이 돌아도 언제 바뀌는지 화면이 말하지 않으면, 담당자는 값이 그대로인 것이
 # "아직 갱신 전"인지 "화면이 멈춤"인지 구분할 수 없다. 남은 시간을 세어 보여준다.
 # 서버에서 매초 다시 그리면 그때마다 조회·틱이 돌아 비싸므로 브라우저에서 세게 한다
-# (st.components.v1.html — st.markdown은 <script>를 제거한다).
+# (st.iframe — st.markdown은 <script>를 제거한다. 01 §2.5 / 05 §5-3 확정 API).
 REFRESH_COUNTDOWN_HEIGHT_PX = 34
 # 카운터를 몇 ms마다 다시 그릴지. 100ms면 초 표시가 매끄럽고 부하는 무시할 수준이다.
 REFRESH_COUNTDOWN_TICK_MS = 100

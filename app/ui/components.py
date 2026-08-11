@@ -128,20 +128,22 @@ def refresh_countdown(interval_seconds: int) -> None:
     "화면이 멈춤"인지 담당자가 구분할 수 없다. 남은 초와 줄어드는 막대를 함께 보여준다.
 
     **브라우저에서 센다.** 서버에서 매초 다시 그리면 그때마다 조회와 틱이 돌아 갱신 주기의
-    10배 비용이 든다. 그래서 `st.components.v1.html`로 iframe을 띄우고 그 안의 스크립트가
-    센다 — `st.markdown(unsafe_allow_html=True)`는 `<script>`를 제거하므로 쓸 수 없다.
+    10배 비용이 든다. 그래서 iframe을 띄우고 그 안의 스크립트가 센다 —
+    `st.markdown(unsafe_allow_html=True)`는 `<script>`를 제거하므로 쓸 수 없다.
+
+    **`st.iframe`을 쓴다.** `st.components.v1.html`도 같은 일을 하지만 `2026-06-01 제거`
+    예고가 이미 지나 경고가 뜬다 — `use_container_width`를 걷어낸 것과 같은 이유로
+    새로 들이지 않는다. `st.iframe`은 `src`가 URL·경로 패턴에 맞지 않으면 HTML 문자열로
+    보고 그대로 삽입하므로 그대로 대체된다(1.60.0 docstring 확인).
 
     갱신 주기마다 fragment가 다시 실행되면서 이 iframe도 새 시작 시각으로 다시 만들어져
     카운트가 자동으로 재시작한다. 0에 닿았는데 아직 갱신이 안 왔으면 "갱신 중"으로 바꿔
     멈춘 것처럼 보이지 않게 한다.
     """
-    import streamlit.components.v1 as components  # 이 컴포넌트에서만 쓰는 지연 import
-
     theme = palette()
     updated_at = format_display(datetime.now(timezone.utc), "%H:%M:%S")
-    components.html(
-        f"""
-<style>
+    st.iframe(
+        f"""<style>
   body {{ margin: 0; font-family: "Source Sans Pro", system-ui, sans-serif; }}
   .rc {{ display: flex; align-items: center; gap: 8px; font-size: 12.5px;
          color: {theme["text_muted"]}; white-space: nowrap; }}
