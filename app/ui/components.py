@@ -6,6 +6,8 @@ from html import escape
 import streamlit as st
 
 from app.config import (
+    CARD_CHANGE_EPSILON,
+    CARD_FLASH_PHASES,
     CARD_HIGHLIGHT_STATUSES,
     DATA_FLOW_NODES,
     DISPLAY_DATETIME_FORMAT,
@@ -29,6 +31,7 @@ from app.config import (
     SPARKLINE_HEIGHT_PX,
     SPARKLINE_WIDTH_PX,
     STATUS_CARD_BUTTON_PREFIX,
+    STATUS_GROUP_ORDER,
     STATUS_KOREAN_LABELS,
     THEME_HINT,
     THEME_HINT_TOOLTIP,
@@ -46,6 +49,8 @@ from app.services.motors import confirm_maintenance
 from app.ui.theme import current_theme, palette
 
 _REPORT_VIEW_KEY = "report_view"
+# 직전 렌더의 카드 지표값 {motor_id: {metric: value}} — 갱신 시 "바뀐 것"만 강조하는 데 쓴다.
+_CARD_VALUES_KEY = "card_metric_values"
 
 # 임계값 표의 구간 열 순서 (05 §4.2). 상태 심각도 오름차순이라 왼쪽에서 오른쪽으로
 # 읽으면 그대로 악화 순서가 된다.
@@ -234,9 +239,45 @@ def alert_banner(status: str, message: str) -> None:
     )
 
 
-def status_badge(status: str) -> None:
+def detail_header(motor_name: str, metric_statuses: dict[str, str]) -> None:
+    """모터 상세 제목 + 상태별 지표 배지 (05 §4, 2026-08-11).
+
+    **어느 지표가 어느 상태인지 밝힌다** — `FAULT (온도, 소음)  DANGER (진동)`.
+    종전에는 대표 상태 배지 하나(`DANGER`)만 띄워, 담당자가 무엇 때문에 위험한지도
+    무엇을 먼저 봐야 하는지도 알 수 없었다. 상태는 여러 개가 동시에 나올 수 있다.
+
+    배지는 심각도 내림차순으로 늘어놓고(`STATUS_GROUP_ORDER`), 괄호 안 지표는 카드와 같은
+    고정 순서(`METRIC_NAMES`)로 적는다 — 화면마다 순서가 다르면 눈이 다시 찾아야 한다.
+    이상이 하나도 없으면 `NORMAL` 하나만 둔다.
+
+    제목과 한 덩어리로 그린다. 종전에는 `st.columns([4, 1])`로 나눠 배지가 화면 오른쪽 끝에
+    붙었는데, 1600px 폭에서 제목과 1,000px 넘게 떨어져 **둘이 같은 설비를 말한다는 것이
+    읽히지 않았다.** 모터 카드의 `motor-head`와 같이 이름 바로 옆에 둔다.
+
+    제목은 `st.title()`이 아니라 마크다운 `<h1>`이다 — 배지와 같은 flex 줄에 넣으려면
+    한 요소 안에 있어야 한다. Streamlit이 마크다운 `h1`에 제목 타이포그래피를 그대로
+    적용하므로 크기·굵기는 달라지지 않는다.
+    """
+    badges = []
+    for status in STATUS_GROUP_ORDER:
+        if status == "NORMAL":
+            continue
+        metrics = [m for m in METRIC_NAMES if metric_statuses.get(m) == status]
+        if not metrics:
+            continue
+        labels = ", ".join(METRIC_LABELS.get(m, m) for m in metrics)
+        badges.append(
+            f'<span class="status-badge status-{status.lower()}">{status}'
+            f'<span class="badge-metrics">({escape(labels)})</span></span>'
+        )
+    if not badges:
+        badges.append('<span class="status-badge status-normal">NORMAL</span>')
+
     st.markdown(
-        f'<span class="status-badge status-{status.lower()}">{status}</span>',
+        f'<div class="detail-head">'
+        f"<h1>{escape(motor_name)}</h1>"
+        f"{''.join(badges)}"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -360,8 +401,11 @@ def _sparkline_svg(values: list[float], status: str) -> str:
     return (
         f'<svg class="sparkline" width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}" preserveAspectRatio="none" aria-hidden="true">'
-        f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="1.6" '
-        f'stroke-linejoin="round" stroke-linecap="round"/></svg>'
+        # pathLength="1"로 길이를 정규화한다. 값이 바뀐 카드에서 선을 그려 넣는 애니메이션을
+        # 순수 CSS로 걸기 위함이다(05 §5-2-3) — 실제 경로 길이를 몰라도
+        # stroke-dasharray: 1 / dashoffset 1→0 이면 어떤 모양이든 왼쪽부터 그려진다.
+        f'<polyline points="{points}" pathLength="1" fill="none" stroke="{color}" '
+        f'stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>'
     )
 
 
@@ -394,7 +438,47 @@ def _metric_gauge(reading: dict) -> str:
     )
 
 
-def _metric_html(reading: dict) -> str:
+def _changed_metrics(motor_id: str, readings: list[dict]) -> tuple[set[str], str]:
+    """직전 렌더 대비 값이 바뀐 지표와, 이번 렌더의 애니메이션 교대 접미사.
+    (05 §5-2-3, 2026-08-11 사용자 요청)
+
+    자동 갱신으로 숫자가 조용히 바뀌기만 하면 담당자는 무엇이 달라졌는지 알아채지 못한다.
+    바뀐 지표에만 강조를 걸기 위해 직전 값을 세션에 들고 비교한다 — **전부 번쩍이면**
+    어느 것이 실제 변화인지 다시 알 수 없으므로 "이번에 바뀐 것"만 골라야 한다.
+
+    `CARD_CHANGE_EPSILON`보다 작은 변화는 무시한다. 표시가 소수점 1자리라 그보다 작은
+    변화는 화면에서 같은 숫자로 보이는데 강조만 들어가면 이유를 알 수 없는 깜빡임이 된다.
+
+    첫 렌더에는 비교 대상이 없으므로 아무것도 강조하지 않는다(바뀐 게 아니라 처음 보는 것).
+
+    **교대 접미사가 필요한 이유** (2026-08-11 4차 요청으로 발견): CSS 애니메이션은 요소가
+    새로 삽입되거나 애니메이션 속성이 바뀔 때만 재생된다. Streamlit은 카드 마크다운을
+    갈아끼우지 않고 DOM을 제자리에서 패치하므로, 연속으로 값이 바뀌는 지표는 `.changed`가
+    계속 붙어 있어 **처음 한 번만 재생되고 이후로는 조용했다.** 값이 바뀔 때마다 접미사를
+    번갈아 바꿔 animation-name을 갈아치우면 매번 다시 재생된다.
+    """
+    store = st.session_state.setdefault(_CARD_VALUES_KEY, {})
+    entry = store.get(motor_id)
+    current = {r["metric"]: r["value"] for r in readings}
+    previous = entry["values"] if entry else None
+    phase = entry["phase"] if entry else CARD_FLASH_PHASES[0]
+
+    changed: set[str] = set()
+    if previous is not None:
+        changed = {
+            metric
+            for metric, value in current.items()
+            if metric in previous and abs(value - previous[metric]) >= CARD_CHANGE_EPSILON
+        }
+    if changed:
+        index = CARD_FLASH_PHASES.index(phase)
+        phase = CARD_FLASH_PHASES[(index + 1) % len(CARD_FLASH_PHASES)]
+
+    store[motor_id] = {"values": current, "phase": phase}
+    return changed, phase
+
+
+def _metric_html(reading: dict, changed: bool = False) -> str:
     """지표 1건 — 한 줄에 이름·값·설명, 그 아래 게이지.
 
     모든 카드가 4개 지표를 같은 순서로 담아 높이가 일정해진다. 이상 지표는 위치가 아니라
@@ -417,7 +501,7 @@ def _metric_html(reading: dict) -> str:
 
     return (
         f'<div class="metric-block status-{reading["status"].lower()}'
-        f'{" abnormal" if abnormal else ""}">'
+        f'{" abnormal" if abnormal else ""}{" changed" if changed else ""}">'
         f'<div class="metric-row">'
         f'<span class="metric-lead">'
         f'<span class="metric-name">{reading["label"]}</span>'
@@ -431,13 +515,13 @@ def _metric_html(reading: dict) -> str:
     )
 
 
-def _trend_html(reading: dict, trend: list[float]) -> str:
+def _trend_html(reading: dict, trend: list[float], changed: bool = False) -> str:
     """카드 하단 추이 — 가장 심각한 지표 하나. 정상 카드에도 넣어 높이를 맞춘다."""
     if not trend:
         return ""
     arrow, word = _trend_direction(trend)
     return (
-        f'<div class="metric-trend">'
+        f'<div class="metric-trend{" changed" if changed else ""}">'
         f'<span class="trend-label">{reading["label"]}</span>'
         f'{_sparkline_svg(trend, reading["status"])}'
         f'<span class="trend-note">{TREND_WINDOW_HOURS}시간 {arrow} {word}</span></div>'
@@ -467,12 +551,15 @@ def motor_card(motor: dict) -> None:
     status = motor["status"]
     readings = motor.get("readings", [])
 
+    phase = CARD_FLASH_PHASES[0]
     if readings:
         # 표시는 늘 같은 순서(온도·진동·전류·소음)로, 추이는 가장 심각한 지표로.
         worst = readings[0]
         ordered = sorted(readings, key=lambda r: METRIC_NAMES.index(r["metric"]))
-        body = "".join(_metric_html(reading) for reading in ordered)
-        body += _trend_html(worst, motor.get("trend", []))
+        # 자동 갱신으로 값이 바뀐 지표에만 강조를 건다 (05 §5-2-3).
+        changed, phase = _changed_metrics(motor_id, readings)
+        body = "".join(_metric_html(reading, reading["metric"] in changed) for reading in ordered)
+        body += _trend_html(worst, motor.get("trend", []), worst["metric"] in changed)
     else:
         body = '<div class="metric-empty">수집된 계측값이 없습니다.</div>'
 
@@ -481,7 +568,9 @@ def motor_card(motor: dict) -> None:
     # 이벤트 목록에도 있고, 진입 안내는 카드 전체가 클릭 영역이라는 hover 효과(살짝
     # 떠오르고 테두리가 상태색으로 바뀜)가 대신한다.
     st.markdown(
-        f'<div class="motor-card status-{status.lower()}">'
+        # flash-{phase}는 강조 애니메이션 이름을 갈아치우기 위한 것이다 —
+        # 값이 바뀔 때마다 번갈아 바뀌어야 애니메이션이 매번 다시 재생된다.
+        f'<div class="motor-card status-{status.lower()} flash-{phase}">'
         f"{_data_flow_html(status)}"
         f'<div class="motor-head">'
         f'<span class="motor-name">{motor["motor_name"]}</span>'

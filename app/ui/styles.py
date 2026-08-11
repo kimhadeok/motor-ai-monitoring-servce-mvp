@@ -3,7 +3,11 @@
 import streamlit as st
 
 from app.config import (
+    CARD_CHANGE_FLASH_MS,
+    CARD_FLASH_PHASES,
+    CARD_SPARKLINE_DRAW_MS,
     DATA_FLOW_ANIMATION_SECONDS,
+    DETAIL_CHART_REVEAL_MS,
     MOTOR_CARD_BUTTON_PREFIX,
     MOTOR_CARD_ROW_GAP_PX,
     REFRESH_COUNTDOWN_BOTTOM_PX,
@@ -68,6 +72,38 @@ def inject_global_styles() -> None:
     metric_status_css = "\n".join(
         f".metric-block.status-{status.lower()} {{ --metric-color: {color}; }}"
         for status, color in status_colors.items()
+    )
+    # 값이 바뀐 지표 강조 (05 §5-2-3). 같은 규칙을 페이즈 수만큼 찍어낸다 —
+    # animation-name이 갱신마다 달라져야 다시 재생되기 때문이다(config.CARD_FLASH_PHASES).
+    # 스파크라인은 값 보간이 불가능해(인라인 SVG polyline) 선을 그려 넣는 것으로 대신한다.
+    flash_phase_css = "\n".join(
+        f"""
+        .motor-card.flash-{phase} .metric-block.changed .metric-value {{
+            animation: metric-flash-{phase} {CARD_CHANGE_FLASH_MS}ms ease-out 1;
+            border-radius: 4px;
+        }}
+        .motor-card.flash-{phase} .metric-block.changed .metric-gauge .fill {{
+            animation: gauge-flash-{phase} {CARD_CHANGE_FLASH_MS}ms ease-out 1;
+        }}
+        .motor-card.flash-{phase} .metric-trend.changed .sparkline polyline {{
+            stroke-dasharray: 1;
+            animation: sparkline-draw-{phase} {CARD_SPARKLINE_DRAW_MS}ms ease-out 1;
+        }}
+        @keyframes metric-flash-{phase} {{
+            0%   {{ background: color-mix(in srgb, {brand} 55%, transparent); }}
+            35%  {{ background: color-mix(in srgb, {brand} 35%, transparent); }}
+            100% {{ background: transparent; }}
+        }}
+        @keyframes gauge-flash-{phase} {{
+            0%   {{ filter: brightness(1.9); }}
+            100% {{ filter: brightness(1); }}
+        }}
+        @keyframes sparkline-draw-{phase} {{
+            from {{ stroke-dashoffset: 1; }}
+            to   {{ stroke-dashoffset: 0; }}
+        }}
+        """
+        for phase in CARD_FLASH_PHASES
     )
     alert_status_css = "\n".join(
         f".alert-banner.status-{status.lower()} {{ "
@@ -349,6 +385,50 @@ def inject_global_styles() -> None:
         /* 정상 게이지는 옅게 — 이상 지표가 먼저 눈에 들어와야 한다 */
         .metric-block:not(.abnormal) .metric-gauge .fill {{
             background: color-mix(in srgb, {status_colors["NORMAL"]} 45%, {p["text_ghost"]});
+        }}
+
+        /* --- 값이 바뀐 지표 강조 (05 §5-2-3, 2026-08-11 사용자 요청) ---
+           자동 갱신으로 숫자가 조용히 바뀌기만 하면 무엇이 달라졌는지 알아채지 못한다.
+           `.changed`는 **직전 렌더 대비 값이 바뀐 지표에만** 붙는다(components._changed_metrics).
+
+           애니메이션 이름에 교대 접미사(flash-a / flash-b)를 붙이는 이유는 `config`의
+           CARD_FLASH_PHASES 주석 참조 — Streamlit이 DOM을 제자리에서 패치하므로 이름이
+           그대로면 처음 한 번만 재생된다. 규칙은 아래에서 페이즈별로 생성한다.
+
+           게이지는 width 전환도 함께 준다 — 값 변화가 "튀는" 게 아니라 "움직이는" 것으로
+           보여야 어느 방향으로 갔는지 눈으로 따라갈 수 있다. 전환은 이름이 아니라 값이
+           바뀔 때 걸리므로 교대가 필요 없다. */
+        .metric-block .metric-gauge .fill {{ transition: width {CARD_CHANGE_FLASH_MS // 3}ms ease-out; }}
+        {flash_phase_css}
+        /* --- Altair 라인차트가 왼쪽부터 드러난다 (05 §5-2-3, 2026-08-11 사용자 요청) ---
+           모터 상세·그래프의 차트는 **데이터가 바뀔 때만 다시 그려진다**(spec이 같으면
+           Streamlit이 건너뛴다 — 실측). 요소가 새로 만들어지므로 애니메이션이 저절로
+           그때만 재생된다. 카드처럼 변화 감지·페이즈 교대가 필요 없다.
+
+           선 그리기가 아니라 clip-path인 이유: Vega가 그린 path에는 pathLength를 붙일 수
+           없어 경로 길이를 모른다. clip-path는 길이에 무관하다.
+           축·눈금·임계선은 그대로 두고 데이터 마크(선·점)만 드러낸다 — 축까지 쓸리면
+           차트가 통째로 새로 뜬 것처럼 보여 "값이 갱신됐다"는 뜻이 흐려진다. */
+        .stVegaLiteChart g[class*="mark-line"],
+        .stVegaLiteChart g[class*="mark-symbol"] {{
+            animation: chart-reveal {DETAIL_CHART_REVEAL_MS}ms ease-out 1;
+        }}
+        @keyframes chart-reveal {{
+            from {{ clip-path: inset(0 100% 0 0); }}
+            to   {{ clip-path: inset(0 0 0 0); }}
+        }}
+
+        /* 움직임에 민감한 사용자에게는 강조만 하고 애니메이션은 끈다 (접근성 표준). */
+        @media (prefers-reduced-motion: reduce) {{
+            .metric-block.changed .metric-value,
+            .metric-block.changed .metric-gauge .fill,
+            .metric-block .metric-gauge .fill,
+            .stVegaLiteChart g[class*="mark-line"],
+            .stVegaLiteChart g[class*="mark-symbol"] {{ animation: none; transition: none; }}
+            /* 애니메이션을 끄면 dasharray가 남아 선이 끊겨 보인다 — 함께 해제한다. */
+            .metric-trend.changed .sparkline polyline {{
+                animation: none; stroke-dasharray: none;
+            }}
         }}
 
         /* 카드 하단 추이 — 정상 카드에도 넣어 높이를 맞춘다 */
@@ -715,10 +795,14 @@ def inject_global_styles() -> None:
             width: {REFRESH_COUNTDOWN_WIDTH_PX}px;
             z-index: {REFRESH_COUNTDOWN_Z_INDEX};
             padding: 0 12px;
-            border: 1px solid {p["border"]};
+            /* 배경색이 본문과 같으면 배지가 화면에 묻힌다 (2026-08-11 사용자 지적).
+               브랜드색으로 테두리·바탕을 물들여 "시스템이 말하는 것"임을 구분한다 —
+               상태색(녹/앰버/주황/빨강)은 설비 상태 전용이라 쓰지 않는다. */
+            border: 1px solid color-mix(in srgb, {brand} 55%, transparent);
             border-radius: 999px;
-            background: {p["surface"]};
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+            background: color-mix(in srgb, {brand} 16%, {p["surface"]});
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35),
+                        0 0 0 3px color-mix(in srgb, {brand} 10%, transparent);
         }}
         /* 컨테이너 기본 여백을 없애 배지 높이가 iframe 높이와 같아지게 한다. */
         .st-key-{REFRESH_COUNTDOWN_KEY} > div,
@@ -727,6 +811,21 @@ def inject_global_styles() -> None:
         }}
         .st-key-{REFRESH_COUNTDOWN_KEY} iframe {{
             display: block; background: transparent; color-scheme: normal;
+        }}
+
+        /* --- 모터 상세 제목 + 상태 배지 (05 §4, 2026-08-11) ---
+           배지를 제목 바로 옆에 둔다. 종전 2컬럼 배치는 화면 끝으로 갈라져 둘이 같은 설비를
+           말한다는 것이 읽히지 않았다. baseline이 아니라 center로 맞춘다 — 배지는 대문자
+           라틴 문자라 baseline을 맞추면 한글 제목보다 떠 보인다. */
+        .detail-head {{
+            display: flex; align-items: center; gap: 14px;
+            flex-wrap: wrap; margin-bottom: 4px;
+        }}
+        .detail-head h1 {{ margin: 0; }}
+        .detail-head .status-badge {{ flex-shrink: 0; font-size: 13px; padding: 3px 12px; }}
+        /* 괄호 안 지표 목록 — 상태명보다 한 단계 약하게 둬 "FAULT"가 먼저 읽히게 한다. */
+        .detail-head .status-badge .badge-metrics {{
+            margin-left: 5px; font-weight: 600; opacity: 0.85;
         }}
 
         /* --- 로그인 화면 (05 §2) --- */

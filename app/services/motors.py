@@ -134,6 +134,26 @@ def find_unconfirmed_fault_metrics(conn, motor_id: str) -> list[str]:
     return sorted(r["metric_name"] for r in rows if r["new_status"] == "FAULT")
 
 
+def get_metric_status_view(conn, motor_id: str) -> tuple[dict[str, str], list[str], str]:
+    """상세 화면용 (지표별 상태, 미확인 FAULT 지표, 대표 상태) (05 §4, 2026-08-11).
+
+    상세 헤더가 "FAULT (온도, 소음) DANGER (진동)"처럼 **어느 지표가 어느 상태인지** 밝히려면
+    지표별 상태가 필요하다. 대표 상태 하나만으로는 담당자가 무엇을 봐야 할지 알 수 없다.
+
+    지표별 상태는 최신 텔레메트리 기준이되, **미확인 FAULT는 수치가 내려가도 FAULT를
+    유지한다**(03 §4.3) — 담당자가 정비 완료를 확인하기 전까지는 고장으로 본다.
+
+    세 값을 함께 돌려주는 이유는 조회를 한 번만 하기 위해서다. 종전 상세 페이지는
+    `get_representative_status()`와 `find_unconfirmed_fault_metrics()`를 따로 불러
+    같은 쿼리를 두 번씩 돌렸다(자동 갱신으로 10초마다 반복되는 경로다).
+    """
+    fault_metrics = find_unconfirmed_fault_metrics(conn, motor_id)
+    statuses = get_latest_metric_statuses(conn, motor_id)
+    for metric in fault_metrics:
+        statuses[metric] = "FAULT"
+    return statuses, fault_metrics, _worst(statuses.values())
+
+
 def get_representative_status(conn, motor_id: str) -> str:
     """모터 대표 상태 (03 §2). 미확인 FAULT가 있으면 FAULT를 유지한다 (03 §4.3)."""
     if find_unconfirmed_fault_metrics(conn, motor_id):

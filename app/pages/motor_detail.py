@@ -23,15 +23,15 @@ from app.config import (
 from app.db.connection import connection_scope
 from app.services.events import count_motor_events, list_motor_events
 from app.services.motors import (
-    find_unconfirmed_fault_metrics,
+    get_metric_status_view,
     get_motor,
     get_motor_metric_series,
-    get_representative_status,
     get_thresholds,
 )
 from app.services.runtime_tick import run_tick
 from app.ui.charts import metric_graph_grid
 from app.ui.components import (
+    detail_header,
     event_list_header,
     event_row,
     maintenance_button,
@@ -40,7 +40,6 @@ from app.ui.components import (
     refresh_countdown,
     render_maintenance_dialog,
     render_report_dialog,
-    status_badge,
     threshold_table,
 )
 from app.ui.navigation import DASHBOARD_PAGE
@@ -78,8 +77,11 @@ def render_live_detail() -> None:
         # 갱신 주기마다 경과분 텔레메트리를 이어 붙인다 (services/runtime_tick.py).
         run_tick(conn, company_id)
 
-        representative_status = get_representative_status(conn, motor_id)
-        fault_metrics = find_unconfirmed_fault_metrics(conn, motor_id)
+        # 지표별 상태·미확인 FAULT·대표 상태를 한 번에 받는다 — 종전에는 같은 쿼리를
+        # 두 번씩 돌렸다(자동 갱신으로 10초마다 반복되는 경로다).
+        metric_statuses, fault_metrics, representative_status = get_metric_status_view(
+            conn, motor_id
+        )
         thresholds = get_thresholds(conn, motor_id)
         total_events = count_motor_events(conn, motor_id, DASHBOARD_EVENT_STATUSES)
         series = {
@@ -92,11 +94,9 @@ def render_live_detail() -> None:
     # 다시 만들어져야 카운트가 재시작한다.
     refresh_countdown(DASHBOARD_REFRESH_INTERVAL_SECONDS)
 
-    title_col, badge_col = st.columns([4, 1])
-    title_col.title(motor["motor_name"])
-    with badge_col:
-        st.write("")
-        status_badge(representative_status)
+    # 제목 옆에 **상태별 지표 배지**를 붙인다 — "FAULT (온도, 소음) DANGER (진동)".
+    # 대표 상태 하나만 보여주면 무엇 때문에 위험한지 알 수 없다 (2026-08-11 사용자 지적).
+    detail_header(motor["motor_name"], metric_statuses)
 
     # --- §4.1 기본 정보 ---
     st.subheader("기본 정보")
