@@ -133,13 +133,17 @@ E: Package 'libgdk-pixbuf2.0-0' has no installation candidate
 
 `libgdk-pixbuf`·`libcairo2`·`libpangocairo`·`libffi-dev`·`shared-mime-info`는 뺐습니다. WeasyPrint는 53버전부터 cairo와 gdk-pixbuf를 쓰지 않고(래스터 이미지는 Pillow가 처리), 공식 문서의 의존성 목록에도 없습니다. 불필요한 패키지는 빌드만 늦추고 배포판이 바뀔 때 이름 문제를 다시 일으킵니다.
 
-### 배포본은 진단 LLM을 끕니다 (2026-08-10 결정)
+### 배포본도 진단 LLM을 켭니다 (2026-08-11 결정 — 종전 방침 뒤집음)
 
-Secrets에 `DIAGNOSIS_LLM_ENABLED = "false"`를 둡니다. Community Cloud 앱은 URL을 아는 누구나 접근할 수 있고 **로그인 화면에 시연 계정이 노출되어 있어**, 리포트를 열 때마다 나가는 GPT-4o 호출을 통제할 수단이 없기 때문입니다.
+Secrets에 `DIAGNOSIS_LLM_ENABLED = "true"`를 둡니다(항목을 빼도 기본값이 `true`입니다). 구매를 검토하는 고객에게 보여줄 배포본에서 "AI 진단"이 실제로는 규칙 기반인 것이 시연상 가장 큰 약점이라는 판단입니다.
 
-- 배포본의 리포트는 규칙 기반 진단으로 생성되고, 진단 모델 라벨이 `규칙 기반 진단 (LLM 미사용)`으로 표시됩니다. 4개 섹션 구성과 측정 근거는 동일합니다.
+**종전 방침(2026-08-10)은 `false`였습니다.** 공개 URL + 로그인 화면의 시연 계정 노출로 GPT-4o 호출을 통제할 수 없다는 우려였는데, 호출 구조를 다시 확인해 우려 규모를 실측했습니다.
+
+- **호출은 [보고서] 클릭당 최초 1회뿐입니다.** 부팅 경로에는 LLM 호출이 없고(`generate_missing_report_html()`은 `scripts/seed_data.py --with-reports`에서만 호출), `report_html`이 비어 있을 때만 진단이 돌며 결과는 DB에 캐시됩니다. 같은 리포트 재열람은 호출이 없습니다.
+- **부팅 1회당 상한은 24호출**입니다 — 리포트 대상은 DANGER 19건 + FAULT 5건. 재부팅으로 재시드되면 캐시가 초기화되므로 상한이 다시 열립니다.
 - **`OPENAI_API_KEY`는 그대로 둡니다.** 이 스위치는 진단 LLM만 끄며, 키를 비우면 SOP 벡터 검색까지 죽어 `rag_ready=False`가 됩니다. 임베딩 비용은 질의당 $0.00002 수준입니다.
-- **AI 진단 시연은 로컬에서** `DIAGNOSIS_LLM_ENABLED=true`로 두고 보여줍니다.
+- `true`여도 타임아웃·API 오류·출력 검증 실패 시에는 규칙 기반으로 조용히 폴백하고 라벨이 `규칙 기반 진단 (LLM 미사용)`으로 바뀝니다. 실제 경로는 로그의 `source=llm` / `source=rule`로 판정합니다.
+- **미검증**: 배포 환경에서 LLM 경로가 실제로 도는 것은 아직 확인되지 않았습니다(배포본은 계속 `off`였습니다). 재배포 후 로그로 확인해야 확정입니다.
 
 ### 배포 후 확인 (Manage app → 로그)
 
