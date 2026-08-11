@@ -1,5 +1,6 @@
 """재사용 UI 조각. 05_ui_screens.md 기준."""
 
+from datetime import datetime, timezone
 from html import escape
 
 import streamlit as st
@@ -16,6 +17,8 @@ from app.config import (
     METRIC_NAMES,
     METRIC_UNITS,
     MOTOR_CARD_BUTTON_PREFIX,
+    REFRESH_COUNTDOWN_HEIGHT_PX,
+    REFRESH_COUNTDOWN_TICK_MS,
     REPORT_DATE_FORMAT,
     REPORT_SESSION_ID_FORMAT,
     REPORT_TIME_FORMAT,
@@ -116,6 +119,72 @@ def page_header(active: str | None = None) -> None:
             st.rerun()
 
     _page_nav(active)
+
+
+def refresh_countdown(interval_seconds: int) -> None:
+    """다음 자동 갱신까지 남은 시간 (05 §5-2, 2026-08-11 사용자 요청).
+
+    자동 갱신이 돌아도 화면이 그 사실을 말하지 않으면, 값이 그대로인 것이 "아직 갱신 전"인지
+    "화면이 멈춤"인지 담당자가 구분할 수 없다. 남은 초와 줄어드는 막대를 함께 보여준다.
+
+    **브라우저에서 센다.** 서버에서 매초 다시 그리면 그때마다 조회와 틱이 돌아 갱신 주기의
+    10배 비용이 든다. 그래서 `st.components.v1.html`로 iframe을 띄우고 그 안의 스크립트가
+    센다 — `st.markdown(unsafe_allow_html=True)`는 `<script>`를 제거하므로 쓸 수 없다.
+
+    갱신 주기마다 fragment가 다시 실행되면서 이 iframe도 새 시작 시각으로 다시 만들어져
+    카운트가 자동으로 재시작한다. 0에 닿았는데 아직 갱신이 안 왔으면 "갱신 중"으로 바꿔
+    멈춘 것처럼 보이지 않게 한다.
+    """
+    import streamlit.components.v1 as components  # 이 컴포넌트에서만 쓰는 지연 import
+
+    theme = palette()
+    updated_at = format_display(datetime.now(timezone.utc), "%H:%M:%S")
+    components.html(
+        f"""
+<style>
+  body {{ margin: 0; font-family: "Source Sans Pro", system-ui, sans-serif; }}
+  .rc {{ display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+         color: {theme["text_muted"]}; white-space: nowrap; }}
+  .rc .dot {{ width: 7px; height: 7px; border-radius: 50%; background: {theme["status"]["NORMAL"]};
+              flex-shrink: 0; animation: rc-pulse 2s ease-in-out infinite; }}
+  .rc .track {{ flex: 1; min-width: 40px; height: 3px; border-radius: 2px;
+                background: {theme["border"]}; overflow: hidden; }}
+  .rc .bar {{ display: block; height: 100%; width: 100%; background: {theme["brand"]}; }}
+  .rc .num {{ color: {theme["text_strong"]}; font-weight: 600; font-variant-numeric: tabular-nums; }}
+  @keyframes rc-pulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.3; }} }}
+</style>
+<div class="rc">
+  <span class="dot"></span>
+  <span>자동 갱신 {interval_seconds}초</span>
+  <span class="track"><span class="bar" id="rc-bar"></span></span>
+  <span id="rc-text">다음 갱신까지 <span class="num" id="rc-num">{interval_seconds}</span>초</span>
+  <span>· 마지막 {updated_at}</span>
+</div>
+<script>
+  (function () {{
+    var total = {interval_seconds} * 1000;
+    var start = Date.now();
+    var bar = document.getElementById("rc-bar");
+    var num = document.getElementById("rc-num");
+    var text = document.getElementById("rc-text");
+    function tick() {{
+      var left = total - (Date.now() - start);
+      if (left <= 0) {{
+        bar.style.width = "0%";
+        // 갱신 요청이 서버를 오가는 사이 0초에서 멈춰 보이지 않게 한다.
+        text.textContent = "갱신 중…";
+        return;
+      }}
+      bar.style.width = (left / total * 100) + "%";
+      num.textContent = Math.ceil(left / 1000);
+    }}
+    tick();
+    setInterval(tick, {REFRESH_COUNTDOWN_TICK_MS});
+  }})();
+</script>
+""",
+        height=REFRESH_COUNTDOWN_HEIGHT_PX,
+    )
 
     st.markdown('<div class="app-header-rule"></div>', unsafe_allow_html=True)
 
