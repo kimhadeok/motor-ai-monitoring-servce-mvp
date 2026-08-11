@@ -47,14 +47,18 @@ def _y_ticks(fault: float) -> tuple[list[float], float]:
     return [0, round(top / 2, 2), top], top
 
 
-def metric_chart(df: pd.DataFrame, metric: str) -> alt.LayerChart:
+def metric_chart(df: pd.DataFrame, metric: str, thresholds: dict | None = None) -> alt.LayerChart:
     """지표 추이 라인 + 데이터 포인트 마커 + 상태 임계선.
 
     `df`는 `t`(naive datetime, 표시 타임존)와 `v`(값) 열을 갖는다.
+
+    `thresholds`는 해당 모터의 임계값(`motors.get_metric_thresholds`)이다. 생략하면
+    회사 기본값을 쓴다 — 여러 모터를 한 화면에 겹쳐 비교하는 모터 그래프 페이지가
+    그렇게 쓴다(아래 `metric_graph_grid` 참조).
     """
     pal = palette()
     metric_colors, status_colors = pal["metric_chart"], pal["status"]
-    _, warning, danger, fault = METRIC_THRESHOLDS[metric]
+    _, warning, danger, fault = (thresholds or METRIC_THRESHOLDS)[metric]
     y_ticks, y_max = _y_ticks(fault)
 
     x_axis = alt.Axis(
@@ -101,11 +105,11 @@ def metric_chart(df: pd.DataFrame, metric: str) -> alt.LayerChart:
     return (rules + line).properties(height=CHART_HEIGHT_PX)
 
 
-def _metric_header(metric: str) -> None:
+def _metric_header(metric: str, thresholds: dict | None = None) -> None:
     """지표명 + 임계값 범례. 차트 박스 '밖'에 둬 헤더와 차트를 명확히 구분한다."""
     pal = palette()
     status_colors = pal["status"]
-    _, warning, danger, fault = METRIC_THRESHOLDS[metric]
+    _, warning, danger, fault = (thresholds or METRIC_THRESHOLDS)[metric]
     st.markdown(
         f'<div class="mg-headbox" style="--mg-color:{pal["metric_chart"][metric]}">'
         f'<div class="mg-head">'
@@ -120,7 +124,7 @@ def _metric_header(metric: str) -> None:
     )
 
 
-def _motor_charts(motor, series, metric: str) -> None:
+def _motor_charts(motor, series, metric: str, thresholds: dict | None = None) -> None:
     """모터 한 대의 특정 지표 차트 하나."""
     times, by_metric = series[motor["motor_id"]]
     values = by_metric.get(metric, [])
@@ -130,14 +134,22 @@ def _motor_charts(motor, series, metric: str) -> None:
     frame = pd.DataFrame({"t": pd.to_datetime(times, utc=True), "v": values})
     # UTC → 표시 타임존, tz 제거(naive) — Vega가 브라우저 tz로 재해석하지 않게.
     frame["t"] = frame["t"].dt.tz_convert(DISPLAY_TIMEZONE).dt.tz_localize(None)
-    st.altair_chart(metric_chart(frame, metric), width="stretch")
+    st.altair_chart(metric_chart(frame, metric, thresholds), width="stretch")
 
 
-def metric_graph_grid(motors, series, *, show_motor_row: bool = True) -> None:
+def metric_graph_grid(
+    motors, series, *, show_motor_row: bool = True, thresholds: dict | None = None
+) -> None:
     """지표 4열 헤더 아래에 **모터 한 대 = 가로 한 행**으로 차트를 배치한다.
 
     `motors`는 `motor_id`·`motor_name`·`status`를 갖는 항목의 목록,
     `series`는 `{motor_id: (시각 목록, {지표: 값 목록})}`.
+
+    **`thresholds`는 모터 한 대를 그릴 때만 넘긴다** (2026-08-11). 이 배치는 열 헤더에
+    임계값을 한 번만 적고 모든 차트가 같은 Y범위를 공유해, 임계선 위치로 값을 읽는
+    구조다. 모터마다 임계값이 다르면 그 전제가 깨지므로 **여러 대를 나열하는 모터 그래프
+    페이지는 회사 기본값을 쓰고**, 표시 중인 모터의 설정이 기본과 다르면 그 페이지가
+    캡션으로 알린다. 모터 상세는 한 대뿐이라 그 모터의 임계값을 그대로 쓴다.
 
     **모터를 행 단위로 묶는 이유 (2026-08-10 변경).** 종전에는 지표 열이 바깥 루프였다
     (열 하나에 모터들을 세로로 쌓음). 그래서 ① 모터명·상태 배지가 **열마다 4번 반복**됐고
@@ -151,7 +163,7 @@ def metric_graph_grid(motors, series, *, show_motor_row: bool = True) -> None:
     # 헤더는 위에 한 줄만. 차트 박스 '밖'이라 헤더와 차트가 명확히 구분된다.
     for column, metric in zip(st.columns(len(METRIC_NAMES)), METRIC_NAMES):
         with column:
-            _metric_header(metric)
+            _metric_header(metric, thresholds)
 
     for motor in motors:
         # 테두리 컨테이너가 한 모터의 4열을 가로로 감싼다 — 이것이 행 구분선 역할을 한다.
@@ -167,4 +179,4 @@ def metric_graph_grid(motors, series, *, show_motor_row: bool = True) -> None:
                 )
             for column, metric in zip(st.columns(len(METRIC_NAMES)), METRIC_NAMES):
                 with column:
-                    _motor_charts(motor, series, metric)
+                    _motor_charts(motor, series, metric, thresholds)

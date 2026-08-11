@@ -93,6 +93,32 @@ CREATE TABLE IF NOT EXISTS notification_logs (
   created_at           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+-- 임계값 변경 이력 (2026-08-11 추가, 04 §3.9).
+-- 임계값을 바꾸면 **그 시점 이후 수집분부터** 새 기준으로 판정된다(과거 판정·리포트는 불변).
+-- 그래서 "이 전이는 어느 기준으로 판정된 것인가"를 나중에 답하려면 변경 시점 기록이 필요하다.
+-- 사고 조사에서 "그때 기준은 무엇이었나"에 답하지 못하면 리포트를 근거로 쓸 수 없다.
+CREATE TABLE IF NOT EXISTS motor_threshold_history (
+  history_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  motor_id          TEXT NOT NULL REFERENCES motors(motor_id),
+  metric_name       TEXT NOT NULL CHECK (
+                      metric_name IN ('temperature','vibration','current','sound')
+                    ),
+  -- 바꾸기 직전 값. 최초 등록분은 NULL이 아니라 기본값이 들어간다(관리자 화면에서만 기록).
+  previous_normal   REAL,
+  previous_warning  REAL,
+  previous_danger   REAL,
+  previous_fault    REAL,
+  normal_range      REAL,
+  warning_range     REAL,
+  danger_range      REAL,
+  fault_range       REAL,
+  contact_id        INTEGER REFERENCES company_contacts(contact_id),  -- 담당자 삭제 시 NULL
+  created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_motor_threshold_history_lookup
+  ON motor_threshold_history (motor_id, created_at DESC);
+
 -- 참조 지식(고장 모드 ↔ 지표 매핑)은 여기 두지 않는다. 시간에 무관한 정적 데이터라
 -- data/knowledge/fault_modes.json에 커밋하고 app/rag/knowledge.py가 직접 읽는다.
 -- 런타임 테이블과 조인할 일이 없어 DB에 넣으면 부팅 시드 비용만 붙는다 (2026-08-07 확정).

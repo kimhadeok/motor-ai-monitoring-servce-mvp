@@ -66,18 +66,93 @@ def get_latest_metric_statuses(conn, motor_id: str) -> dict[str, str]:
     return {metric: row[_TELEMETRY_STATUS_COLUMN[metric]] for metric in METRIC_NAMES}
 
 
-def build_metric_readings(row: sqlite3.Row | None) -> list[dict]:
+# 지표별 임계 4구간 (normal, warning, danger, fault)
+ThresholdMap = dict[str, tuple[float, float, float, float]]
+
+
+def default_thresholds() -> ThresholdMap:
+    """`config.METRIC_THRESHOLDS` 기본값 사본. 모터별 행이 없을 때 쓴다."""
+    return {metric: tuple(METRIC_THRESHOLDS[metric]) for metric in METRIC_NAMES}
+
+
+def _rows_to_threshold_map(rows) -> ThresholdMap:
+    """`motor_thresholds` 행 → 지표별 4구간. 빠진 지표는 기본값으로 채운다.
+
+    한 지표라도 비어 있으면 그 지표의 판정이 성립하지 않으므로, 부분 결손은 조용히
+    기본값으로 메운다 — 화면이 비는 것보다 낫다.
+    """
+    result = default_thresholds()
+    for row in rows:
+        metric = row["metric_name"]
+        if metric not in result:
+            continue
+        values = (
+            row["normal_range"],
+            row["warning_range"],
+            row["danger_range"],
+            row["fault_range"],
+        )
+        if all(v is not None for v in values):
+            result[metric] = values
+    return result
+
+
+def get_metric_thresholds(conn, motor_id: str) -> ThresholdMap:
+    """모터 1대의 지표별 임계값 (04 §3.4).
+
+    **판정·표시가 모두 이 값을 봐야 한다** (2026-08-11). 종전에는 `motor_thresholds`를
+    모터 상세의 임계값 표와 리포트 참고표만 읽고, 상태 판정·게이지·차트 임계선·진단
+    근거는 `config.METRIC_THRESHOLDS` 전역값을 썼다. 그래서 관리자 페이지에서 임계값을
+    바꾸면 **같은 리포트 한 장 안에 "정상 기준 ≤ 60"과 "정상 구간 < 50"이 함께 찍혔다**
+    (실측). 설비마다 정상 범위가 다른 것이 예지보전의 전제이므로 전역값은 기본값일 뿐이다.
+    """
+    rows = conn.execute(
+        "SELECT * FROM motor_thresholds WHERE motor_id = ?", (motor_id,)
+    ).fetchall()
+    return _rows_to_threshold_map(rows)
+
+
+def list_company_metric_thresholds(conn, company_id: str) -> dict[str, ThresholdMap]:
+    """회사 소속 모터 전체의 임계값을 **한 번에** 조회한다.
+
+    대시보드는 카드 200장을 그리므로 모터당 조회를 돌리면 200회가 된다.
+    `motor_thresholds`는 모터당 4행짜리 작은 테이블이라 배치가 훨씬 싸다.
+    """
+    rows = conn.execute(
+        "SELECT t.* FROM motor_thresholds t JOIN motors m ON m.motor_id = t.motor_id "
+        "WHERE m.company_id = ?",
+        (company_id,),
+    ).fetchall()
+    grouped: dict[str, list] = {}
+    for row in rows:
+        grouped.setdefault(row["motor_id"], []).append(row)
+    return {motor_id: _rows_to_threshold_map(rs) for motor_id, rs in grouped.items()}
+
+
+def build_metric_readings(
+    row: sqlite3.Row | None, thresholds: ThresholdMap | None = None
+) -> list[dict]:
     """카드·상세용 지표 요약. 심각도가 높은 순으로 정렬해서 돌려준다 (05 §3.2).
 
     각 항목: metric, label, unit, value, status, ratio(고장 임계 대비 0~1),
     warning_at / danger_at (게이지 눈금 위치 0~1).
+
+    `thresholds`는 해당 모터의 임계값이다(`get_metric_thresholds`). 생략하면 기본값을
+    쓰지만, 화면 경로에서는 **반드시 모터별 값을 넘겨야** 게이지 눈금이 관리자에서 설정한
+    기준과 맞는다.
+
+    **`status`는 저장된 판정 결과를 그대로 쓴다** (2026-08-11 확정). 임계값을 바꿔도 이미
+    수집된 행의 판정은 바뀌지 않고 **다음 수집부터** 새 기준이 적용된다 — 판정은 수집
+    시점에 한 번이라는 원칙을 과거·현재에 똑같이 적용하기 위해서다. 반면 눈금·비율은
+    "지금 기준이 무엇인가"를 보여주는 것이라 즉시 새 값을 따른다.
     """
     if row is None:
         return []
 
+    thresholds = thresholds or default_thresholds()
     readings = []
     for metric in METRIC_NAMES:
-        _, warning, danger, fault = METRIC_THRESHOLDS[metric]
+        _, warning, danger, fault = thresholds[metric]
         value = row[metric]
         readings.append(
             {
@@ -154,6 +229,11 @@ def get_metric_status_view(conn, motor_id: str) -> tuple[dict[str, str], list[st
     return statuses, fault_metrics, _worst(statuses.values())
 
 
+def thresholds_differ_from_default(thresholds: ThresholdMap) -> bool:
+    """이 모터의 임계값이 회사 기본값과 다른가 (05 §3-A 캡션용)."""
+    return thresholds != default_thresholds()
+
+
 def get_representative_status(conn, motor_id: str) -> str:
     """모터 대표 상태 (03 §2). 미확인 FAULT가 있으면 FAULT를 유지한다 (03 §4.3)."""
     if find_unconfirmed_fault_metrics(conn, motor_id):
@@ -212,11 +292,15 @@ def list_company_motors(conn, company_id: str) -> list[dict]:
     # 대표 상태 판정에 이미 쓰이는 값이라 카드에도 함께 실어 보낸다 —
     # 대시보드에서 정비 완료 확인 버튼을 띄우려면 어떤 지표가 FAULT인지 알아야 한다.
     fault_metrics_by_motor = list_unconfirmed_fault_metrics(conn, company_id)
+    # 게이지 눈금은 모터별 임계값을 따른다 (2026-08-11). 배치 1회로 가져온다.
+    thresholds_by_motor = list_company_metric_thresholds(conn, company_id)
 
     cards = []
     for motor in motors:
         motor_id = motor["motor_id"]
-        readings = build_metric_readings(get_latest_telemetry(conn, motor_id))
+        readings = build_metric_readings(
+            get_latest_telemetry(conn, motor_id), thresholds_by_motor.get(motor_id)
+        )
         fault_metrics = fault_metrics_by_motor.get(motor_id, [])
         status = "FAULT" if fault_metrics else _worst(r["status"] for r in readings)
 

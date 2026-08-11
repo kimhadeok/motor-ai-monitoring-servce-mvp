@@ -9,7 +9,12 @@
 수집→판정→전이(remaining_work #2-1)는 MVP 범위 밖으로 확정됐다(2026-08-11). 그런데 값만
 자유롭게 흔들면 임계를 넘는 순간 카드 색이 바뀌는데 이벤트 목록에는 아무 기록이 없는
 어긋난 화면이 된다. 대표 상태는 최신 텔레메트리 행의 지표별 상태에서 나오기 때문이다
-(`services/motors.py`). 그래서 값은 **마지막 행이 속한 상태 구간 안에서만** 흔들린다.
+(`services/motors.py`). 그래서 값은 **자기가 속한 상태 구간 안에서만** 흔들린다.
+
+**구간은 저장된 status가 아니라 값을 현재 임계로 다시 분류해서 정한다** (2026-08-11).
+저장된 status를 기준 삼으면 관리자가 임계값을 바꿨을 때 값을 옛 상태의 구간으로 끌어당겨
+설정 변경을 무력화한다. 값이 스스로 속한 구간에서 흔들리게 하면, 임계값을 바꾼 **다음
+수집부터** 새 기준의 상태가 저장된다 — 과거 판정은 건드리지 않는다(05 §6.3).
 
 **여러 탭이 동시에 돌 때.** Streamlit은 세션마다 스크립트를 실행하므로 탭이 둘이면 틱도
 둘이다. 같은 (시각, 모터)에 대해 같은 값이 나오도록 난수를 `(motor_id, timestamp)`로
@@ -24,8 +29,6 @@ from datetime import datetime, timedelta, timezone
 
 from app.config import (
     METRIC_NAMES,
-    METRIC_STATUS_COLUMNS,
-    METRIC_THRESHOLDS,
     RUNTIME_TICK_BAND_MARGIN_RATIO,
     RUNTIME_TICK_ENABLED,
     RUNTIME_TICK_FAULT_HEADROOM,
@@ -34,14 +37,17 @@ from app.config import (
     parse_utc,
 )
 
-# 시드와 **같은 시각 포맷**으로 써야 한다. 밀리초 3자리 고정이라 config.DB_DATETIME_FORMAT의
-# strftime(마이크로초 6자리)과 다르고, 문자열 비교로 정렬·조인하는 컬럼이라 어긋나면 안 된다.
-from app.services.seeding import _iso
+from app.services.motors import get_metric_thresholds
+
+# `_iso`는 시드와 **같은 시각 포맷**을 써야 한다. 밀리초 3자리 고정이라
+# config.DB_DATETIME_FORMAT의 strftime(마이크로초 6자리)과 다르고, 문자열 비교로 정렬·조인하는
+# 컬럼이라 어긋나면 안 된다. `classify`는 판정 규칙이 시드와 런타임에서 한 벌이어야 해서 공유한다.
+from app.services.seeding import _iso, classify
 
 
-def _status_band(metric: str, status: str) -> tuple[float, float]:
+def _status_band(metric: str, status: str, thresholds: dict) -> tuple[float, float]:
     """해당 상태가 유지되는 값 구간 [하한, 상한). `classify()`의 역함수다."""
-    normal, warning, danger, fault = METRIC_THRESHOLDS[metric]
+    normal, warning, danger, fault = thresholds[metric]
     if status == "FAULT":
         # 상한이 없는 구간이라 관측 가능한 폭을 준다 — 값이 무한정 오르면 안 된다.
         return fault, fault * RUNTIME_TICK_FAULT_HEADROOM
@@ -52,9 +58,11 @@ def _status_band(metric: str, status: str) -> tuple[float, float]:
     return normal, warning
 
 
-def _next_value(metric: str, value: float, status: str, rng: random.Random) -> float:
+def _next_value(
+    metric: str, value: float, status: str, rng: random.Random, thresholds: dict
+) -> float:
     """구간 안에서 한 걸음. 구간을 벗어나지 않으므로 상태 판정이 바뀌지 않는다."""
-    low, high = _status_band(metric, status)
+    low, high = _status_band(metric, status, thresholds)
     span = high - low
     margin = span * RUNTIME_TICK_BAND_MARGIN_RATIO
     stepped = value + rng.uniform(-span * RUNTIME_TICK_NOISE_RATIO, span * RUNTIME_TICK_NOISE_RATIO)
@@ -106,14 +114,23 @@ def run_tick(conn, company_id: str) -> int:
 
         last_time = parse_utc(last["time"])
         values = {metric: last[metric] for metric in METRIC_NAMES}
-        statuses = {metric: last[METRIC_STATUS_COLUMNS[metric]] for metric in METRIC_NAMES}
+        thresholds = get_metric_thresholds(conn, motor_id)
+
+        # **저장된 status가 아니라 값을 현재 임계로 다시 분류해서 구간을 정한다** (2026-08-11).
+        # 저장된 status를 기준 삼으면, 관리자가 임계값을 바꿨을 때 값을 옛 상태의 구간 안으로
+        # 끌어당겨 낡은 판정을 억지로 유지시킨다 — 데이터를 조작해 설정 변경을 무력화하는
+        # 셈이다. 값이 스스로 속한 구간에서 흔들리게 하면, 임계값을 바꾼 **다음 수집부터**
+        # 새 기준의 상태가 저장된다(05 §6.3 확정: 과거 판정은 불변, 앞으로만 적용).
+        statuses = {
+            metric: classify(metric, values[metric], thresholds) for metric in METRIC_NAMES
+        }
 
         for stamp in _due_timestamps(last_time, motor["collection_interval_seconds"], now):
             timestamp = _iso(stamp)
             # 탭이 여럿이어도 같은 (모터, 시각)에는 같은 값이 나오도록 시드를 고정한다.
             rng = random.Random(f"{motor_id}|{timestamp}")
             values = {
-                metric: _next_value(metric, values[metric], statuses[metric], rng)
+                metric: _next_value(metric, values[metric], statuses[metric], rng, thresholds)
                 for metric in METRIC_NAMES
             }
             rows.append(

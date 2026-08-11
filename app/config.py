@@ -421,6 +421,11 @@ SERVICE_HIGHLIGHTS = (
     ("📄", "리포트 자동 생성", "정비 절차(SOP)까지 포함"),
 )
 
+# --- 관리자 페이지 (05_ui_screens.md §6) ---
+# 임계값 변경 이력에 보여줄 최근 건수. 임계값은 바꾼 시점 이후 수집분부터 적용되므로,
+# "이 전이는 어느 기준으로 판정된 것인가"를 되짚으려면 최근 변경만 봐도 대개 답이 나온다.
+ADMIN_THRESHOLD_HISTORY_LIMIT = 20
+
 # --- 알림 채널 (04_database_schema.md §3.7 확정) ---
 NOTIFICATION_CHANNELS = ("KAKAO_ALIMTALK", "SMS", "EMAIL")
 # 리포트 §5에 노출할 채널 표기 (06 §2.5, 2026-08-11). DB 값은 영문 상수라 그대로 보이면

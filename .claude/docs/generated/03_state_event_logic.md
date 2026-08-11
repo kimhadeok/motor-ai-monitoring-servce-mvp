@@ -15,6 +15,10 @@
 
 임계값은 지표별(온도/진동/전류/소음)로 `motor_thresholds` 테이블(`normal_range`, `warning_range`, `danger_range`, `fault_range`)에 저장된 값을 사용 (`04_database_schema.md` §2 연계).
 
+> **2026-08-11까지 이 문장이 지켜지지 않고 있었다.** 판정(`services/seeding.classify`)은 `config.METRIC_THRESHOLDS` 전역 하드코딩을 읽었고, `motor_thresholds`는 표시용 두 군데에서만 쓰였다. 지금은 `services/motors.get_metric_thresholds()`가 유일한 출처이고 판정·표시가 모두 이 값을 본다. 전역 상수는 모터 등록 시의 기본값이자 폴백일 뿐이다 (`04 §2.1`).
+>
+> **임계값을 바꾸면 다음 수집분부터 적용된다.** 이미 저장된 판정과 발행된 리포트는 그대로 둔다 — 사후에 과거 판정을 뒤집으면 이미 나간 리포트·알림과 어긋나고, 사고 조사에서 "그때는 왜 FAULT가 아니었나"에 답할 수 없다. 변경 시점은 `motor_threshold_history`에 남아 "이 전이는 어느 기준으로 판정된 것인가"에 답할 수 있다 (`04 §2.2`, `§3.9`).
+
 ## 2. 판정 단위 — 지표별 상태 vs 모터 대표 상태 (보강)
 
 원본 문서들은 "모터 상태"를 단일 값처럼 서술하지만, `motor_telemetry` 테이블은 온도/진동/전류/소음 **4개 지표를 각각** `temp_status`, `vib_status`, `current_status`, `sound_status`로 개별 판정하도록 설계되어 있음. 반면 `화면구성.md`의 메인 대시보드는 모터 1개당 상태값 1개("WARNING + 일시")만 표시함 — 이 둘을 잇는 집계 규칙이 원본에 없어 보강함.

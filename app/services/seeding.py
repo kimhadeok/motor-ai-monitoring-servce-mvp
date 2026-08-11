@@ -130,9 +130,15 @@ _STATUS_COLUMN = {
 }
 
 
-def classify(metric: str, value: float) -> str:
-    """임계값 4구간 기준 상태 판정 (03_state_event_logic.md §1)."""
-    _, warning, danger, fault = METRIC_THRESHOLDS[metric]
+def classify(metric: str, value: float, thresholds: dict | None = None) -> str:
+    """임계값 4구간 기준 상태 판정 (03_state_event_logic.md §1).
+
+    `thresholds`는 해당 모터의 지표별 4구간(`motors.get_metric_thresholds`)이다.
+    생략하면 `config.METRIC_THRESHOLDS` 기본값을 쓴다 — 시드가 데모 세계를 만들 때는
+    모터별 행이 아직 없으므로 기본값이 맞다. **런타임 판정은 반드시 모터별 값을 넘긴다**
+    (2026-08-11) — 설비마다 정상 범위가 다른 것이 예지보전의 전제다.
+    """
+    _, warning, danger, fault = (thresholds or METRIC_THRESHOLDS)[metric]
     if value >= fault:
         return "FAULT"
     if value >= danger:
@@ -142,24 +148,26 @@ def classify(metric: str, value: float) -> str:
     return "NORMAL"
 
 
-def _entry_threshold(metric: str, status: str) -> float | None:
+def _entry_threshold(metric: str, status: str, thresholds: dict | None = None) -> float | None:
     """해당 상태로 진입할 때 넘어야 했던 임계값. NORMAL은 진입 임계가 없다."""
-    _, warning, danger, fault = METRIC_THRESHOLDS[metric]
+    _, warning, danger, fault = (thresholds or METRIC_THRESHOLDS)[metric]
     return {"WARNING": warning, "DANGER": danger, "FAULT": fault}.get(status)
 
 
-def classify_with_hysteresis(metric: str, value: float, confirmed: str) -> str:
+def classify_with_hysteresis(
+    metric: str, value: float, confirmed: str, thresholds: dict | None = None
+) -> str:
     """이력폭을 적용한 상태 판정 (02_architecture.md §2.3 핑퐁 방지).
 
     올라갈 때는 임계값을 그대로 쓰고, 내려올 때만 진입 임계보다 `TRANSITION_DEADBAND_RATIO`
     만큼 더 낮아지기를 요구한다. 값이 임계선 위에서 미세하게 흔들리는 동안에는 회복으로
     보지 않으므로 왕복 전이가 생기지 않는다.
     """
-    observed = classify(metric, value)
+    observed = classify(metric, value, thresholds)
     if STATUS_SEVERITY_RANK[observed] >= STATUS_SEVERITY_RANK[confirmed]:
         return observed  # 악화 또는 유지 — 임계값 그대로
 
-    entry = _entry_threshold(metric, confirmed)
+    entry = _entry_threshold(metric, confirmed, thresholds)
     if entry is not None and value > entry * (1 - TRANSITION_DEADBAND_RATIO):
         return confirmed  # 이력폭 안 — 아직 회복으로 인정하지 않는다
     return observed

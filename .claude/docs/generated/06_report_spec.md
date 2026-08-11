@@ -77,6 +77,8 @@ DANGER/FAULT 이벤트 발생 (03_state_event_logic.md)
 
 값은 이벤트 발생 시점(`motor_status_logs.created_at`)의 `motor_telemetry` 레코드 기준.
 
+**정상 기준·임계값 표는 모두 그 모터의 `motor_thresholds`에서 온다 (2026-08-11 정정).** 종전에는 센서 카드의 "정상 기준"만 `config.METRIC_THRESHOLDS` 전역값을 읽고 임계값 표는 DB를 읽어, 관리자에서 임계값을 바꾸면 **같은 리포트 한 장 안에 "정상 기준 ≤ 60 °C"와 "정상 구간 < 50"이 함께 찍혔다**(실측). 지금은 한 곳(`services/motors.get_metric_thresholds()`)에서 가져와 둘 다 만든다.
+
 ### 2.3 AI 진단 및 근본 원인 분석 (원본 §2)
 
 | 템플릿 항목 | MVP 데이터 소스 |

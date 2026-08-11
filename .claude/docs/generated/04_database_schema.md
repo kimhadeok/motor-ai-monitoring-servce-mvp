@@ -35,6 +35,29 @@ CREATE TABLE motor_thresholds (
 
 `motors` 테이블에서는 `normal_range` 등 4개 컬럼을 제거함 (§3 DDL에 반영).
 
+### 2.1 이 테이블이 실제 판정에 쓰인다 (2026-08-11 정정)
+
+**2026-08-11까지 이 테이블은 표시용으로만 쓰이고 있었다.** 상태 판정·카드 게이지·차트 임계선·진단 근거·런타임 틱은 전부 `config.METRIC_THRESHOLDS` **전역 하드코딩**을 읽었고, `motor_thresholds`를 읽는 곳은 모터 상세의 임계값 표와 리포트 참고표 두 군데뿐이었다.
+
+그래서 관리자 페이지(05 §6)에서 임계값을 바꾸면 **같은 리포트 한 장 안에 서로 다른 기준이 찍혔다** — 센서 카드 "정상 기준 ≤ 60 °C"(전역값)와 임계값 표 "정상 구간 < 50"(DB값)이 동시에. 실측으로 재현해 확인했다.
+
+지금은 `services/motors.get_metric_thresholds()`(단건) / `list_company_metric_thresholds()`(회사 배치)가 유일한 출처이고, 판정·표시가 모두 이 값을 본다. `config.METRIC_THRESHOLDS`는 **모터 등록 시 채워 넣는 기본값**이자 행이 없을 때의 폴백일 뿐이다.
+
+### 2.2 임계값을 바꾸면 언제부터 적용되나 (2026-08-11 확정)
+
+| 대상 | 규칙 | 근거 |
+|---|---|---|
+| 과거 전이 로그·발행된 리포트 | **불변** | 발행된 문서다. 사후에 기준을 바꿔 과거 판정을 뒤집으면 이미 나간 리포트·알림과 어긋나고, 사고 조사에서 "그때는 왜 FAULT가 아니었나"를 설명할 수 없다 |
+| 저장된 계측 행의 `*_status` | **불변** | 그 시각 그 기준으로 판정한 사실이라 역시 기록이다 |
+| 새로 수집되는 행 | **새 기준으로 판정** | 판정은 수집 시점에 한 번 — 이 원칙을 과거·현재에 똑같이 적용한다 |
+| 화면의 기준선 표시 | **즉시 새 값** | 게이지 눈금·차트 임계선·리포트 참고표·센서 카드 "정상 기준"은 판정이 아니라 "지금 기준이 무엇인가"라서 옛 값을 보여줄 이유가 없다 |
+
+즉 **바꾼 기준은 다음 수집분부터 적용된다.** 반영 지연은 최대 1수집주기(10~300초)이며, 관리자 화면이 그 사실과 해당 모터의 수집 주기를 함께 안내한다.
+
+실측(2026-08-11): 온도 26.6 °C·NORMAL인 10초 주기 모터의 경고 임계를 24.6으로 낮췄을 때 — 변경 직후 최신 행은 `NORMAL` 유지, 12초 뒤 틱이 넣은 새 행은 `WARNING`, 과거 행과 전이 로그 80건은 그대로.
+
+**런타임 틱도 함께 고쳐야 했다.** 틱은 "상태를 바꾸지 않는다"는 규칙으로 값을 구간 안에 묶는데, 그 구간을 **저장된 status**에서 뽑고 있었다. 임계값을 낮추면 값을 옛 상태의 구간으로 끌어내려 낡은 판정을 억지로 유지시킨다 — 데이터를 조작해 설정 변경을 무력화하는 셈이다. 지금은 값을 **현재 임계로 다시 분류한** 구간에서 흔들리게 한다(`services/runtime_tick.py`).
+
 ## 3. 테이블 정의 (SQLite DDL)
 
 ### 3.1 companies
@@ -170,6 +193,37 @@ CREATE TABLE notification_logs (
 
 > **MVP에서 이 테이블은 "적재"까지만이다 (2026-08-10 확정).** 실제 채널 발송(KAKAO/SMS/EMAIL 어댑터, 발신번호 등록, 실패 재시도)은 정식 서비스 개발 시 적용한다. MVP는 시연을 위해 시드가 DANGER/FAULT 전이에 쿨다운을 적용해 샘플 행을 만든다(실측 24건 — KAKAO 11 · SMS 8 · EMAIL 5). `external_message_id`는 실제 발송이 없으므로 채워지지 않는다.
 
+### 3.9 motor_threshold_history (2026-08-11 신설)
+
+```sql
+CREATE TABLE motor_threshold_history (
+  history_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  motor_id          TEXT NOT NULL REFERENCES motors(motor_id),
+  metric_name       TEXT NOT NULL CHECK (
+                      metric_name IN ('temperature','vibration','current','sound')
+                    ),
+  previous_normal   REAL,   -- 바꾸기 직전 값
+  previous_warning  REAL,
+  previous_danger   REAL,
+  previous_fault    REAL,
+  normal_range      REAL,   -- 바꾼 값
+  warning_range     REAL,
+  danger_range      REAL,
+  fault_range       REAL,
+  contact_id        INTEGER REFERENCES company_contacts(contact_id),  -- 담당자 삭제 시 NULL
+  created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE INDEX idx_motor_threshold_history_lookup
+  ON motor_threshold_history (motor_id, created_at DESC);
+```
+
+**왜 필요한가.** 임계값을 바꾸면 **그 시점 이후 수집분부터** 새 기준으로 판정되고 과거 판정·리포트는 그대로 남는다(§2.2). 그러면 나중에 이력을 볼 때 **"이 전이는 어느 기준으로 판정된 것인가"**에 답할 수 없다. 사고 조사에서 그 질문에 답하지 못하면 리포트를 근거 문서로 쓸 수 없다.
+
+**값이 실제로 달라진 지표만 남긴다** — 저장 버튼을 눌렀다는 사실은 이력이 아니다. `services/admin.update_thresholds()`가 변경 전 값과 대조해 기록하고 바뀐 지표 수를 반환한다. 관리자 화면이 최근 `ADMIN_THRESHOLD_HISTORY_LIMIT`(20)건을 보여준다.
+
+모터를 삭제하면 이 이력도 함께 지운다(`PRAGMA foreign_keys = ON`이라 순서상 자식 먼저).
+
 ## 4. 관계 요약
 
 ```
@@ -182,6 +236,8 @@ motors    1─N notification_logs
 company_contacts 1─N login_logs
 company_contacts 1─N notification_logs
 company_contacts 1─N motor_status_logs (관리자 수동 조치 시)
+motors    1─N motor_threshold_history   (임계값 변경 이력, §3.9)
+company_contacts 1─N motor_threshold_history (변경자)
 ```
 
 ### 4.1 DB에 두지 않는 데이터 (2026-08-07 확정)

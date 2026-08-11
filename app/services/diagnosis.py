@@ -119,7 +119,10 @@ def _companion_metrics(telemetry, metric: str) -> list[dict]:
     return companions
 
 
-def build_diagnosis_facts(conn, motor_id: str, metric: str, status: str, event_time, telemetry) -> dict:
+def build_diagnosis_facts(
+    conn, motor_id: str, metric: str, status: str, event_time, telemetry,
+    thresholds: dict | None = None,
+) -> dict:
     """리포트 섹션 2가 근거로 삼는 측정값 모음.
 
     문장 생성과 분리해 둔다. 이 dict가 그대로 진단 에이전트의 근거(grounding)이자
@@ -131,7 +134,9 @@ def build_diagnosis_facts(conn, motor_id: str, metric: str, status: str, event_t
     lead_times = [f["lead_time_band"] for f in faults if f.get("lead_time_band")]
     most_urgent = min(lead_times, key=lambda b: FAULT_LEAD_TIME_URGENCY.get(b, 9), default=None)
 
-    _, warning, danger, fault_level = METRIC_THRESHOLDS[metric]
+    # 임계값은 모터별이다 (2026-08-11). 진단 근거가 화면·리포트와 다른 기준을 인용하면
+    # 담당자가 어느 숫자를 믿어야 할지 알 수 없다.
+    _, warning, danger, fault_level = (thresholds or METRIC_THRESHOLDS)[metric]
     return {
         "metric": metric,
         "label": METRIC_LABELS[metric],

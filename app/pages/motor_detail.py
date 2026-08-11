@@ -24,6 +24,7 @@ from app.db.connection import connection_scope
 from app.services.events import count_motor_events, list_motor_events
 from app.services.motors import (
     get_metric_status_view,
+    get_metric_thresholds,
     get_motor,
     get_motor_metric_series,
     get_thresholds,
@@ -83,6 +84,8 @@ def render_live_detail() -> None:
             conn, motor_id
         )
         thresholds = get_thresholds(conn, motor_id)
+        # 차트 임계선·Y범위는 이 모터의 설정값을 따른다 (2026-08-11).
+        metric_thresholds = get_metric_thresholds(conn, motor_id)
         total_events = count_motor_events(conn, motor_id, DASHBOARD_EVENT_STATUSES)
         series = {
             motor_id: get_motor_metric_series(
@@ -136,6 +139,7 @@ def render_live_detail() -> None:
         ],
         series,
         show_motor_row=False,
+        thresholds=metric_thresholds,
     )
     st.caption(f"최근 {GRAPH_TREND_HOURS}시간 추이입니다. 점선은 경고·위험·고장 임계선입니다.")
 

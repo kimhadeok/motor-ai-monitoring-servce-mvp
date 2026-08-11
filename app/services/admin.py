@@ -278,6 +278,7 @@ def delete_motor(conn, company_id: str, motor_id: str) -> None:
     conn.execute("DELETE FROM notification_logs WHERE motor_id = ?", (motor_id,))
     conn.execute("DELETE FROM motor_status_logs WHERE motor_id = ?", (motor_id,))
     conn.execute("DELETE FROM motor_telemetry WHERE motor_id = ?", (motor_id,))
+    conn.execute("DELETE FROM motor_threshold_history WHERE motor_id = ?", (motor_id,))
     conn.execute("DELETE FROM motor_thresholds WHERE motor_id = ?", (motor_id,))
     conn.execute(
         "DELETE FROM motors WHERE motor_id = ? AND company_id = ?", (motor_id, company_id)
@@ -314,11 +315,55 @@ def list_thresholds(conn, company_id: str, motor_id: str) -> list[dict]:
     return result
 
 
-def update_thresholds(conn, company_id: str, motor_id: str, rows: list[dict]) -> None:
-    """지표별 임계값 저장. 네 구간이 오름차순이어야 한다.
+def list_threshold_history(conn, company_id: str, motor_id: str, limit: int) -> list[dict]:
+    """임계값 변경 이력 (04 §3.9, 05 §6.3)."""
+    rows = conn.execute(
+        "SELECT h.*, ct.contact_name FROM motor_threshold_history h "
+        "JOIN motors m ON m.motor_id = h.motor_id "
+        "LEFT JOIN company_contacts ct ON ct.contact_id = h.contact_id "
+        "WHERE h.motor_id = ? AND m.company_id = ? "
+        "ORDER BY h.created_at DESC, h.history_id DESC LIMIT ?",
+        (motor_id, company_id, limit),
+    ).fetchall()
+    return [
+        {
+            "created_at": r["created_at"],
+            "metric_name": r["metric_name"],
+            "label": METRIC_LABELS.get(r["metric_name"], r["metric_name"]),
+            "before": (
+                r["previous_normal"],
+                r["previous_warning"],
+                r["previous_danger"],
+                r["previous_fault"],
+            ),
+            "after": (
+                r["normal_range"],
+                r["warning_range"],
+                r["danger_range"],
+                r["fault_range"],
+            ),
+            "contact_name": r["contact_name"] or "(삭제된 담당자)",
+        }
+        for r in rows
+    ]
+
+
+def update_thresholds(
+    conn,
+    company_id: str,
+    motor_id: str,
+    rows: list[dict],
+    contact_id: int | None = None,
+) -> int:
+    """지표별 임계값 저장. 네 구간이 오름차순이어야 한다. 실제로 바뀐 지표 수를 반환.
 
     순서가 뒤집히면 상태 판정(`normal <= 값 < warning <= ...`)이 성립하지 않아, 화면이
     조용히 잘못된 상태를 보여주게 된다. 저장 전에 막는다.
+
+    **바뀐 지표는 `motor_threshold_history`에 기록한다** (2026-08-11 확정). 임계값 변경은
+    그 시점 이후 수집분부터 적용되고 과거 판정·리포트는 그대로 남으므로, 나중에 "이 전이는
+    어느 기준으로 판정된 것인가"를 답하려면 언제 누가 무엇을 바꿨는지가 필요하다.
+    값이 실제로 달라진 지표만 남긴다 — 저장 버튼을 눌렀다는 사실은 이력이 아니다.
     """
     _require(
         conn.execute(
@@ -341,19 +386,46 @@ def update_thresholds(conn, company_id: str, motor_id: str, rows: list[dict]) ->
             f"{label}: 정상 < 경고 < 위험 < 고장 순으로 커져야 합니다.",
         )
 
+    # 변경 전 값 — 이력에 남기고, 무엇이 실제로 달라졌는지 판정하는 데 쓴다.
+    before = {
+        r["metric_name"]: (
+            r["normal_range"],
+            r["warning_range"],
+            r["danger_range"],
+            r["fault_range"],
+        )
+        for r in conn.execute(
+            "SELECT * FROM motor_thresholds WHERE motor_id = ?", (motor_id,)
+        ).fetchall()
+    }
+
+    changed = 0
     for row in rows:
+        metric = row["metric_name"]
+        after = (
+            row["normal_range"],
+            row["warning_range"],
+            row["danger_range"],
+            row["fault_range"],
+        )
         conn.execute(
             "INSERT INTO motor_thresholds (motor_id, metric_name, normal_range, "
             "warning_range, danger_range, fault_range) VALUES (?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(motor_id, metric_name) DO UPDATE SET "
             "normal_range = excluded.normal_range, warning_range = excluded.warning_range, "
             "danger_range = excluded.danger_range, fault_range = excluded.fault_range",
-            (
-                motor_id,
-                row["metric_name"],
-                row["normal_range"],
-                row["warning_range"],
-                row["danger_range"],
-                row["fault_range"],
-            ),
+            (motor_id, metric, *after),
         )
+
+        previous = before.get(metric)
+        if previous == after:
+            continue  # 값이 그대로면 이력이 아니다 — 저장 버튼을 눌렀다는 사실은 기록하지 않는다
+        changed += 1
+        conn.execute(
+            "INSERT INTO motor_threshold_history (motor_id, metric_name, "
+            "previous_normal, previous_warning, previous_danger, previous_fault, "
+            "normal_range, warning_range, danger_range, fault_range, contact_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (motor_id, metric, *(previous or (None, None, None, None)), *after, contact_id),
+        )
+    return changed

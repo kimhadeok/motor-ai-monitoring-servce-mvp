@@ -34,7 +34,7 @@ from app.rag.ingest import query_sop_steps
 from app.rag.knowledge import lookup_fault_modes
 from app.reports.generator import render_report_html, render_report_pdf
 from app.services.diagnosis import build_diagnosis_facts
-from app.services.motors import get_thresholds
+from app.services.motors import get_metric_thresholds
 
 _STATUS_LABEL = {"DANGER": "위험 단계 감지", "FAULT": "고장/정지 감지"}
 
@@ -103,9 +103,13 @@ def build_report_context(conn, log) -> dict | None:
     event_dt = parse_utc(log["created_at"])
     report_dt = event_dt + timedelta(seconds=12)
 
+    # 임계값은 모터별이다 (2026-08-11). 종전에는 센서 카드의 '정상 기준'만 전역값을 써서,
+    # 같은 리포트 안의 임계값 표(모터별 DB 값)와 다른 숫자가 찍혔다 — 자기모순이었다.
+    thresholds = get_metric_thresholds(conn, motor["motor_id"])
+
     sensors = []
     for name in METRIC_NAMES:
-        _, warning, _, _ = METRIC_THRESHOLDS[name]
+        _, warning, _, _ = thresholds[name]
         metric_status = telemetry[METRIC_STATUS_COLUMNS[name]]
         sensors.append(
             {
@@ -123,7 +127,7 @@ def build_report_context(conn, log) -> dict | None:
 
     # 근거를 먼저 측정하고 문장은 그 근거만 서술한다 (services/diagnosis.py 모듈 주석 참조).
     facts = build_diagnosis_facts(
-        conn, motor["motor_id"], metric, status, log["created_at"], telemetry
+        conn, motor["motor_id"], metric, status, log["created_at"], telemetry, thresholds
     )
 
     # 참조 지식 기반 결정적 조회 — 벡터 검색과 달리 같은 지표면 항상 같은 근거가 나온다.
@@ -148,18 +152,22 @@ def build_report_context(conn, log) -> dict | None:
 
     # 임계값은 모터마다 다르므로 리포트에 참고표로 싣는다 — 센서 카드의 "정상 기준" 한 줄로는
     # 이 값이 어느 구간에 속하는지, FAULT까지 얼마나 남았는지 알 수 없다 (06 §2.2).
-    thresholds = [
+    # **위 센서 카드와 같은 `thresholds`에서 만든다** — 종전에는 표만 DB를 읽고 센서 카드는
+    # 전역값을 써서 한 장 안에 다른 숫자가 찍혔다.
+    threshold_rows = [
         {
-            "label": METRIC_LABELS.get(t["metric_name"], t["metric_name"]),
-            "unit": METRIC_UNITS.get(t["metric_name"], ""),
-            "normal": f"< {t['warning_range']:g}",
-            "warning": f"{t['warning_range']:g} ~ {t['danger_range']:g}",
-            "danger": f"{t['danger_range']:g} ~ {t['fault_range']:g}",
-            "fault": f"≥ {t['fault_range']:g}",
+            "label": METRIC_LABELS.get(name, name),
+            "unit": METRIC_UNITS.get(name, ""),
+            "normal": f"< {warning:g}",
+            "warning": f"{warning:g} ~ {danger:g}",
+            "danger": f"{danger:g} ~ {fault:g}",
+            "fault": f"≥ {fault:g}",
             # 이번 이벤트를 일으킨 지표를 표에서도 짚어준다
-            "is_trigger": t["metric_name"] == metric,
+            "is_trigger": name == metric,
         }
-        for t in get_thresholds(conn, motor["motor_id"])
+        for name, (_, warning, danger, fault) in (
+            (name, thresholds[name]) for name in METRIC_NAMES
+        )
     ]
 
     return {
@@ -181,7 +189,7 @@ def build_report_context(conn, log) -> dict | None:
             time=format_display(event_dt, REPORT_TIME_FORMAT),
         ),
         "sensors": sensors,
-        "thresholds": thresholds,
+        "thresholds": threshold_rows,
         # 생성 경로와 표기를 일치시킨다 (2026-08-10 확정). 호출하지 않은 모델명을 적으면
         # 담당자가 폴백 결과를 LLM 생성물로 오독한다.
         "diagnosis_model_label": (

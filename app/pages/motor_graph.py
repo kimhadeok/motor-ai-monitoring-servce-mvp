@@ -21,7 +21,12 @@ from app.config import (
     STATUS_SEVERITY_RANK,
 )
 from app.db.connection import connection_scope
-from app.services.motors import get_motor_metric_series, list_company_motor_status
+from app.services.motors import (
+    get_motor_metric_series,
+    list_company_metric_thresholds,
+    list_company_motor_status,
+    thresholds_differ_from_default,
+)
 from app.ui.charts import metric_graph_grid
 from app.ui.components import lock_selectbox_typing, page_header
 
@@ -89,7 +94,25 @@ with connection_scope() as conn:
 
 # 4열 차트는 모터 상세(§4.1-A)와 공유한다 — 축 구성·임계선·Y범위 규칙이 한 벌만
 # 있어야 두 화면의 그래프를 같은 눈으로 비교할 수 있다 (app/ui/charts.py).
+# 이 화면은 여러 대를 나란히 비교하는 곳이라 **회사 기본 임계값**으로 그린다 — 열 헤더에
+# 임계값을 한 번만 적고 모든 차트가 Y범위를 공유하는 배치라 모터마다 다르면 전제가 깨진다
+# (charts.metric_graph_grid 참조). 대신 설정이 기본과 다른 모터가 섞여 있으면 알린다.
+with connection_scope() as conn:
+    _thresholds_by_motor = list_company_metric_thresholds(conn, _company_id)
+_customized = [
+    m["motor_name"]
+    for m in _subset
+    if thresholds_differ_from_default(_thresholds_by_motor.get(m["motor_id"], {}))
+]
+
 metric_graph_grid(_subset, _series)
+
+if _customized:
+    st.caption(
+        f"⚠️ 임계값을 따로 설정한 모터가 있습니다({', '.join(_customized)}). "
+        "이 화면의 임계선은 **회사 기본값** 기준이라 그 모터의 설정과 다를 수 있습니다 — "
+        "정확한 기준은 모터 상세에서 확인하세요."
+    )
 
 # 표시 범위 셀렉트박스는 드롭다운 선택만 허용한다 — 구현과 근거는
 # `components.lock_selectbox_typing()` (관리자 페이지도 같은 컴포넌트를 쓴다).

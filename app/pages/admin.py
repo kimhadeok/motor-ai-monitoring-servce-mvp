@@ -13,7 +13,13 @@ role 컬럼이 없고, 시연용 MVP라 도입하지 않기로 했다(2026-08-11
 
 import streamlit as st
 
-from app.config import ALLOWED_COLLECTION_INTERVALS_SECONDS, DEMO_DATA_MAX_AGE_HOURS
+from app.config import (
+    ADMIN_THRESHOLD_HISTORY_LIMIT,
+    ALLOWED_COLLECTION_INTERVALS_SECONDS,
+    DEMO_DATA_MAX_AGE_HOURS,
+    format_display,
+    parse_utc,
+)
 from app.db.connection import connection_scope
 from app.services.admin import (
     AdminError,
@@ -25,6 +31,7 @@ from app.services.admin import (
     get_company,
     list_contacts,
     list_motors,
+    list_threshold_history,
     list_thresholds,
     update_company,
     update_contact,
@@ -352,6 +359,13 @@ with _threshold_tab:
             "판정 규칙: 값 ≥ 고장 → FAULT, ≥ 위험 → DANGER, ≥ 경고 → WARNING, 그 외 정상. "
             "정상 < 경고 < 위험 < 고장 순으로 커져야 저장됩니다."
         )
+        st.info(
+            "**바꾼 기준은 다음 수집분부터 적용됩니다.** 이미 저장된 판정과 발행된 리포트는 "
+            "그대로 둡니다 — 사후에 과거 판정을 뒤집으면 이미 나간 리포트·알림과 어긋나기 "
+            f"때문입니다. 이 모터의 수집 주기는 {_t_motor['collection_interval_seconds']}초입니다. "
+            "게이지 눈금·차트 임계선처럼 '지금 기준'을 보여주는 표시는 즉시 바뀝니다.",
+            icon="🕒",
+        )
         _edited = st.data_editor(
             [
                 {
@@ -383,9 +397,41 @@ with _threshold_tab:
             ]
             _run(
                 lambda conn: update_thresholds(
-                    conn, company_id, _t_motor["motor_id"], _payload
+                    conn, company_id, _t_motor["motor_id"], _payload, current_contact_id
                 ),
-                f"{_t_motor['motor_name']}의 지표 임계값을 저장했습니다.",
+                f"{_t_motor['motor_name']}의 지표 임계값을 저장했습니다. "
+                "다음 수집분부터 새 기준으로 판정됩니다.",
+            )
+
+        with connection_scope() as conn:
+            _history = list_threshold_history(
+                conn, company_id, _t_motor["motor_id"], ADMIN_THRESHOLD_HISTORY_LIMIT
+            )
+        st.markdown("**변경 이력**")
+        if not _history:
+            st.caption("이 모터의 임계값을 아직 바꾼 적이 없습니다.")
+        else:
+            st.dataframe(
+                [
+                    {
+                        "변경 일시": format_display(parse_utc(h["created_at"])),
+                        "지표": h["label"],
+                        "이전 (정상/경고/위험/고장)": " / ".join(
+                            "-" if v is None else f"{v:g}" for v in h["before"]
+                        ),
+                        "변경 (정상/경고/위험/고장)": " / ".join(
+                            "-" if v is None else f"{v:g}" for v in h["after"]
+                        ),
+                        "변경자": h["contact_name"],
+                    }
+                    for h in _history
+                ],
+                hide_index=True,
+                width="stretch",
+            )
+            st.caption(
+                "임계값은 바꾼 시점 이후 수집분부터 적용됩니다. 과거 전이와 리포트가 "
+                "어느 기준으로 판정된 것인지 이 이력으로 확인할 수 있습니다."
             )
 
 
