@@ -24,6 +24,7 @@ from app.config import (
     METRIC_THRESHOLDS,
     NOTIFICATION_CHANNELS,
     SEED_BULK_COMPANY,
+    SEED_BULK_FAULT_INTERVAL_SECONDS,
     SEED_BULK_INTERVAL_SECONDS,
     SEED_BULK_MOTOR_TOTAL,
     SEED_BULK_STATUS_TARGETS,
@@ -538,9 +539,14 @@ def _build_bulk_motor_rows(
         location = SEED_LOCATION_POOL[i % len(SEED_LOCATION_POOL)]
         model = rng.choice(SEED_MODEL_POOL)
         days_ago = rng.randint(30, 400)  # 회사 서비스 시작(412일 전)보다 뒤
-        rows.append(
-            (motor_id, SEED_BULK_COMPANY, name, location, model, SEED_BULK_INTERVAL_SECONDS, days_ago)
+        # FAULT 모터는 대시보드 카드 첫 줄을 차지한다(심각도 순 배치). 그 줄이 자동 갱신에
+        # 맞춰 움직여야 시연에서 실시간을 한자리에서 보여줄 수 있다 — config 주석 참조.
+        interval = (
+            SEED_BULK_FAULT_INTERVAL_SECONDS
+            if target == "FAULT"
+            else SEED_BULK_INTERVAL_SECONDS
         )
+        rows.append((motor_id, SEED_BULK_COMPANY, name, location, model, interval, days_ago))
         if target != "NORMAL":
             metric = rng.choice(METRIC_NAMES)
             scenarios[motor_id] = _build_target_scenario(metric, target, rng)

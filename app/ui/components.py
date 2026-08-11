@@ -18,6 +18,7 @@ from app.config import (
     METRIC_UNITS,
     MOTOR_CARD_BUTTON_PREFIX,
     REFRESH_COUNTDOWN_HEIGHT_PX,
+    REFRESH_COUNTDOWN_KEY,
     REFRESH_COUNTDOWN_TICK_MS,
     REPORT_DATE_FORMAT,
     REPORT_SESSION_ID_FORMAT,
@@ -120,12 +121,21 @@ def page_header(active: str | None = None) -> None:
 
     _page_nav(active)
 
+    st.markdown('<div class="app-header-rule"></div>', unsafe_allow_html=True)
+
 
 def refresh_countdown(interval_seconds: int) -> None:
     """다음 자동 갱신까지 남은 시간 (05 §5-2, 2026-08-11 사용자 요청).
 
     자동 갱신이 돌아도 화면이 그 사실을 말하지 않으면, 값이 그대로인 것이 "아직 갱신 전"인지
-    "화면이 멈춤"인지 담당자가 구분할 수 없다. 남은 초와 줄어드는 막대를 함께 보여준다.
+    "화면이 멈춤"인지 담당자가 구분할 수 없다.
+
+    **화면 우하단에 고정한다** (2026-08-11 2차 요청). 처음에는 문서 흐름 안에 두었는데,
+    대시보드는 카드 20장 + 이벤트 목록이라 스크롤을 내리면 카운터가 화면 밖으로 나갔다 —
+    정작 값이 바뀌는 카드를 보는 동안 카운터가 보이지 않았다. `st.container(key=...)`로 감싸
+    `st-key-{key}` 클래스를 만들고 styles.py가 `position: fixed`로 띄운다(모터 카드 오버레이와
+    같은 기법). 표시도 `다음 갱신까지 N초` 한 줄로 줄였다 — 떠 있는 배지는 작아야 방해가 없다.
+    마지막 갱신 시각은 툴팁으로 남긴다.
 
     **브라우저에서 센다.** 서버에서 매초 다시 그리면 그때마다 조회와 틱이 돌아 갱신 주기의
     10배 비용이 든다. 그래서 iframe을 띄우고 그 안의 스크립트가 센다 —
@@ -142,42 +152,35 @@ def refresh_countdown(interval_seconds: int) -> None:
     """
     theme = palette()
     updated_at = format_display(datetime.now(timezone.utc), "%H:%M:%S")
-    st.iframe(
-        f"""<style>
+    with st.container(key=REFRESH_COUNTDOWN_KEY):
+        st.iframe(
+            f"""<style>
   body {{ margin: 0; font-family: "Source Sans Pro", system-ui, sans-serif; }}
-  .rc {{ display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+  .rc {{ display: flex; align-items: center; justify-content: center; gap: 7px;
+         height: {REFRESH_COUNTDOWN_HEIGHT_PX}px; font-size: 12.5px;
          color: {theme["text_muted"]}; white-space: nowrap; }}
   .rc .dot {{ width: 7px; height: 7px; border-radius: 50%; background: {theme["status"]["NORMAL"]};
               flex-shrink: 0; animation: rc-pulse 2s ease-in-out infinite; }}
-  .rc .track {{ flex: 1; min-width: 40px; height: 3px; border-radius: 2px;
-                background: {theme["border"]}; overflow: hidden; }}
-  .rc .bar {{ display: block; height: 100%; width: 100%; background: {theme["brand"]}; }}
   .rc .num {{ color: {theme["text_strong"]}; font-weight: 600; font-variant-numeric: tabular-nums; }}
   @keyframes rc-pulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.3; }} }}
 </style>
-<div class="rc">
+<div class="rc" title="자동 갱신 {interval_seconds}초 · 마지막 갱신 {updated_at}">
   <span class="dot"></span>
-  <span>자동 갱신 {interval_seconds}초</span>
-  <span class="track"><span class="bar" id="rc-bar"></span></span>
   <span id="rc-text">다음 갱신까지 <span class="num" id="rc-num">{interval_seconds}</span>초</span>
-  <span>· 마지막 {updated_at}</span>
 </div>
 <script>
   (function () {{
     var total = {interval_seconds} * 1000;
     var start = Date.now();
-    var bar = document.getElementById("rc-bar");
     var num = document.getElementById("rc-num");
     var text = document.getElementById("rc-text");
     function tick() {{
       var left = total - (Date.now() - start);
       if (left <= 0) {{
-        bar.style.width = "0%";
         // 갱신 요청이 서버를 오가는 사이 0초에서 멈춰 보이지 않게 한다.
         text.textContent = "갱신 중…";
         return;
       }}
-      bar.style.width = (left / total * 100) + "%";
       num.textContent = Math.ceil(left / 1000);
     }}
     tick();
@@ -185,10 +188,8 @@ def refresh_countdown(interval_seconds: int) -> None:
   }})();
 </script>
 """,
-        height=REFRESH_COUNTDOWN_HEIGHT_PX,
-    )
-
-    st.markdown('<div class="app-header-rule"></div>', unsafe_allow_html=True)
+            height=REFRESH_COUNTDOWN_HEIGHT_PX,
+        )
 
 
 def summary_tiles(tiles: list[dict]) -> None:

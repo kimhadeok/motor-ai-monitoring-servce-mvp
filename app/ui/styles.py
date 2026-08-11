@@ -6,6 +6,11 @@ from app.config import (
     DATA_FLOW_ANIMATION_SECONDS,
     MOTOR_CARD_BUTTON_PREFIX,
     MOTOR_CARD_ROW_GAP_PX,
+    REFRESH_COUNTDOWN_BOTTOM_PX,
+    REFRESH_COUNTDOWN_KEY,
+    REFRESH_COUNTDOWN_RIGHT_PX,
+    REFRESH_COUNTDOWN_WIDTH_PX,
+    REFRESH_COUNTDOWN_Z_INDEX,
     SPARKLINE_HEIGHT_PX,
     STATUS_CARD_BUTTON_PREFIX,
     STATUS_CARD_GRID_GAP_PX,
@@ -696,6 +701,32 @@ def inject_global_styles() -> None:
                 color-mix(in srgb, {brand} 15%, transparent) 45%,
                 {p["border"]} 100%
             );
+        }}
+
+        /* --- 갱신 카운터 (05 §5-2-2) — 뷰포트 우하단 고정 배지 ---
+           문서 흐름 안에 두면 대시보드처럼 긴 화면에서 스크롤을 내릴 때 사라진다. 정작 값이
+           바뀌는 카드를 보는 동안 카운터가 없으면 "멈춘 건지 갱신 전인지" 다시 알 수 없다.
+           컨테이너 key로 잡아 뷰포트에 고정한다(모터 카드 오버레이와 같은 기법).
+           z-index는 본문 위·모달 아래다 — 리포트·정비확인 창을 가리면 안 된다. */
+        .st-key-{REFRESH_COUNTDOWN_KEY} {{
+            position: fixed;
+            right: {REFRESH_COUNTDOWN_RIGHT_PX}px;
+            bottom: {REFRESH_COUNTDOWN_BOTTOM_PX}px;
+            width: {REFRESH_COUNTDOWN_WIDTH_PX}px;
+            z-index: {REFRESH_COUNTDOWN_Z_INDEX};
+            padding: 0 12px;
+            border: 1px solid {p["border"]};
+            border-radius: 999px;
+            background: {p["surface"]};
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+        }}
+        /* 컨테이너 기본 여백을 없애 배지 높이가 iframe 높이와 같아지게 한다. */
+        .st-key-{REFRESH_COUNTDOWN_KEY} > div,
+        .st-key-{REFRESH_COUNTDOWN_KEY} .stElementContainer {{
+            margin: 0; gap: 0;
+        }}
+        .st-key-{REFRESH_COUNTDOWN_KEY} iframe {{
+            display: block; background: transparent; color-scheme: normal;
         }}
 
         /* --- 로그인 화면 (05 §2) --- */

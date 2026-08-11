@@ -97,7 +97,20 @@ RUNTIME_TICK_FAULT_HEADROOM = 1.15
 # "아직 갱신 전"인지 "화면이 멈춤"인지 구분할 수 없다. 남은 시간을 세어 보여준다.
 # 서버에서 매초 다시 그리면 그때마다 조회·틱이 돌아 비싸므로 브라우저에서 세게 한다
 # (st.iframe — st.markdown은 <script>를 제거한다. 01 §2.5 / 05 §5-3 확정 API).
-REFRESH_COUNTDOWN_HEIGHT_PX = 34
+#
+# **화면에 고정한다** (2026-08-11 2차 요청). 문서 흐름 안에 두었더니 대시보드처럼 긴 화면에서
+# 스크롤을 내리면 사라져, 정작 값이 바뀌는 카드를 보는 동안 카운터가 눈에 없었다.
+# 컨테이너에 key를 주고(`st-key-{key}` 클래스) styles.py가 position: fixed로 띄운다 —
+# 모터 카드 오버레이(MOTOR_CARD_BUTTON_PREFIX)와 같은 기법이다.
+REFRESH_COUNTDOWN_KEY = "refresh-countdown"
+REFRESH_COUNTDOWN_WIDTH_PX = 150
+REFRESH_COUNTDOWN_HEIGHT_PX = 26
+# 뷰포트 우하단에서 띄운 거리. 우상단은 Streamlit 기본 툴바(Deploy·⋮)와 겹친다.
+REFRESH_COUNTDOWN_RIGHT_PX = 20
+REFRESH_COUNTDOWN_BOTTOM_PX = 20
+# 본문 위에는 올라오되 **다이얼로그보다는 아래**여야 한다. Streamlit 모달은 훨씬 큰 값을
+# 쓰므로(수백~천 단위) 이 값이면 리포트·정비확인 창을 가리지 않는다.
+REFRESH_COUNTDOWN_Z_INDEX = 60
 # 카운터를 몇 ms마다 다시 그릴지. 100ms면 초 표시가 매끄럽고 부하는 무시할 수준이다.
 REFRESH_COUNTDOWN_TICK_MS = 100
 
@@ -567,6 +580,16 @@ SEED_BULK_MOTOR_TOTAL = 200  # 해당 회사의 목표 총 대수 (기존 큐레
 # 대량 모터의 수집 주기(초). 200대 × 48h를 10초 주기로 채우면 텔레메트리가 수백만 행이 되어
 # 부팅/DB가 감당하기 어렵다. 라인차트는 어차피 구간 평균으로 다운샘플하므로 300초로도 충분하다.
 SEED_BULK_INTERVAL_SECONDS = 300
+# 다만 **FAULT를 부여받는 벌크 모터만은 짧은 주기**를 준다 (2026-08-11 사용자 요청).
+#
+# 대시보드 카드는 심각도 순으로 배치되므로 FAULT 모터가 첫 줄(MOTOR_CARD_COLUMNS=5장)을
+# 차지한다. 그 모터들이 300초 주기면 자동 갱신이 돌아도 첫 줄이 5분간 멈춰 있어, 시연에서
+# "실시간"을 보여줄 자리가 화면에 흩어진다(종전: 1행 5번째 · 4행 3·4번째 세 장뿐).
+# 고장 설비를 더 자주 들여다보는 것은 운영상으로도 자연스럽다.
+#
+# 비용은 작다 — 조밀 창(SEED_DENSE_WINDOW_HOURS) 안에서만 촘촘해지고 그 밖은
+# SEED_SPARSE_INTERVAL_SECONDS로 솎이므로, FAULT 4대 기준 약 1.1만 행이 는다(실측 아래).
+SEED_BULK_FAULT_INTERVAL_SECONDS = 10
 # 생성 모터의 위치 풀 — 위치별 그룹핑에서 여러 그룹이 나오도록 다양하게 둔다.
 # SEED_BULK_COMPANY(COMP-001 = 제1공장)에 속하므로 전부 제1공장 위치로 통일한다.
 SEED_LOCATION_POOL = (
