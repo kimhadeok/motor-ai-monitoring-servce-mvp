@@ -687,20 +687,35 @@
             <div class="timeline-item notify">
                 <div class="icon-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/></svg></div>
                 <div class="timeline-time">{{ report_generated_at }}</div>
-                <div class="timeline-content"><strong>알림 발송</strong> — 담당자에게 리포트 다운로드 안내 발송</div>
+                {% if notification.sent %}
+                <div class="timeline-content"><strong>알림 발송</strong> — 담당자에게 리포트 다운로드 안내 발송 ({{ notification.channel }})</div>
+                {% else %}
+                <div class="timeline-content"><strong>알림 미발송</strong> — {{ notification.skip_reason }}</div>
+                {% endif %}
             </div>
         </div>
 
         <div style="background-color: var(--bg-gray); padding: 12px 15px; border-radius: 6px; font-size: 13px; margin-top: 15px;">
             <table style="width: 100%;">
+                {% if notification.sent %}
                 <tr>
                     <td style="font-weight: bold; width: 20%;">수신 담당자</td>
-                    <td>{{ recipient_name }}</td>
+                    <td>{{ notification.recipient }}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: bold; width: 20%;">발송 채널</td>
+                    <td>{{ notification.channel }}</td>
                 </tr>
                 <tr>
                     <td style="font-weight: bold; width: 20%;">발송 문구</td>
-                    <td style="color: #475569;">{{ notification_message }}</td>
+                    <td style="color: #475569;">{{ notification.message }}</td>
                 </tr>
+                {% else %}
+                <tr>
+                    <td style="font-weight: bold; width: 20%;">알림 발송</td>
+                    <td style="color: #475569;">발송 없음 — {{ notification.skip_reason }}</td>
+                </tr>
+                {% endif %}
             </table>
         </div>
     </div>

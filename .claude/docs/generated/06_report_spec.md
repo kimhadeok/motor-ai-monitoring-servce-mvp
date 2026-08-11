@@ -130,7 +130,19 @@ DANGER/FAULT 이벤트 발생 (03_state_event_logic.md)
 | 이상 감지 / AI 분석 완료 타임스탬프 | `motor_status_logs.created_at`(이상 감지) + 리포트 생성 완료 시각(**HTML 렌더 시점** — PDF는 요청 시 생성되므로 기준으로 삼지 않는다, 2026-08-04 확정) — 에이전트 시작/종료 시각 별도 기록은 생략 |
 | 자동 인터락(PLC 정지 제어) | **MVP 범위 밖 — 제외 확정**. PLC 연동 시스템 없음 (`01_tech_stack.md`) |
 | 긴급 알림 발송 + ERP/CMMS 자재 예약(WO 생성) | 알림 부분만 유지: `notification_logs` 발송 이력. ERP/CMMS 자재 예약은 **MVP 범위 밖 — 제외 확정** |
-| 수신 담당자 / 발송 문구 | `notification_logs.contact_id`(→ `company_contacts.contact_name`), `notification_logs.message_content` |
+| 수신 담당자 / 발송 문구 / **발송 채널** | `notification_logs.contact_id`(→ `company_contacts.contact_name`), `.message_content`, `.channel_type` |
+
+**구현 (2026-08-11).** 이 매핑은 명세돼 있었지만 코드가 따르지 않고 있었다 — 담당자를 `company_contacts`의 첫 행에서 가져오고 발송 문구를 `build_notification_message()`로 그때그때 다시 만들었다. 그래서 리포트의 "발송 문구"가 실제로 기록된 알림이 아니었고, 시드가 만든 3채널 샘플 24건이 어느 화면에도 나오지 않았다(`remaining_work` #11).
+
+`_lookup_notification()`이 `notification_logs`를 **`(motor_id, created_at)`** 로 조회한다. 이 테이블에는 상태 로그를 가리키는 FK가 없지만, 알림이 전이 시각을 그대로 `created_at`에 넣고 발행되므로 이 쌍이 곧 키다(시드 24건 전부 매칭 실측).
+
+**발송 채널을 새로 노출한다** — 카카오 알림톡 / SMS / 이메일(`config.NOTIFICATION_CHANNEL_LABELS`). DB 값은 영문 상수라 그대로 보이면 담당자가 어느 경로로 받았는지 바로 읽지 못한다.
+
+**기록이 없으면 사실대로 적는다.** 쿨다운으로 억제된 이벤트는 표에 "발송 없음 — 쿨다운 (직전 동일 지표 알림 후 1시간 이내)", 타임라인은 "알림 미발송"으로 바뀐다. 종전에는 타임라인이 무조건 "알림 발송"을 찍어, 담당자가 "통보됐다"고 믿고 넘어가면 실제로는 아무도 모르는 상태가 될 수 있었다. (현재 시드에는 억제된 건이 0건이라 이 분기는 방어용이다 — DANGER/FAULT 로그 24건 = 알림 24건.)
+
+**타임라인의 발송 시각은 리포트 생성 시각(이벤트+12초)을 쓰고 `notification_logs.created_at`은 쓰지 않는다.** 시드에서 알림의 `created_at`이 전이 시각과 같아, 그대로 표시하면 "알림 발송"이 "AI 진단 완료"보다 앞서는 어긋난 순서가 된다.
+
+레이아웃 영향: 표에 발송 채널 한 줄이 늘어 5페이지 내용 하단이 601.2pt → **619.8pt**(본문 한계 774pt). trixie 컨테이너에서 FAULT·DANGER·미발송 세 건 모두 5페이지 유지를 확인했다(`02 §6.6`).
 
 ## 3. MVP 리포트 섹션 구성 (최종 제안)
 

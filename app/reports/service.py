@@ -20,6 +20,8 @@ from app.config import (
     METRIC_STATUS_COLUMNS,
     METRIC_THRESHOLDS,
     METRIC_UNITS,
+    NOTIFICATION_CHANNEL_LABELS,
+    NOTIFICATION_SKIPPED_REASON,
     REPORT_DATE_FORMAT,
     REPORT_DATETIME_FORMAT,
     REPORT_SESSION_ID_FORMAT,
@@ -31,10 +33,7 @@ from app.db.connection import connection_scope
 from app.rag.ingest import query_sop_steps
 from app.rag.knowledge import lookup_fault_modes
 from app.reports.generator import render_report_html, render_report_pdf
-from app.services.diagnosis import (
-    build_diagnosis_facts,
-    build_notification_message,
-)
+from app.services.diagnosis import build_diagnosis_facts
 from app.services.motors import get_thresholds
 
 _STATUS_LABEL = {"DANGER": "위험 단계 감지", "FAULT": "고장/정지 감지"}
@@ -46,6 +45,38 @@ REPORTABLE_STATUSES = ("DANGER", "FAULT")
 def _mask_phone(phone: str) -> str:
     parts = phone.split("-")
     return f"{parts[0]}-****-{parts[2]}" if len(parts) == 3 else phone
+
+
+def _lookup_notification(conn, log) -> dict:
+    """이 상태 전이로 **실제 발송된** 알림 기록 (06 §2.5, 2026-08-11).
+
+    종전에는 담당자를 `company_contacts`의 첫 행에서 가져오고 발송 문구를 그때그때 다시
+    만들어 넣었다. 그래서 리포트의 "발송 문구"가 실제로 기록된 알림이 아니었고, 쿨다운으로
+    억제된 이벤트에도 발송한 것처럼 적혔다 — 담당자가 "통보됐다"고 믿고 넘어가면 실제로는
+    아무도 모르는 상태가 된다.
+
+    `notification_logs`에는 상태 로그를 가리키는 FK가 없어 `(motor_id, created_at)`으로
+    잇는다. 알림은 전이 시각을 그대로 `created_at`에 넣고 발행되므로 이 쌍이 곧 키다
+    (로컬 시드 24건 전부 매칭 실측, 2026-08-11).
+    """
+    row = conn.execute(
+        "SELECT n.channel_type, n.message_content, ct.contact_name, ct.phone_number "
+        "FROM notification_logs n "
+        "JOIN company_contacts ct ON ct.contact_id = n.contact_id "
+        "WHERE n.motor_id = ? AND n.created_at = ? "
+        "ORDER BY n.notification_id ASC LIMIT 1",
+        (log["motor_id"], log["created_at"]),
+    ).fetchone()
+
+    if row is None:
+        return {"sent": False, "skip_reason": NOTIFICATION_SKIPPED_REASON}
+
+    return {
+        "sent": True,
+        "recipient": f"{row['contact_name']} ({_mask_phone(row['phone_number'])})",
+        "channel": NOTIFICATION_CHANNEL_LABELS.get(row["channel_type"], row["channel_type"]),
+        "message": row["message_content"],
+    }
 
 
 def build_report_context(conn, log) -> dict | None:
@@ -65,11 +96,7 @@ def build_report_context(conn, log) -> dict | None:
     if telemetry is None:
         return None
 
-    contact = conn.execute(
-        "SELECT contact_name, phone_number FROM company_contacts "
-        "WHERE company_id = ? ORDER BY is_primary DESC, contact_id ASC LIMIT 1",
-        (motor["company_id"],),
-    ).fetchone()
+    notification = _lookup_notification(conn, log)
 
     metric = log["metric_name"]
     status = log["new_status"]
@@ -93,10 +120,6 @@ def build_report_context(conn, log) -> dict | None:
                 "status_class": metric_status.lower(),
             }
         )
-
-    recipient = "담당자 미지정"
-    if contact is not None:
-        recipient = f"{contact['contact_name']} ({_mask_phone(contact['phone_number'])})"
 
     # 근거를 먼저 측정하고 문장은 그 근거만 서술한다 (services/diagnosis.py 모듈 주석 참조).
     facts = build_diagnosis_facts(
@@ -174,10 +197,7 @@ def build_report_context(conn, log) -> dict | None:
         "suspected_faults": suspected_faults,
         "sop_steps": query_sop_steps(motor["motor_name"], metric),
         "trigger_reason": log["trigger_reason"],
-        "recipient_name": recipient,
-        "notification_message": build_notification_message(
-            motor["motor_id"], status, log["trigger_reason"]
-        ),
+        "notification": notification,
     }
 
 

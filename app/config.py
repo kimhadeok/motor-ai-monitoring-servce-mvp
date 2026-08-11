@@ -349,6 +349,17 @@ SERVICE_HIGHLIGHTS = (
 
 # --- 알림 채널 (04_database_schema.md §3.7 확정) ---
 NOTIFICATION_CHANNELS = ("KAKAO_ALIMTALK", "SMS", "EMAIL")
+# 리포트 §5에 노출할 채널 표기 (06 §2.5, 2026-08-11). DB 값은 영문 상수라 그대로 보이면
+# 담당자가 어느 경로로 받았는지 바로 읽지 못한다.
+NOTIFICATION_CHANNEL_LABELS = {
+    "KAKAO_ALIMTALK": "카카오 알림톡",
+    "SMS": "SMS",
+    "EMAIL": "이메일",
+}
+# 쿨다운으로 알림이 억제된 이벤트의 리포트 표기 (06 §2.5, 2026-08-11).
+# 종전에는 발송 기록이 없어도 리포트가 발송한 것처럼 적었다 — 담당자가 "통보됐다"고 믿고
+# 넘어가면 실제로는 아무도 모르는 상태가 된다. 사실대로 적고 이유를 밝힌다.
+NOTIFICATION_SKIPPED_REASON = f"쿨다운 (직전 동일 지표 알림 후 {COOLDOWN_HOURS}시간 이내)"
 
 # --- LLM 모델 (01_tech_stack.md §2.4 확정) ---
 LLM_ROUTER_MODEL = "gpt-4o-mini"
