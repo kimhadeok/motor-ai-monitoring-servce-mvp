@@ -68,7 +68,9 @@ def _page_nav(active: str | None) -> None:
     """
     from app.ui.navigation import HEADER_NAV_PAGES  # 순환 import 방지를 위한 지연 import
 
-    columns = st.columns([1.3, 1.3, 1.3, 5.1])
+    # 버튼 수만큼 좁은 열을 두고 남는 폭은 마지막 빈 열이 흡수한다 — 버튼이 늘어도
+    # (관리자 추가처럼) 폭 상수를 다시 계산하지 않아도 된다.
+    columns = st.columns([1.3] * len(HEADER_NAV_PAGES) + [9.0 - 1.3 * len(HEADER_NAV_PAGES)])
     for (key, label, path), column in zip(HEADER_NAV_PAGES, columns):
         with column:
             if st.button(
@@ -236,6 +238,42 @@ def alert_banner(status: str, message: str) -> None:
     st.markdown(
         f'<div class="alert-banner status-{status.lower()}">{message}</div>',
         unsafe_allow_html=True,
+    )
+
+
+def lock_selectbox_typing(*keys: str) -> None:
+    """셀렉트박스 입력을 읽기전용으로 만들어 검색/타이핑을 막는다 (드롭다운 선택만 허용).
+
+    CSS로는 키보드 입력을 못 막는다 — 드롭다운을 열면 입력이 자동 포커스된다. 부모 DOM에
+    접근하는 스크립트로 `readOnly`를 걸어야 하고, rerun 후 재렌더된 입력에도 다시 걸어야
+    하므로 `MutationObserver`를 둔다.
+
+    **`height=1`이다.** `st.iframe(height=0)`은 iframe 요소를 아예 만들지 않아 스크립트가
+    실행되지 않는다 — 화면에 표시할 것이 없어 조용히 실패한다(01 §2.5의 함정 항목).
+
+    관찰자는 **매번 새로 설치한다.** 페이지를 옮기면 이전 페이지의 iframe이 사라지면서 그
+    안에서 만든 콜백도 죽는데, 죽은 콜백을 붙들고 있으면 새 페이지에서 재적용이 되지 않는다.
+    키 목록도 페이지마다 교체한다(한 번에 한 페이지만 렌더되므로 누적할 이유가 없다).
+    """
+    key_list = ", ".join(f'"{key}"' for key in keys)
+    st.iframe(
+        f"""<script>
+    const doc = window.parent.document;
+    doc.__lockedSelectKeys = [{key_list}];
+    function apply() {{
+      (doc.__lockedSelectKeys || []).forEach(function (k) {{
+        doc.querySelectorAll('.st-key-' + k + ' input').forEach(function (inp) {{
+          inp.readOnly = true;
+          inp.setAttribute('inputmode', 'none');
+        }});
+      }});
+    }}
+    apply();
+    if (doc.__lockedSelectObserver) doc.__lockedSelectObserver.disconnect();
+    doc.__lockedSelectObserver = new MutationObserver(apply);
+    doc.__lockedSelectObserver.observe(doc.body, {{ childList: true, subtree: true }});
+    </script>""",
+        height=1,
     )
 
 

@@ -40,7 +40,7 @@ uv run streamlit run main.py
 
 ```
 INFO [app.services.bootstrap] 환경 | python=3.14.6 streamlit=1.60.0 chromadb=1.5.9 langgraph=1.2.10 | openai_key=설정됨 diagnosis_llm=on
-INFO [app.services.bootstrap] 부트스트랩 완료 | 모터 210대 텔레메트리 288,210행 상태로그 80건 | rag_ready=True rag_chunks=44 | 4.49s (...)
+INFO [app.services.bootstrap] 부트스트랩 완료 | 모터 210대 텔레메트리 92,997행 상태로그 80건 | rag_ready=True rag_chunks=44 | 3.29s (...)
 ```
 
 리포트를 열면 `진단 생성 | MTR-227 sound | source=llm | 6.31s`가 추가로 남아 LLM이 실제로 돌았는지 확인됩니다. API 키 값은 로그에 남지 않습니다 — 설정 여부만 찍습니다.
@@ -160,11 +160,11 @@ Secrets에 `DIAGNOSIS_LLM_ENABLED = "false"`를 둡니다. Community Cloud 앱�
 
 ```
 app/            # 애플리케이션 코드
-  pages/        #   화면: 로그인 · 메인 대시보드 · 모터 그래프 · 모터 현황 · 모터 상세
+  pages/        #   화면: 로그인 · 메인 대시보드 · 모터 그래프 · 모터 현황 · 모터 상세 · 관리자
   ui/           #   재사용 컴포넌트 · 전역 스타일 · 네비게이션 · 테마 · 차트(charts.py)
   agents/       #   LangGraph 진단 에이전트 + 입출력 스키마 (실패 시 규칙 기반 폴백)
   logging_setup.py  # 앱 로거 설정 — 부팅 요약·진단 결과를 프로세스 로그로 남긴다
-  services/     #   bootstrap(부팅 시 데이터 준비), seeding, runtime_tick(자동 갱신용 데이터 연장), motors, company, events, diagnosis
+  services/     #   bootstrap(부팅 시 데이터 준비), seeding, runtime_tick(자동 갱신용 데이터 연장), motors, company, events, diagnosis, admin(기본 테이블 CRUD)
   reports/      #   HTML/PDF 렌더 및 리포트 제공 (PDF 실패 시 HTML 폴백)
   rag/          #   ChromaDB 인제스트·SOP 조회(실패 시 키워드 폴백), 참조 지식 조회
   prompts.py    #   LLM 프롬프트 문자열 (비즈니스 코드와 분리)
@@ -186,6 +186,8 @@ scripts/        # 수동 CLI — seed_data.py(데모 데이터), build_knowledge
 **첫 리포트 열람은 몇 초 걸립니다.** 진단은 리포트를 열 때 생성되며(부팅 경로에는 LLM 호출이 없습니다), 프로세스 최초 열람이 실측 5~9초(LangGraph 콜드 import 3.17초 포함), 이후 4초대, 재열람은 캐시로 0.03초입니다. API 키가 없거나 LLM이 실패하면 규칙 기반 진단으로 폴백하고, 리포트의 진단 모델 라벨이 "규칙 기반 진단 (LLM 미사용)"으로 바뀝니다. `DIAGNOSIS_LLM_ENABLED=false`로 강제 오프할 수 있습니다.
 
 **자동 갱신 (2026-08-11)**: 메인 대시보드와 모터 상세가 `st.fragment(run_every=10s)`로 그 영역만 다시 그립니다. 시드는 실행 시각까지만 채우므로 런타임 틱(`services/runtime_tick.py`)이 경과분을 이어 붙여 숫자와 그래프가 실제로 움직입니다. 화면 위에 다음 갱신까지 남은 초가 표시됩니다. 틱은 값만 흔들 뿐 **상태를 바꾸지 않습니다** — 실시간 전이 판정은 MVP 범위 밖이라, 임계를 넘겨 버리면 카드 색은 바뀌는데 이벤트 기록이 없는 어긋난 화면이 되기 때문입니다. 표시되는 카드 20장 중 17장은 수집 주기가 300초라 5분마다 값이 바뀝니다.
+
+**관리자 페이지 (2026-08-11)**: 상단 내비의 `관리자`에서 고객 회사 · 담당자 · 모터 · 지표 임계값을 등록/수정/삭제합니다. 로그인한 회사의 데이터만 보입니다. **여기서 입력한 내용은 재시드로 초기화됩니다** — 앱을 2시간 이상 껐다 열거나 배포본이 재시작하면 데모 데이터가 새로 만들어지기 때문입니다(화면이 직접 경고합니다). 모터를 지우면 딸린 텔레메트리·상태로그·알림이 함께 삭제되며, 확인 창이 건수를 먼저 보여줍니다. 자세한 내용은 `05_ui_screens.md` §6.
 
 **MVP 범위 밖 (정식 서비스 개발 시 적용)**:
 - 알림 실제 발송(KAKAO/SMS/EMAIL 어댑터) — MVP는 시연용 `notification_logs` 샘플까지 (2026-08-10 확정)

@@ -23,7 +23,7 @@ from app.config import (
 from app.db.connection import connection_scope
 from app.services.motors import get_motor_metric_series, list_company_motor_status
 from app.ui.charts import metric_graph_grid
-from app.ui.components import page_header
+from app.ui.components import lock_selectbox_typing, page_header
 
 page_header(active="graph")
 
@@ -91,35 +91,6 @@ with connection_scope() as conn:
 # 있어야 두 화면의 그래프를 같은 눈으로 비교할 수 있다 (app/ui/charts.py).
 metric_graph_grid(_subset, _series)
 
-# 표시 범위 셀렉트박스 입력을 읽기전용으로 만들어 검색/타이핑을 막는다(드롭다운 선택만 허용).
-# CSS로는 keyboard 입력을 못 막으므로(드롭다운 열 때 입력이 자동 포커스됨) 부모 DOM에 접근하는
-# 컴포넌트 스크립트로 readOnly를 건다. MutationObserver로 rerun 후 재렌더된 입력에도 재적용.
-#
-# `st.iframe`을 쓴다 (2026-08-11 교체). 종전 `st.components.v1.html`은 2026-06-01자로 제거가
-# 예고된 API여서 실행할 때마다 경고가 남았다 — `01_tech_stack.md §2.5`가 쓰지 않기로 확정한
-# 그 API다. `st.iframe`도 같은 출처(same-origin) iframe이라 `window.parent.document` 접근이
-# 그대로 동작한다(실측 확인).
-#
-# **height=0이 아니라 1이다.** `st.iframe(height=0)`은 iframe 요소를 아예 만들지 않아 스크립트가
-# 실행되지 않는다 — 화면상 아무 표시도 없어 조용히 실패하고, 셀렉트박스에 타이핑이 다시 가능해진다
-# (교체 직후 실측으로 잡았다). `components.html`은 height=0에서도 0px iframe을 렌더했다.
-st.iframe(
-    """<script>
-    const doc = window.parent.document;
-    const KEYS = ['graph_status', 'graph_loc', 'graph_model', 'graph_maxn'];
-    function apply() {
-      KEYS.forEach(function (k) {
-        doc.querySelectorAll('.st-key-' + k + ' input').forEach(function (inp) {
-          inp.readOnly = true;
-          inp.setAttribute('inputmode', 'none');
-        });
-      });
-    }
-    apply();
-    if (!doc.__graphSelReadonly) {
-      doc.__graphSelReadonly = true;
-      new MutationObserver(apply).observe(doc.body, { childList: true, subtree: true });
-    }
-    </script>""",
-    height=1,
-)
+# 표시 범위 셀렉트박스는 드롭다운 선택만 허용한다 — 구현과 근거는
+# `components.lock_selectbox_typing()` (관리자 페이지도 같은 컴포넌트를 쓴다).
+lock_selectbox_typing("graph_status", "graph_loc", "graph_model", "graph_maxn")

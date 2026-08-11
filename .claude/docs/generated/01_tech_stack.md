@@ -71,7 +71,7 @@
 
 **추론 모델 실사용 (2026-08-10 구현)**: GPT-4o는 진단 에이전트(`app/agents/diagnosis_agent.py`)에서 `with_structured_output`으로 호출한다. 라우터 모델(GPT-4o-mini)은 MVP 화면에 자연어 입력 지점이 없어 아직 사용처가 없다 — 상수만 유지한다.
 
-**LangChain/LangGraph는 지연 import 한다.** 실측 콜드 import가 `langgraph` 3.17초 + `langchain_openai` 0.96초로, 부팅 경로에 올리면 4.43초로 줄여 놓은 콜드 스타트(`02_architecture.md` §6.1.1)가 무너진다. 두 라이브러리는 `diagnosis_agent`의 함수 내부에서만 import되며, 앱 진입 경로(`app.ui.navigation` / `app.pages.*` / `app.reports.service`) import 후 `sys.modules`에 없음을 실측 확인했다(진입 경로 import 1.33초).
+**LangChain/LangGraph는 지연 import 한다.** 실측 콜드 import가 `langgraph` 3.17초 + `langchain_openai` 0.96초로, 부팅 경로에 올리면 3.29초로 줄여 놓은 콜드 스타트(`02_architecture.md` §6.1.1)가 무너진다. 두 라이브러리는 `diagnosis_agent`의 함수 내부에서만 import되며, 앱 진입 경로(`app.ui.navigation` / `app.pages.*` / `app.reports.service`) import 후 `sys.modules`에 없음을 실측 확인했다(진입 경로 import 1.33초).
 
 ### 2.5 화면 스타일링 (보강)
 
@@ -81,14 +81,14 @@
 |---|---|---|
 | 커스텀 CSS (`st.markdown(unsafe_allow_html=True)`) | 상태별 컬러 코딩, 배지/카드 스타일 | 추가 패키지 불필요 |
 | `st.html` | `<style>` 블록 주입 (전역 CSS) | **확정 — 이 컴포넌트만 DOMPurify 허용 목록에 `<style>`을 명시적으로 추가한다.** `st.markdown` 경로는 `<style>` 처리가 보장되지 않는다 |
-| `st.iframe` | 리포트 HTML 인앱 표시 · 갱신 카운터 · 그래프 셀렉트박스 readOnly 스크립트 | 확정 — HTML 문자열을 넘기면 `srcdoc`으로 렌더해 파일시스템을 경유하지 않는다. `st.components.v1.html`은 2026-06-01자로 제거가 예고돼 사용하지 않는다 (2026-08-11 잔여 사용처 1곳 교체 완료) |
+| `st.iframe` | 리포트 HTML 인앱 표시 · 갱신 카운터 · 셀렉트박스 readOnly 스크립트(`components.lock_selectbox_typing()` — 모터 그래프·관리자 공용) | 확정 — HTML 문자열을 넘기면 `srcdoc`으로 렌더해 파일시스템을 경유하지 않는다. `st.components.v1.html`은 2026-06-01자로 제거가 예고돼 사용하지 않는다 (2026-08-11 잔여 사용처 1곳 교체 완료) |
+| `streamlit-extras` | 배지, 카드, 스타일 메트릭 등 UI 컴포넌트 모음 | 선택 — 커뮤니티 패키지, 개발 속도 향상 목적 |
+| `streamlit-lottie` | 모터→API→AI Agent 흐름의 매끄러운 애니메이션 효과 | 선택 — GIF보다 가볍고 반복 재생 안정적 |
+| `st.fragment(run_every=...)` | 실시간 그래프/상태 자동 갱신 (10/20/30초 주기) | 확정 — `05_ui_screens.md` §5-2. Streamlit 1.33+ 내장 기능, 추가 패키지 불필요. 지정 함수(차트/카드 영역)만 부분 재실행되어 전체 스크립트 리런보다 가볍고 빠름 |
 
 **`st.iframe`의 함정 — `height=0`이면 요소가 만들어지지 않는다** (2026-08-11 실측). 화면에 보일 것이 없고 부작용(부모 DOM 조작)만 필요한 스크립트를 실을 때 `height=0`을 주기 쉬운데, `st.iframe`은 이 경우 iframe 자체를 렌더하지 않아 **스크립트가 실행되지 않는다.** 화면에 아무 표시도 없으므로 조용히 실패한다 — 실제로 `motor_graph.py`의 셀렉트박스 readOnly 처리를 교체하면서 이 경로로 기능이 죽었고, 브라우저에서 `input.readOnly`를 직접 확인해서야 잡았다. `height=1`을 쓴다. (`st.components.v1.html`은 height=0에서도 0px iframe을 렌더했으므로, 교체 시 그대로 옮기면 안 된다.)
 
 **부모 DOM 접근은 그대로 된다.** `st.iframe`도 같은 출처(same-origin) iframe이라 `window.parent.document`로 Streamlit 본문을 조작할 수 있다 — 교체 후 readOnly가 최초 렌더·rerun 후 모두 적용되고 실제 타이핑이 차단되는 것을 확인했다.
-| `streamlit-extras` | 배지, 카드, 스타일 메트릭 등 UI 컴포넌트 모음 | 선택 — 커뮤니티 패키지, 개발 속도 향상 목적 |
-| `streamlit-lottie` | 모터→API→AI Agent 흐름의 매끄러운 애니메이션 효과 | 선택 — GIF보다 가볍고 반복 재생 안정적 |
-| `st.fragment(run_every=...)` | 실시간 그래프/상태 자동 갱신 (10/20/30초 주기) | 확정 — `05_ui_screens.md` §5-2. Streamlit 1.33+ 내장 기능, 추가 패키지 불필요. 지정 함수(차트/카드 영역)만 부분 재실행되어 전체 스크립트 리런보다 가볍고 빠름 |
 
 MVP 기준: `streamlit-extras`, `streamlit-lottie`는 선택 적용(개발 중 필요 시 추가)하고, 실시간 갱신은 `st.fragment(run_every=...)`로 확정 적용 (전체 리런 방식인 `streamlit-autorefresh`는 채택하지 않음 — 성능상 불리). 컬러 코딩 등 핵심 요구사항은 커스텀 CSS로 우선 구현.
 
