@@ -32,7 +32,6 @@ from app.services.admin import (
     list_motors,
     list_threshold_history,
     list_thresholds,
-    update_company,
     update_contact,
     update_motor,
     update_thresholds,
@@ -97,18 +96,17 @@ with _company_tab:
     if _company is None:
         st.error("회사 정보를 찾을 수 없습니다.")
     else:
+        # **이 탭은 조회 전용이다 (2026-08-12 사용자 요청).** 종전에는 회사명만 고칠 수
+        # 있었는데, 회사명이 바뀌는 경우는 사명 변경뿐이고 그건 계약 처리라 고객 화면에서
+        # 할 일이 아니다. 회사 ID와 같은 방식으로 `disabled=True`로 보여주기만 하고,
+        # 저장 버튼과 폼을 없앴다 — 누를 일이 없는 버튼은 화면을 무겁게만 만든다.
         st.caption(
-            "회사 추가·삭제는 두지 않습니다 — 자기 회사만 보이는 구조라 추가해도 화면에 "
-            "나타나지 않고, 자기 회사를 지우면 로그인이 성립하지 않습니다."
+            "회사 정보는 조회만 합니다 — 회사명 변경은 계약 처리라 이 화면에서 다루지 않습니다. "
+            "추가·삭제도 두지 않습니다: 자기 회사만 보이는 구조라 추가해도 화면에 나타나지 "
+            "않고, 자기 회사를 지우면 로그인이 성립하지 않습니다."
         )
-        with st.form("company_form"):
-            st.text_input("회사 ID", value=_company["company_id"], disabled=True)
-            _name = st.text_input("회사명", value=_company["company_name"])
-            if st.form_submit_button("저장", type="primary"):
-                _run(
-                    lambda conn: update_company(conn, company_id, _name),
-                    "회사 정보를 저장했습니다.",
-                )
+        st.text_input("회사 ID", value=_company["company_id"], disabled=True)
+        st.text_input("회사명", value=_company["company_name"], disabled=True)
 
 
 # --- 담당자 ----------------------------------------------------------------
