@@ -214,8 +214,11 @@ DETAIL_TREND_HOURS = LONG_TERM_TREND_HOURS
 # 나이스 숫자로 떨어진다: 온도·소음 0·10·…·100, 진동 0·1·…·10, 전류 0·2.5·…·25.
 DETAIL_CHART_Y_DIVISIONS = 10
 
-# 카드 추이 스파크라인 — 장기 트렌드 창(6h)을 그대로 쓴다
-TREND_WINDOW_HOURS = LONG_TERM_TREND_HOURS
+# 카드 추이 스파크라인 — **최근 3시간 원본** (2026-08-12 사용자 요청, 종전 6시간 15분 평균).
+# 두 그래프 화면이 원본 표시로 간 뒤 카드만 평균으로 남아 있었다. 창도 그래프 페이지와 같은
+# 3시간으로 맞춰 두 화면이 같은 구간을 말하게 한다.
+TREND_WINDOW_HOURS = 3
+# 구간 평균 버킷 수. **현재 미사용** — 되돌릴 때를 위해 `get_metric_trend()`와 함께 남겨 둔다.
 TREND_BUCKETS = 24
 SPARKLINE_WIDTH_PX = 132
 SPARKLINE_HEIGHT_PX = 28

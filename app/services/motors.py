@@ -16,7 +16,6 @@ from app.config import (
     METRIC_THRESHOLDS,
     METRIC_UNITS,
     STATUS_SEVERITY_RANK,
-    TREND_BUCKETS,
     TREND_WINDOW_HOURS,
 )
 
@@ -173,8 +172,32 @@ def build_metric_readings(
     return readings
 
 
+def get_metric_trend_raw(conn, motor_id: str, metric: str, hours: int) -> list[float]:
+    """최근 `hours`시간의 지표 값을 **다운샘플 없이** 시간순으로 (카드 스파크라인용).
+
+    카드도 원본으로 바꿨다 (2026-08-12 사용자 요청). 그래프 두 화면이 원본 표시로 간 뒤
+    카드만 15분 구간 평균으로 남아, 같은 지표를 화면마다 다른 밀도로 그리고 있었다.
+
+    스파크라인은 132×28px이라 점이 픽셀보다 많아지지만, `_sparkline_svg()`가 폭을 점 수로
+    나눠 그리므로 길이에 무관하게 동작한다(`pathLength="1"`이라 그리기 애니메이션도 그대로).
+    """
+    if metric not in METRIC_NAMES:  # 컬럼명을 그대로 넣으므로 화이트리스트로 막는다
+        return []
+
+    window_start = _iso(datetime.now(timezone.utc) - timedelta(hours=hours))
+    rows = conn.execute(
+        f"SELECT {metric} AS v FROM motor_telemetry "
+        "WHERE motor_id = ? AND time >= ? ORDER BY time",
+        (motor_id, window_start),
+    ).fetchall()
+    return [r["v"] for r in rows if r["v"] is not None]
+
+
 def get_metric_trend(conn, motor_id: str, metric: str, hours: int, buckets: int) -> list[float]:
-    """최근 `hours`시간 추이를 `buckets`개 구간 평균으로 다운샘플링한다 (카드 스파크라인용).
+    """최근 `hours`시간 추이를 `buckets`개 구간 평균으로 다운샘플링한다.
+
+    **현재 호출부가 없다 (2026-08-12).** 카드 스파크라인이 원본 표시로 바뀌었다
+    (`get_metric_trend_raw`). 원본이 무거우면 되돌릴 수 있게 `TREND_BUCKETS`와 함께 남겨 둔다.
 
     원 데이터는 모터당 수천 행이라 그대로 그리면 낭비다. 구간 평균은 노이즈도 눌러준다.
     """
@@ -327,8 +350,8 @@ def attach_card_trends(conn, cards: list[dict]) -> list[dict]:
     for card in cards:
         readings = card.get("readings") or []
         if readings:
-            card["trend"] = get_metric_trend(
-                conn, card["motor_id"], readings[0]["metric"], TREND_WINDOW_HOURS, TREND_BUCKETS
+            card["trend"] = get_metric_trend_raw(
+                conn, card["motor_id"], readings[0]["metric"], TREND_WINDOW_HOURS
             )
     return cards
 
