@@ -575,6 +575,19 @@ def inject_global_styles() -> None:
         .status-card .sc-foot.status-danger {{ color: {status_colors["DANGER"]}; font-weight: 600; }}
         .status-card .sc-foot.status-fault {{ color: {status_colors["FAULT"]}; font-weight: 700; }}
 
+        /* --- 상태 범례 (05 §5-4, 2026-08-12) — 내비 줄 오른쪽 빈 열 --- */
+        /* 내비 버튼 줄(40px)에 세로 가운데로 맞춘다. 좁은 화면에서는 줄바꿈을 허용해
+           범례가 잘리는 대신 두 줄이 되게 한다(1100px에서 빈 폭 384px로 빠듯하다). */
+        .status-legend {{
+            display: flex; justify-content: flex-end; align-items: center;
+            flex-wrap: wrap; gap: 4px 12px; min-height: 40px;
+        }}
+        .status-legend .sl-item {{ display: inline-flex; align-items: center; gap: 4px; }}
+        .status-legend .status-badge {{
+            padding: 0 6px; font-size: 8.5px; border-radius: 8px; line-height: 15px;
+        }}
+        .status-legend .sl-ko {{ font-size: 11px; color: {p["text_muted"]}; }}
+
         /* --- 모터 그래프 페이지 (재정리안 1페이지) — 지표 열 헤더/범례/모터명 행 --- */
         /* 헤더(지표명·단위) + 임계값을 라운드 테두리 박스로 묶어 아래 차트들의 '대표 정보'로 구분 */
         .mg-headbox {{

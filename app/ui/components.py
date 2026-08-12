@@ -81,6 +81,32 @@ def _page_nav(active: str | None) -> None:
             ) and key != active:
                 st.switch_page(path)
 
+    # 남는 열은 종전에 비어 있었다 — 상태 범례를 여기에 둔다 (실측 빈 폭: 1600px 화면에서
+    # 595px, 1280px에서 460px).
+    with columns[-1]:
+        _status_legend()
+
+
+def _status_legend() -> None:
+    """상태 4단계 범례 (05 §5-4, 2026-08-12 사용자 요청).
+
+    이 서비스의 모든 화면이 상태를 영문 배지(NORMAL/WARNING/DANGER/FAULT)로만 표시한다.
+    판정 기준을 아는 담당자에게는 충분하지만, 처음 보는 사람은 배지가 무슨 뜻인지 화면
+    어디에서도 알 수 없었다 — 임계값 표(§4.2)까지 들어가야 한글 이름이 나온다.
+
+    **내비 오른쪽 빈 열에 둔다.** `page_header()`는 로그인 이후 모든 페이지가 부르므로
+    한 곳에 넣으면 전 화면에 노출되고, 이미 있던 빈 열을 쓰므로 세로 공간을 더 쓰지 않는다.
+    화면을 내리면 함께 사라지는데(문서 흐름 안), 그 경우까지 필요하면 갱신 카운터처럼
+    `position: fixed`로 띄우는 방법이 있다(`REFRESH_COUNTDOWN_*` 참고).
+    """
+    chips = "".join(
+        f'<span class="sl-item">'
+        f'<span class="status-badge status-{status.lower()}">{status}</span>'
+        f'<span class="sl-ko">{korean}</span></span>'
+        for status, korean in STATUS_KOREAN_LABELS.items()
+    )
+    st.markdown(f'<div class="status-legend">{chips}</div>', unsafe_allow_html=True)
+
 
 def page_header(active: str | None = None) -> None:
     """상단 헤더 — 좌측 서비스명, 우측 로그인 정보와 로그아웃 (05 §5-4).

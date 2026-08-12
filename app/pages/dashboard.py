@@ -115,7 +115,7 @@ def _render(motors, cards, summary, events) -> None:
                     "tone": action_tone,
                 },
                 {
-                    "label": "주의 관찰",
+                    "label": "경고 관찰",
                     "value": summary["watch_count"],
                     "unit": "대",
                     "sub": f"정상 {summary['normal_count']}대",
