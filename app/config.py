@@ -219,18 +219,18 @@ GRAPH_TREND_BUCKETS = 24  # 다운샘플 구간 수 — 포인트 마커가 촘�
 # 라디오 버튼으로 그룹핑 방식을 고른다. "환경설정에 값 관리" = 이 config가 곧 환경설정이다.
 GROUPING_MODE_STATUS = "status"
 GROUPING_MODE_LOCATION = "location"
-GROUPING_MODE_ISSUE = "issue"
-# 표시 순서와 라벨. st.radio 옵션으로 그대로 쓴다. (확인 사항 정보를 맨 앞·기본으로 둔다)
+# 표시 순서와 라벨. st.radio 옵션으로 그대로 쓴다. (상태별 정보를 맨 앞·기본으로 둔다)
+#
+# **"확인 사항 정보"를 뺐다 (2026-08-12 사용자 요청).** 종전 기본값이었고 NORMAL을 제외한
+# `FAULT → DANGER → WARNING` 그룹핑이었는데, "상태별 정보"와 답하는 질문이 같아 옵션 셋 중
+# 둘이 겹쳤다. 상태별은 NORMAL까지 포함해 전체를 조망하므로 확인 사항의 상위집합이다.
 GROUPING_MODES = {
-    GROUPING_MODE_ISSUE: "확인 사항 정보",
-    GROUPING_MODE_LOCATION: "위치별 정보",
     GROUPING_MODE_STATUS: "상태별 정보",
+    GROUPING_MODE_LOCATION: "위치별 정보",
 }
-DEFAULT_GROUPING_MODE = GROUPING_MODE_ISSUE
+DEFAULT_GROUPING_MODE = GROUPING_MODE_STATUS
 # 상태별 그룹핑 순서 — 급한 것부터 위로 (심각도 내림차순)
 STATUS_GROUP_ORDER = ("FAULT", "DANGER", "WARNING", "NORMAL")
-# 확인사항 그룹핑 — 조치가 필요한 상태만 (NORMAL 제외)
-ISSUE_GROUP_ORDER = ("FAULT", "DANGER", "WARNING")
 # 한 줄에 카드 최대 몇 개. 실제 열 수는 화면 폭에 따라 자동으로 줄어든다.
 # 10개에서 7개로 줄임 (2026-08-07): 10개면 카드 폭이 128px가 되어 지표 줄
 # ("온도 82.2 °C · 진동 3.6 mm/s")이 24px 넘쳐 단위가 잘렸다. 200대 전체 400줄이 전부 잘림.
@@ -669,5 +669,5 @@ SEED_EQUIPMENT_POOL = (
     "집진기 흡입팬",
     "순환팬",
 )
-# 생성 190대 중 목표 상태 분포 (나머지는 NORMAL). 상태별/확인사항 그룹핑이 의미 있게 보이도록.
+# 생성 190대 중 목표 상태 분포 (나머지는 NORMAL). 상태별 그룹핑이 의미 있게 보이도록.
 SEED_BULK_STATUS_TARGETS = {"FAULT": 4, "DANGER": 12, "WARNING": 30}

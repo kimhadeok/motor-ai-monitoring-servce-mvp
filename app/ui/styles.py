@@ -444,11 +444,17 @@ def inject_global_styles() -> None:
         .metric-trend .trend-note {{ font-size: 11px; color: {p["text_muted"]}; white-space: nowrap; }}
 
         /* --- 모터 현황 페이지 (재정리안 2페이지) --- */
-        /* 그룹핑 라디오 — 다른 컨트롤과 구분되게 라운드 테두리 박스로 감싼다 */
-        .st-key-status_grouping_mode {{
+        /* 조작부(그룹핑 라디오 · 모터 검색) — 다른 요소와 구분되게 라운드 테두리 박스로
+           감싼다. **두 박스는 테두리·배경·모서리·여백이 같아야 한다** (2026-08-12 사용자
+           요청) — 한 줄에 나란히 놓여 있어 스타일이 다르면 바로 눈에 띈다. 종전에는
+           그룹핑에만 박스가 있고 검색은 테두리 0px·배경 투명이었다(실측).
+           `display`는 `block`이다. `inline-block`이면 내용 폭으로 줄어(라디오 실측 202px)
+           컬럼 폭을 채우지 못한다. */
+        .st-key-status_grouping_mode,
+        .st-key-status_search {{
             border: 1px solid {p["border"]}; border-radius: 10px;
             padding: 8px 14px; background: {p["surface"]};
-            display: inline-block; margin-bottom: 8px;
+            display: block; margin-bottom: 8px;
         }}
 
         /* 반응형 카드 배치 — 한 그룹의 컬럼을 flex-wrap으로 감싼다. 화면이 좁아지면 한 줄
