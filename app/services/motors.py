@@ -429,10 +429,44 @@ def list_company_motor_status(conn, company_id: str) -> list[dict]:
     return result
 
 
+def get_motor_metric_raw_series(
+    conn, motor_id: str, hours: int
+) -> tuple[list[str], dict[str, list[float]]]:
+    """모터 하나의 4개 지표 추이를 **다운샘플 없이** 수집된 그대로 (모터 상세 §4.1-A).
+
+    반환 형식은 `get_motor_metric_series`와 같아 차트 코드가 그대로 받는다.
+
+    **왜 상세만 원본인가 (2026-08-12).** 구간 평균은 스파이크를 지운다 — 실측: 137호기의
+    한 15분 구간에서 온도 원본 최대 38.27이 평균 33.14로(−13%), 소음 108.96이 105.33으로
+    깎였다. 전체 19,920개 구간 중 18개(0.1%)는 평균과 원본 최대의 **상태 구간 자체가**
+    달랐다(예: 평균 74.49 경고 / 원본 75.12 위험). 상태 판정은 원본 최신값을 쓰는데
+    (`get_latest_metric_statuses`) 그래프만 평균이면 두 화면의 근거가 어긋난다.
+
+    **그래프 페이지(§3-A)도 같은 이유로 원본으로 바꿨다** (2026-08-12 사용자 요청).
+    실측: 20대 표시 시 선분 52,712개(모터·지표당 최대 2,026점), 쿼리 15ms, 차트 80개 spec
+    1,195ms, 전송 JSON 4.1MB, 브라우저 렌더 1,343ms. 모터마다 수집 주기가 달라(10~60초)
+    대수에 정비례하지는 않는다.
+    """
+    window_start = _iso(datetime.now(timezone.utc) - timedelta(hours=hours))
+    rows = conn.execute(
+        "SELECT time, temperature, vibration, current, sound FROM motor_telemetry "
+        "WHERE motor_id = ? AND time >= ? ORDER BY time",
+        (motor_id, window_start),
+    ).fetchall()
+
+    times = [r["time"] for r in rows]
+    series = {metric: [r[metric] for r in rows] for metric in METRIC_NAMES}
+    return times, series
+
+
 def get_motor_metric_series(
     conn, motor_id: str, hours: int, buckets: int
 ) -> tuple[list[str], dict[str, list[float]]]:
-    """모터 하나의 4개 지표 추이를 한 번의 쿼리로 구간 평균 다운샘플한다 (그래프 페이지용).
+    """모터 하나의 4개 지표 추이를 한 번의 쿼리로 구간 평균 다운샘플한다.
+
+    **현재 호출부가 없다 (2026-08-12).** 두 그래프 화면 모두 원본 표시로 바꿨다
+    (`get_motor_metric_raw_series`). 원본이 무거우면 되돌릴 수 있게 남겨 둔 것이며,
+    되돌릴 때는 `GRAPH_TREND_BUCKETS`와 `show_points`도 함께 되돌린다.
 
     `get_metric_trend`를 지표마다 부르면 페이지당 쿼리 수가 4배가 된다. 여기서는 4개
     지표 평균을 한 쿼리로 모아 페이지당 쿼리를 모터 수만큼으로 줄인다.

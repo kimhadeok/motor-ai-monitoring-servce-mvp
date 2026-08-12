@@ -16,13 +16,12 @@ from app.config import (
     GRAPH_DEFAULT_MAX_MOTORS,
     GRAPH_MAX_MOTORS_OPTIONS,
     GRAPH_STATUS_FILTER_ORDER,
-    GRAPH_TREND_BUCKETS,
     GRAPH_TREND_HOURS,
     STATUS_SEVERITY_RANK,
 )
 from app.db.connection import connection_scope
 from app.services.motors import (
-    get_motor_metric_series,
+    get_motor_metric_raw_series,
     list_company_metric_thresholds,
     list_company_motor_status,
     thresholds_differ_from_default,
@@ -83,11 +82,12 @@ if not _subset:
     st.info("조건에 맞는 모터가 없습니다. 필터를 조정해 주세요.")
     st.stop()
 
+# 상세(§4.1-A)와 마찬가지로 **다운샘플 없이 원본**을 그린다 (2026-08-12 사용자 요청).
+# 구간 평균이 스파이크를 지우는 문제는 여기서도 같다 — 근거는 `get_motor_metric_raw_series`.
+# 다만 이 화면은 최대 `GRAPH_MAX_MOTORS_OPTIONS`대 × 4지표라 점 수가 대수에 비례해 늘어난다.
 with connection_scope() as conn:
     _series = {
-        m["motor_id"]: get_motor_metric_series(
-            conn, m["motor_id"], GRAPH_TREND_HOURS, GRAPH_TREND_BUCKETS
-        )
+        m["motor_id"]: get_motor_metric_raw_series(conn, m["motor_id"], GRAPH_TREND_HOURS)
         for m in _subset
     }
 
@@ -105,7 +105,8 @@ _customized = [
     if thresholds_differ_from_default(_thresholds_by_motor.get(m["motor_id"], {}))
 ]
 
-metric_graph_grid(_subset, _series)
+# 원본은 점이 모터·지표당 2천 개라 마커를 얹으면 선이 통째로 덮인다 (상세와 같은 이유).
+metric_graph_grid(_subset, _series, show_points=False)
 
 if _customized:
     st.caption(

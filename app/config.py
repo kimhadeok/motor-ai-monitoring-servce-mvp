@@ -199,6 +199,15 @@ CARD_FLASH_PHASES = ("a", "b")
 # 선 그리기(stroke-dashoffset) 대신 clip-path를 쓰는 이유: Vega가 그린 path에는
 # pathLength를 붙일 수 없어 경로 길이를 알 수 없다. clip-path는 길이에 무관하게 동작한다.
 DETAIL_CHART_REVEAL_MS = 700
+# 모터 세부정보 차트의 세로 크기와 Y축 눈금 수 (2026-08-12 사용자 요청).
+#
+# 모터 그래프 페이지(아래 GRAPH_CHART_*)보다 **2배 높다.** 두 화면은 같은 차트 코드를 쓰지만
+# 보는 목적이 다르다 — 그래프 페이지는 여러 대를 나열해 서로 비교하는 화면이라 낮게 유지해야
+# 한 화면에 많이 들어오고, 세부정보는 한 대만 보므로 세로를 키워 값의 변화 추이가 드러나야
+# 한다. 130px에서는 6시간 창의 완만한 변화가 거의 수평선으로 보였다.
+DETAIL_CHART_HEIGHT_PX = 260
+# 눈금도 3 → 5개(0·25%·50%·75%·최상단). 세로로 두 배 벌어진 만큼 격자가 촘촘해야 값을 읽는다.
+DETAIL_CHART_Y_TICKS = 5
 
 # 카드 추이 스파크라인 — 장기 트렌드 창(6h)을 그대로 쓴다
 TREND_WINDOW_HOURS = LONG_TERM_TREND_HOURS
@@ -223,7 +232,16 @@ GRAPH_DEFAULT_MAX_MOTORS = 10
 # 상태 필터 드롭다운 순서 (ALL = 전체). 심각도 내림차순 (정렬·그룹 순서와 동일).
 GRAPH_STATUS_FILTER_ORDER = ("ALL", "FAULT", "DANGER", "WARNING", "NORMAL")
 GRAPH_TREND_HOURS = LONG_TERM_TREND_HOURS  # 라인차트가 보여줄 최근 창(6시간)
-GRAPH_TREND_BUCKETS = 24  # 다운샘플 구간 수 — 포인트 마커가 촘촘하지 않게 6시간을 24구간(15분)으로
+# 다운샘플 구간 수(6시간 → 24구간 = 15분). **2026-08-12부터 두 그래프 화면 모두 원본을
+# 그리므로 현재 쓰이지 않는다** — 원본이 무거워 되돌릴 때를 위해 값을 남겨 둔다.
+GRAPH_TREND_BUCKETS = 24
+# 차트 한 개의 세로 크기와 Y축 눈금 수. 이 페이지는 최대 20대 × 4지표 = 80개 차트를 세로로
+# 쌓으므로 낮게 유지한다 — 여기서 키우면 스크롤이 그대로 곱절이 된다. 나열된 모터를 눈으로
+# 비교하는 화면이라 **모든 차트가 같은 높이·Y범위**를 써야 한다는 전제도 여기서 유지된다.
+# (모터 세부정보는 한 대뿐이라 위 DETAIL_CHART_HEIGHT_PX로 따로 간다.)
+GRAPH_CHART_HEIGHT_PX = 130
+# 눈금 3개(0·중간·최상단). 130px에서 더 늘리면 Vega가 라벨을 솎아 최상단이 사라진다.
+GRAPH_CHART_Y_TICKS = 3
 
 # --- 모터 현황 페이지 (05_ui_screens.md §3-status, 재정리안 2페이지) ---
 # 라디오 버튼으로 그룹핑 방식을 고른다. "환경설정에 값 관리" = 이 config가 곧 환경설정이다.

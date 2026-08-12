@@ -14,8 +14,9 @@ import streamlit as st
 from app.config import (
     DASHBOARD_EVENT_STATUSES,
     DASHBOARD_REFRESH_INTERVAL_SECONDS,
+    DETAIL_CHART_HEIGHT_PX,
+    DETAIL_CHART_Y_TICKS,
     DETAIL_EVENT_PAGE_SIZE,
-    GRAPH_TREND_BUCKETS,
     GRAPH_TREND_HOURS,
     METRIC_LABELS,
     STATUS_KOREAN_LABELS,
@@ -26,7 +27,7 @@ from app.services.motors import (
     get_metric_status_view,
     get_metric_thresholds,
     get_motor,
-    get_motor_metric_series,
+    get_motor_metric_raw_series,
     get_thresholds,
 )
 from app.services.runtime_tick import run_tick
@@ -87,11 +88,9 @@ def render_live_detail() -> None:
         # 차트 임계선·Y범위는 이 모터의 설정값을 따른다 (2026-08-11).
         metric_thresholds = get_metric_thresholds(conn, motor_id)
         total_events = count_motor_events(conn, motor_id, DASHBOARD_EVENT_STATUSES)
-        series = {
-            motor_id: get_motor_metric_series(
-                conn, motor_id, GRAPH_TREND_HOURS, GRAPH_TREND_BUCKETS
-            )
-        }
+        # 상세는 **다운샘플 없이 원본**을 그린다 (2026-08-12). 구간 평균은 스파이크를 지워
+        # 임계선을 넘은 적이 없는 것처럼 보이게 한다 — 근거는 `get_motor_metric_raw_series`.
+        series = {motor_id: get_motor_metric_raw_series(conn, motor_id, GRAPH_TREND_HOURS)}
 
     # 갱신 카운터는 fragment 안 맨 위에 둔다 — 이 함수가 다시 실행될 때마다 새 시작 시각으로
     # 다시 만들어져야 카운트가 재시작한다.
@@ -129,6 +128,9 @@ def render_live_detail() -> None:
     st.subheader("모터 그래프")
     # 모터 그래프 페이지(§3-A)와 같은 차트를 쓴다. 다만 여기는 한 대뿐이라 차트마다 모터명을
     # 반복하지 않는다 — 페이지 제목과 상단 상태 배지가 이미 알려준다.
+    #
+    # 세로 크기와 Y축 눈금 수만 이 화면 전용 값을 준다 (2026-08-12 사용자 요청). 한 대만 보는
+    # 화면이라 세로를 2배로 써도 스크롤 부담이 없고, 그래야 값의 변화 추이가 보인다.
     metric_graph_grid(
         [
             {
@@ -140,8 +142,15 @@ def render_live_detail() -> None:
         series,
         show_motor_row=False,
         thresholds=metric_thresholds,
+        height=DETAIL_CHART_HEIGHT_PX,
+        y_tick_count=DETAIL_CHART_Y_TICKS,
+        # 원본은 점이 2천 개라 마커를 얹으면 선이 통째로 덮인다.
+        show_points=False,
     )
-    st.caption(f"최근 {GRAPH_TREND_HOURS}시간 추이입니다. 점선은 경고·위험·고장 임계선입니다.")
+    st.caption(
+        f"최근 {GRAPH_TREND_HOURS}시간 추이입니다. 수집된 값을 평균 없이 그대로 그립니다. "
+        "점선은 경고·위험·고장 임계선입니다."
+    )
 
     # --- §4.2 지표별 임계값 ---
     st.subheader("지표별 임계값")
