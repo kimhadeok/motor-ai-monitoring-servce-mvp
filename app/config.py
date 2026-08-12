@@ -105,8 +105,14 @@ RUNTIME_TICK_FAULT_HEADROOM = 1.15
 REFRESH_COUNTDOWN_KEY = "refresh-countdown"
 REFRESH_COUNTDOWN_WIDTH_PX = 150
 REFRESH_COUNTDOWN_HEIGHT_PX = 26
-# 뷰포트 우하단에서 띄운 거리. 우상단은 Streamlit 기본 툴바(Deploy·⋮)와 겹친다.
-REFRESH_COUNTDOWN_RIGHT_PX = 20
+# 뷰포트 **좌**하단에서 띄운 거리 (2026-08-12 변경, 종전 우하단).
+# 네 모서리 중 좌하단만 비어 있다:
+#   - 우상단: Streamlit 기본 툴바(Deploy·⋮)
+#   - 우하단: **Streamlit Cloud의 `Manage app` 버튼** — 배포본에서 배지를 통째로 가렸다
+#     (2026-08-12 사용자 확인). 로컬에는 이 버튼이 없어 그동안 드러나지 않았다.
+#   - 좌상단: 로고·회사명 헤더
+# 사이드바를 쓰지 않으므로(navigation.py) 좌하단에는 아무것도 없다.
+REFRESH_COUNTDOWN_LEFT_PX = 20
 REFRESH_COUNTDOWN_BOTTOM_PX = 20
 # 본문 위에는 올라오되 **다이얼로그보다는 아래**여야 한다. Streamlit 모달은 훨씬 큰 값을
 # 쓰므로(수백~천 단위) 이 값이면 리포트·정비확인 창을 가리지 않는다.
@@ -434,11 +440,20 @@ ADMIN_THRESHOLD_HISTORY_LIMIT = 20
 NOTIFICATION_CHANNELS = ("KAKAO_ALIMTALK", "SMS", "EMAIL")
 # 리포트 §5에 노출할 채널 표기 (06 §2.5, 2026-08-11). DB 값은 영문 상수라 그대로 보이면
 # 담당자가 어느 경로로 받았는지 바로 읽지 못한다.
+# `SMS` 라벨은 "문자"다 (2026-08-12 사용자 확정) — 현장에서 쓰는 말이다.
 NOTIFICATION_CHANNEL_LABELS = {
     "KAKAO_ALIMTALK": "카카오 알림톡",
-    "SMS": "SMS",
+    "SMS": "문자",
     "EMAIL": "이메일",
 }
+# **한 번의 알림은 문자와 이메일로 함께 나간다** (2026-08-12 사용자 확정).
+# 문자가 기본 채널이고 이메일이 동반한다 — 이메일만 단독으로 나가지 않는다.
+# 시드가 이 목록대로 `notification_logs`에 **채널당 한 행씩** 넣고, 리포트 §5는 그 행들을
+# 모아 표기한다. 표시 문자열만 바꾸지 않는 이유: 기록은 이메일 1건인데 화면이 "문자도
+# 보냈다"고 말하면 2026-08-11에 고친 결함(리포트가 실제 기록과 다름)이 되살아난다.
+NOTIFICATION_DEFAULT_CHANNELS = ("SMS", "EMAIL")
+# 리포트 §5에서 채널을 늘어놓는 순서. 기본 채널인 문자가 먼저다.
+NOTIFICATION_CHANNEL_ORDER = ("SMS", "EMAIL", "KAKAO_ALIMTALK")
 # 쿨다운으로 알림이 억제된 이벤트의 리포트 표기 (06 §2.5, 2026-08-11).
 # 종전에는 발송 기록이 없어도 리포트가 발송한 것처럼 적었다 — 담당자가 "통보됐다"고 믿고
 # 넘어가면 실제로는 아무도 모르는 상태가 된다. 사실대로 적고 이유를 밝힌다.

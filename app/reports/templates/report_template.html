@@ -688,7 +688,7 @@
                 <div class="icon-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/></svg></div>
                 <div class="timeline-time">{{ report_generated_at }}</div>
                 {% if notification.sent %}
-                <div class="timeline-content"><strong>알림 발송</strong> — 담당자에게 리포트 다운로드 안내 발송 ({{ notification.channel }})</div>
+                <div class="timeline-content"><strong>알림 발송</strong> — 담당자에게 리포트 다운로드 안내 발송 ({{ notification.channel_summary }})</div>
                 {% else %}
                 <div class="timeline-content"><strong>알림 미발송</strong> — {{ notification.skip_reason }}</div>
                 {% endif %}
@@ -704,7 +704,7 @@
                 </tr>
                 <tr>
                     <td style="font-weight: bold; width: 20%;">발송 채널</td>
-                    <td>{{ notification.channel }}</td>
+                    <td>{% for channel in notification.channels %}<span style="display: inline-block; margin-right: 24px; white-space: nowrap;">{{ channel.label }} ({{ channel.target }})</span>{% endfor %}</td>
                 </tr>
                 <tr>
                     <td style="font-weight: bold; width: 20%;">발송 문구</td>

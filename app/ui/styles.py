@@ -12,7 +12,7 @@ from app.config import (
     MOTOR_CARD_ROW_GAP_PX,
     REFRESH_COUNTDOWN_BOTTOM_PX,
     REFRESH_COUNTDOWN_KEY,
-    REFRESH_COUNTDOWN_RIGHT_PX,
+    REFRESH_COUNTDOWN_LEFT_PX,
     REFRESH_COUNTDOWN_WIDTH_PX,
     REFRESH_COUNTDOWN_Z_INDEX,
     SPARKLINE_HEIGHT_PX,
@@ -789,14 +789,17 @@ def inject_global_styles() -> None:
             );
         }}
 
-        /* --- 갱신 카운터 (05 §5-2-2) — 뷰포트 우하단 고정 배지 ---
+        /* --- 갱신 카운터 (05 §5-2-2) — 뷰포트 **좌**하단 고정 배지 ---
            문서 흐름 안에 두면 대시보드처럼 긴 화면에서 스크롤을 내릴 때 사라진다. 정작 값이
            바뀌는 카드를 보는 동안 카운터가 없으면 "멈춘 건지 갱신 전인지" 다시 알 수 없다.
            컨테이너 key로 잡아 뷰포트에 고정한다(모터 카드 오버레이와 같은 기법).
-           z-index는 본문 위·모달 아래다 — 리포트·정비확인 창을 가리면 안 된다. */
+           z-index는 본문 위·모달 아래다 — 리포트·정비확인 창을 가리면 안 된다.
+           **우하단에서 좌하단으로 옮겼다 (2026-08-12).** 배포본에서 Streamlit Cloud의
+           `Manage app` 버튼이 같은 자리에 떠 배지를 통째로 가렸다. 로컬에는 그 버튼이
+           없어 드러나지 않던 문제다. 좌표는 config에서 관리한다. */
         .st-key-{REFRESH_COUNTDOWN_KEY} {{
             position: fixed;
-            right: {REFRESH_COUNTDOWN_RIGHT_PX}px;
+            left: {REFRESH_COUNTDOWN_LEFT_PX}px;
             bottom: {REFRESH_COUNTDOWN_BOTTOM_PX}px;
             width: {REFRESH_COUNTDOWN_WIDTH_PX}px;
             z-index: {REFRESH_COUNTDOWN_Z_INDEX};

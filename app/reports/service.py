@@ -21,6 +21,7 @@ from app.config import (
     METRIC_THRESHOLDS,
     METRIC_UNITS,
     NOTIFICATION_CHANNEL_LABELS,
+    NOTIFICATION_CHANNEL_ORDER,
     NOTIFICATION_SKIPPED_REASON,
     REPORT_DATE_FORMAT,
     REPORT_DATETIME_FORMAT,
@@ -47,6 +48,20 @@ def _mask_phone(phone: str) -> str:
     return f"{parts[0]}-****-{parts[2]}" if len(parts) == 3 else phone
 
 
+def _mask_email(email: str) -> str:
+    """`abcdef@test.com` → `abc****@test.com` (2026-08-12 사용자 확정 형식).
+
+    리포트는 사고 조사에 첨부되고 외부로 나갈 수 있다. 수신처를 그대로 적으면 담당자
+    연락처가 문서에 남으므로 전화번호와 같은 수준으로 가린다. 앞 3자만 남긴다 —
+    본인은 자기 주소를 알아보고, 제3자는 복원하지 못한다.
+    """
+    local, _, domain = email.partition("@")
+    if not domain:
+        return email
+    head = local[:3] if len(local) > 3 else local[:1]
+    return f"{head}****@{domain}"
+
+
 def _lookup_notification(conn, log) -> dict:
     """이 상태 전이로 **실제 발송된** 알림 기록 (06 §2.5, 2026-08-11).
 
@@ -58,24 +73,56 @@ def _lookup_notification(conn, log) -> dict:
     `notification_logs`에는 상태 로그를 가리키는 FK가 없어 `(motor_id, created_at)`으로
     잇는다. 알림은 전이 시각을 그대로 `created_at`에 넣고 발행되므로 이 쌍이 곧 키다
     (로컬 시드 24건 전부 매칭 실측, 2026-08-11).
+
+    **한 이벤트에 채널이 여럿이다** (2026-08-12). 문자가 기본이고 이메일이 함께 나가므로
+    같은 `(motor_id, created_at)`에 행이 여러 개 있다. 종전에는 `LIMIT 1`로 첫 행만 읽어
+    "이메일" 하나만 적었는데, 그러면 실제로 문자를 받은 담당자가 리포트에서는 그 사실을
+    확인할 수 없다. 이제 행을 모두 모아 채널별 수신처와 함께 적는다.
+
+    수신처는 채널에 따라 다르다 — 문자·알림톡은 전화번호, 이메일은 메일 주소이며 둘 다
+    마스킹한다(`_mask_phone` / `_mask_email`).
     """
-    row = conn.execute(
-        "SELECT n.channel_type, n.message_content, ct.contact_name, ct.phone_number "
+    rows = conn.execute(
+        "SELECT n.channel_type, n.message_content, ct.contact_name, ct.phone_number, ct.email "
         "FROM notification_logs n "
         "JOIN company_contacts ct ON ct.contact_id = n.contact_id "
         "WHERE n.motor_id = ? AND n.created_at = ? "
-        "ORDER BY n.notification_id ASC LIMIT 1",
+        "ORDER BY n.notification_id ASC",
         (log["motor_id"], log["created_at"]),
-    ).fetchone()
+    ).fetchall()
 
-    if row is None:
+    if not rows:
         return {"sent": False, "skip_reason": NOTIFICATION_SKIPPED_REASON}
+
+    def _target(row) -> str:
+        if row["channel_type"] == "EMAIL":
+            return _mask_email(row["email"])
+        return _mask_phone(row["phone_number"])
+
+    # 기록된 순서가 아니라 정해진 순서로 늘어놓는다 — 기본 채널인 문자가 먼저다.
+    ordered = sorted(
+        rows,
+        key=lambda r: NOTIFICATION_CHANNEL_ORDER.index(r["channel_type"])
+        if r["channel_type"] in NOTIFICATION_CHANNEL_ORDER
+        else len(NOTIFICATION_CHANNEL_ORDER),
+    )
+    channels = [
+        {
+            "label": NOTIFICATION_CHANNEL_LABELS.get(row["channel_type"], row["channel_type"]),
+            "target": _target(row),
+        }
+        for row in ordered
+    ]
 
     return {
         "sent": True,
-        "recipient": f"{row['contact_name']} ({_mask_phone(row['phone_number'])})",
-        "channel": NOTIFICATION_CHANNEL_LABELS.get(row["channel_type"], row["channel_type"]),
-        "message": row["message_content"],
+        # 연락처는 아래 채널 줄에 채널별로 적는다 — 여기서 한 번 더 적으면 같은 번호가
+        # 두 곳에 나와 어느 것이 무엇인지 흐려진다 (2026-08-12 사용자 요청).
+        "recipient": ordered[0]["contact_name"],
+        "channels": channels,
+        # 타임라인 한 줄용 — "문자, 이메일"
+        "channel_summary": ", ".join(c["label"] for c in channels),
+        "message": ordered[0]["message_content"],
     }
 
 

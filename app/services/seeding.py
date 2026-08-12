@@ -22,7 +22,7 @@ from app.config import (
     METRIC_LABELS,
     METRIC_NAMES,
     METRIC_THRESHOLDS,
-    NOTIFICATION_CHANNELS,
+    NOTIFICATION_DEFAULT_CHANNELS,
     SEED_BULK_COMPANY,
     SEED_BULK_FAULT_INTERVAL_SECONDS,
     SEED_BULK_INTERVAL_SECONDS,
@@ -464,20 +464,26 @@ def _seed_notifications(conn, transitions: list[dict], contacts_by_company: dict
         message = build_notification_message(
             motor["motor_id"], transition["new_status"], transition["trigger_reason"]
         )
-        conn.execute(
-            "INSERT INTO notification_logs (motor_id, contact_id, channel_type, title, "
-            "message_content, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (
-                motor["motor_id"],
-                contact["contact_id"],
-                rng.choice(NOTIFICATION_CHANNELS),
-                build_notification_title(motor["motor_id"], transition["new_status"]),
-                message,
-                transition["created_at"],
-            ),
-        )
+        title = build_notification_title(motor["motor_id"], transition["new_status"])
+        # **한 번의 알림은 채널마다 한 행이다** (2026-08-12). 문자가 기본이고 이메일이
+        # 함께 나간다(`NOTIFICATION_DEFAULT_CHANNELS`). 종전에는 세 채널 중 하나를 무작위로
+        # 골라 한 행만 넣었는데, 그러면 리포트 §5가 "이메일로만 통보했다"고 적어 실제 발송
+        # 방식과 어긋났다. 같은 `created_at`을 공유해야 리포트가 이 쌍을 한 이벤트로 묶는다.
+        for channel in NOTIFICATION_DEFAULT_CHANNELS:
+            conn.execute(
+                "INSERT INTO notification_logs (motor_id, contact_id, channel_type, title, "
+                "message_content, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    motor["motor_id"],
+                    contact["contact_id"],
+                    channel,
+                    title,
+                    message,
+                    transition["created_at"],
+                ),
+            )
+            count += 1
         transition["notified"] = True
-        count += 1
 
     return count
 
