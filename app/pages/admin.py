@@ -342,15 +342,9 @@ with _threshold_tab:
     if not _motors:
         st.info("등록된 모터가 없습니다.")
     else:
-        _t_options = [f"{m['motor_id']} · {m['motor_name']}" for m in _motors]
-        _t_picked = st.columns(_PICKER_COLUMNS)[0].selectbox(
-            "모터", _t_options, key="admin_threshold_pick"
-        )
-        _t_motor = _motors[_t_options.index(_t_picked)]
-
-        with connection_scope() as conn:
-            _rows = list_thresholds(conn, company_id, _t_motor["motor_id"])
-
+        # **표시 순서: 판정 규칙 → 안내 박스 → 모터 선택 → 표** (2026-08-12 사용자 요청).
+        # 규칙과 안내는 어느 모터를 고르든 같은 이야기라 위에 모으고, 모터 선택은 바로
+        # 아래 표와 붙어 있어야 "이 모터의 값을 고친다"가 한 덩어리로 읽힌다.
         st.caption(
             "판정 규칙: 값 ≥ 고장 → FAULT, ≥ 위험 → DANGER, ≥ 경고 → WARNING, 그 외 정상. "
             "정상 < 경고 < 위험 < 고장 순으로 커져야 저장됩니다."
@@ -363,8 +357,8 @@ with _threshold_tab:
         # 둘째 문단의 근거: 런타임 틱은 텔레메트리만 이어 붙이고 `motor_status_logs`에
         # 쓰지 않는다(`services/runtime_tick.py run_tick()`). 이벤트 목록·리포트는 그
         # 테이블에서 나온다(`services/events.py`). 상태 전이 감지는 MVP 범위 밖
-        # (remaining_work #2-1). 시연에서 임계를 낮춰 보이는 순간 "그럼 알림은 갑니까"가
-        # 반드시 따라오므로 화면이 먼저 말한다 (고객 의견 2026-08-12).
+        # (remaining_work #2-1). 임계를 낮춰 보이는 순간 "그럼 알림은 갑니까"가 반드시
+        # 따라오므로 화면이 먼저 말한다 (고객 의견 2026-08-12).
         #
         # **문구는 런북 §5의 대본과 같은 문장을 쓴다** (2026-08-12 고객 의견 2차 1-(2)).
         # 종전에는 화면이 "이번 시연 범위에 포함되지 않았습니다"라고 적고 발표자는 "실증
@@ -372,17 +366,36 @@ with _threshold_tab:
         # "안 만들었다"와 "다음에 붙인다"가 다른 이야기이고, 어긋나면 발표자를 의심한다.
         # 그리고 **제품 화면에 "시연"이라는 단어를 두지 않는다** — 캡처 한 장이 돌면 그
         # 화면은 계속 "시연용 화면"으로 읽힌다.
+        #
+        # **수집 주기 문장은 뺐다** (2026-08-12 사용자 요청). 아래 셀렉트박스 항목이
+        # `MTR-001 · 2호기 메인 송풍기 (수집 주기 10초)`로 주기를 직접 말하므로 같은 값을
+        # 두 번 적을 이유가 없다. 덕분에 이 박스는 **어느 모터를 고르든 같은 내용**이 되어
+        # 셀렉트박스보다 먼저 그릴 수 있다 — 자리를 미리 잡는 `st.container()`가 없어졌다.
         st.info(
             "**바꾼 기준은 다음 수집분부터 적용됩니다.** 이미 저장된 판정과 발행된 리포트는 "
             "그대로 둡니다 — 사후에 과거 판정을 뒤집으면 이미 나간 리포트·알림과 어긋나기 "
-            f"때문입니다. 이 모터의 수집 주기는 {_t_motor['collection_interval_seconds']}초입니다. "
-            "게이지 눈금·차트 임계선처럼 '지금 기준'을 보여주는 표시는 즉시 바뀝니다.\n\n"
+            "때문입니다. 게이지 눈금·차트 임계선처럼 '지금 기준'을 보여주는 표시는 즉시 "
+            "바뀝니다.\n\n"
             "**바뀐 기준으로 상태 색과 요약 타일은 바뀌지만, 이벤트가 새로 기록되거나 "
             "알림이 나가지는 않습니다.** 실시간 이상 감지와 자동 통보는 실증(PoC) 단계에서 "
             "실센서와 함께 연결됩니다 — 지금 보이는 이벤트 목록과 리포트는 이미 기록된 "
             "전이에 대한 것입니다.",
             icon="🕒",
         )
+
+        # 항목에 수집 주기를 함께 적는다 — 바꾼 기준이 언제부터 적용되는지 판단하려면
+        # 그 모터의 주기를 알아야 하는데, 모터를 고르는 자리에서 바로 보이는 편이 낫다.
+        _t_options = [
+            f"{m['motor_id']} · {m['motor_name']} (수집 주기 {m['collection_interval_seconds']}초)"
+            for m in _motors
+        ]
+        _t_picked = st.columns(_PICKER_COLUMNS)[0].selectbox(
+            "모터", _t_options, key="admin_threshold_pick"
+        )
+        _t_motor = _motors[_t_options.index(_t_picked)]
+
+        with connection_scope() as conn:
+            _rows = list_thresholds(conn, company_id, _t_motor["motor_id"])
         _edited = st.data_editor(
             [
                 {
