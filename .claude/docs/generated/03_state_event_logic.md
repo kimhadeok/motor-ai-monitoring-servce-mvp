@@ -9,7 +9,7 @@
 | 상태 | 의미 | 판정 기준 |
 |---|---|---|
 | NORMAL | 정상 운전 | `값 < warning_range` |
-| WARNING | 주의 | `warning_range ≤ 값 < danger_range` |
+| WARNING | 경고 | `warning_range ≤ 값 < danger_range` |
 | DANGER | 위험 | `danger_range ≤ 값 < fault_range` |
 | FAULT | 고장/정지 | `값 ≥ fault_range` |
 
