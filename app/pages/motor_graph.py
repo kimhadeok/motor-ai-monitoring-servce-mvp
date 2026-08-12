@@ -17,6 +17,7 @@ from app.config import (
     GRAPH_MAX_MOTORS_OPTIONS,
     GRAPH_STATUS_FILTER_ORDER,
     GRAPH_TREND_HOURS,
+    GRAPH_X_TICK_MINUTES,
     STATUS_SEVERITY_RANK,
 )
 from app.db.connection import connection_scope
@@ -105,8 +106,17 @@ _customized = [
     if thresholds_differ_from_default(_thresholds_by_motor.get(m["motor_id"], {}))
 ]
 
-# 원본은 점이 모터·지표당 2천 개라 마커를 얹으면 선이 통째로 덮인다 (상세와 같은 이유).
-metric_graph_grid(_subset, _series, show_points=False)
+# 원본은 점이 모터·지표당 수천 개라 마커를 얹으면 선이 통째로 덮인다 (상세와 같은 이유).
+# 상태 배지는 행 머리가 아니라 **차트마다** 붙인다 — 대표 상태 하나로는 어느 지표가 그 상태인지
+# 알 수 없다. 행 오른쪽의 "상세 보기"로 그 모터의 상세 페이지로 바로 넘어간다.
+metric_graph_grid(
+    _subset,
+    _series,
+    show_points=False,
+    x_tick_minutes=GRAPH_X_TICK_MINUTES,
+    show_metric_status=True,
+    detail_link=True,
+)
 
 if _customized:
     st.caption(

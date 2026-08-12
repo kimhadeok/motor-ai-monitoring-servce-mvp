@@ -15,9 +15,9 @@ from app.config import (
     DASHBOARD_EVENT_STATUSES,
     DASHBOARD_REFRESH_INTERVAL_SECONDS,
     DETAIL_CHART_HEIGHT_PX,
-    DETAIL_CHART_Y_TICKS,
+    DETAIL_CHART_Y_DIVISIONS,
     DETAIL_EVENT_PAGE_SIZE,
-    GRAPH_TREND_HOURS,
+    DETAIL_TREND_HOURS,
     METRIC_LABELS,
     STATUS_KOREAN_LABELS,
 )
@@ -90,7 +90,7 @@ def render_live_detail() -> None:
         total_events = count_motor_events(conn, motor_id, DASHBOARD_EVENT_STATUSES)
         # 상세는 **다운샘플 없이 원본**을 그린다 (2026-08-12). 구간 평균은 스파이크를 지워
         # 임계선을 넘은 적이 없는 것처럼 보이게 한다 — 근거는 `get_motor_metric_raw_series`.
-        series = {motor_id: get_motor_metric_raw_series(conn, motor_id, GRAPH_TREND_HOURS)}
+        series = {motor_id: get_motor_metric_raw_series(conn, motor_id, DETAIL_TREND_HOURS)}
 
     # 갱신 카운터는 fragment 안 맨 위에 둔다 — 이 함수가 다시 실행될 때마다 새 시작 시각으로
     # 다시 만들어져야 카운트가 재시작한다.
@@ -137,18 +137,22 @@ def render_live_detail() -> None:
                 "motor_id": motor_id,
                 "motor_name": motor["motor_name"],
                 "status": representative_status,
+                # 차트마다 붙는 지표별 상태 배지가 이 둘을 읽는다 (2026-08-12 사용자 요청).
+                "statuses": metric_statuses,
+                "fault_metrics": fault_metrics,
             }
         ],
         series,
         show_motor_row=False,
         thresholds=metric_thresholds,
         height=DETAIL_CHART_HEIGHT_PX,
-        y_tick_count=DETAIL_CHART_Y_TICKS,
+        y_divisions=DETAIL_CHART_Y_DIVISIONS,
         # 원본은 점이 2천 개라 마커를 얹으면 선이 통째로 덮인다.
         show_points=False,
+        show_metric_status=True,
     )
     st.caption(
-        f"최근 {GRAPH_TREND_HOURS}시간 추이입니다. 수집된 값을 평균 없이 그대로 그립니다. "
+        f"최근 {DETAIL_TREND_HOURS}시간 추이입니다. 수집된 값을 평균 없이 그대로 그립니다. "
         "점선은 경고·위험·고장 임계선입니다."
     )
 

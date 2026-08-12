@@ -8,6 +8,7 @@ from app.config import (
     CARD_SPARKLINE_DRAW_MS,
     DATA_FLOW_ANIMATION_SECONDS,
     DETAIL_CHART_REVEAL_MS,
+    GRAPH_DETAIL_BUTTON_PREFIX,
     MOTOR_CARD_BUTTON_PREFIX,
     MOTOR_CARD_ROW_GAP_PX,
     REFRESH_COUNTDOWN_BOTTOM_PX,
@@ -602,6 +603,32 @@ def inject_global_styles() -> None:
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }}
         .mg-row .status-badge {{ flex: 0 0 auto; padding: 0 6px; font-size: 8.5px; border-radius: 8px; }}
+        /* 차트마다 붙는 지표별 상태 배지 (2026-08-12). 차트 바로 위 오른쪽에 둬서 어느 열의
+           상태인지 헷갈리지 않게 한다. 행 머리의 대표 배지와 크기를 맞춘다. */
+        .mg-cell-status {{
+            display: flex; justify-content: flex-end; align-items: center;
+            height: 14px; margin-bottom: 2px;
+        }}
+        .mg-cell-status .status-badge {{
+            padding: 0 6px; font-size: 8.5px; border-radius: 8px; line-height: 14px;
+        }}
+        /* 행 머리의 "{{모터명}} 상세 보기 ›" 버튼 — 이 버튼이 곧 모터명 표시다.
+           기본 버튼(38px)을 그대로 두면 모터 행마다 12px씩 늘어나므로 납작하게 하고,
+           라벨은 모터명 스타일(.mg-name)에 맞춰 왼쪽 정렬한다. */
+        .stElementContainer[class*="st-key-{GRAPH_DETAIL_BUTTON_PREFIX}"] button {{
+            min-height: 0; padding: 2px 10px; font-size: 11.5px; font-weight: 700;
+            white-space: nowrap; justify-content: flex-start;
+        }}
+        /* 버튼 폭은 컬럼에 맞춰 고정인데 모터명 길이는 제각각이라, 라벨을 가운데 두면
+           행마다 글자 시작 위치가 어긋난다. 버튼에 justify-content만 주면 듣지 않는다 —
+           내부 래퍼 div가 버튼 폭을 다 차지하고(실측 344px 중 322px) 그 안에서 다시
+           가운데 정렬하기 때문이다. 래퍼와 문단까지 왼쪽으로 붙여야 실제로 먹는다. */
+        .stElementContainer[class*="st-key-{GRAPH_DETAIL_BUTTON_PREFIX}"] button > div {{
+            width: 100%; justify-content: flex-start;
+        }}
+        .stElementContainer[class*="st-key-{GRAPH_DETAIL_BUTTON_PREFIX}"] button p {{
+            width: 100%; text-align: left;
+        }}
         /* 표시 범위 셀렉트박스를 읽기전용처럼 — 캐럿을 숨겨 편집 느낌을 없앤다.
            실제 타이핑 차단은 입력을 readOnly로 만드는 JS(모터 그래프 페이지)가 담당한다. */
         .st-key-graph_status input,
