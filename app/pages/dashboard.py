@@ -20,6 +20,7 @@ from app.config import (
     DASHBOARD_REFRESH_INTERVAL_SECONDS,
     MOTOR_CARD_COLUMNS,
     STATUS_KOREAN_LABELS,
+    SUMMARY_COLLECTED_FORMAT,
     SUMMARY_DATE_FORMAT,
     format_display,
     format_relative,
@@ -94,45 +95,60 @@ def _render(motors, cards, summary, events) -> None:
         counts = summary["status_counts"]
         collected = summary["last_collected_at"]
 
-        # 타일 색이 곧 상태다 — 조치 필요가 0대면 초록, 있으면 상태색이라 숫자를 읽기 전에
-        # 색으로 먼저 안다. 상태색은 카드·배너와 같은 팔레트를 쓴다.
-        # 고장이 하나라도 있으면 FAULT(빨강), 위험만 있으면 DANGER(주황)로 구분한다 —
-        # 2026-08-07 팔레트 재정리로 FAULT가 램프의 최상단이 되어 그대로 쓸 수 있다.
-        if counts["FAULT"]:
-            action_tone = "fault"
-        elif summary["action_required"]:
-            action_tone = "danger"
-        else:
-            action_tone = "normal"
+        # **상태 한 칸에 타일 하나** (2026-08-12 사용자 요청). 종전에는 `조치 필요`(DANGER+FAULT
+        # 합산)와 `최근 24시간 이벤트`(악화/회복)로 묶여 있었는데, 두 숫자 모두 집계 규칙을
+        # 알아야 읽혔다 — 왜 17인지, 무엇이 '악화'인지가 화면에 없었다. 상태별로 나누면
+        # 규칙이 사라지고, 헤더 상태 범례(§2-1)와 같은 어휘·같은 색으로 1:1 대응된다.
+        #
+        # FAULT와 DANGER를 나눈 이유: 대응이 다르다. FAULT는 정비 완료 확인이 필요한 정지
+        # 상태(아래 배너·버튼이 그것을 처리한다), DANGER는 가동 중 악화다.
+        #
+        # 색은 항상 그 상태색이 아니다 — **0대면 초록**으로 준다. 고장 0대가 빨간 타일로
+        # 보이면 숫자를 읽기 전에는 문제가 있는 것처럼 보인다.
+        recent_into = summary["recent_worsened_into"]
+        window = DASHBOARD_RECENT_WINDOW_HOURS
+
+        def _state_tile(status: str, label: str) -> dict:
+            count = counts[status]
+            # 보조줄 = 한글 상태명 + 최근 창의 악화 유입. 상태 4칸이 전부 '지금' 스냅샷이라
+            # 이것이 없으면 "밤사이 무슨 일이 있었나"에 답하는 숫자가 화면에서 사라진다.
+            korean = STATUS_KOREAN_LABELS[status]
+            new_count = recent_into.get(status, 0)
+            sub = f"{korean} · {window}h +{new_count}" if new_count else korean
+            return {
+                "label": label,
+                # 값 앞에 영문 상태명을 붙인다 — 카드·차트 배지와 같은 말로 이어 준다.
+                "status_key": status,
+                "value": count,
+                "unit": "대",
+                "sub": sub,
+                "tone": status.lower() if count else "normal",
+            }
 
         summary_tiles(
             [
+                _state_tile("FAULT", "바로 조치 필요"),
+                _state_tile("DANGER", "조치 필요"),
+                _state_tile("WARNING", "관찰 필요"),
                 {
-                    "label": "조치 필요",
-                    "value": summary["action_required"],
+                    "label": "이상 없음",
+                    "status_key": "NORMAL",
+                    "value": summary["normal_count"],
                     "unit": "대",
-                    "sub": f"고장 {counts['FAULT']} · 위험 {counts['DANGER']}",
-                    "tone": action_tone,
+                    "sub": STATUS_KOREAN_LABELS["NORMAL"],
+                    "tone": "normal",
                 },
                 {
-                    "label": "경고 관찰",
-                    "value": summary["watch_count"],
-                    "unit": "대",
-                    "sub": f"정상 {summary['normal_count']}대",
-                    "tone": "warning" if summary["watch_count"] else "normal",
-                },
-                {
-                    "label": f"최근 {DASHBOARD_RECENT_WINDOW_HOURS}시간 이벤트",
-                    "value": summary["recent_event_count"],
-                    "unit": "건",
-                    "sub": f"악화 {summary['recent_worsened']} · 회복 {summary['recent_recovered']}",
-                    "tone": "brand",
-                },
-                {
+                    # 큰 글씨는 상대 시각이다 — 절대 시각만 두면 "몇 분 전이지?"를 암산해야
+                    # 신선도를 알 수 있다. 정확한 시각은 보조줄에 함께 싣는다.
                     "label": "마지막 수집",
                     "value": format_relative(collected) if collected else "-",
                     "unit": "",
-                    "sub": "정상 수집 중" if collected else "데이터 없음",
+                    "sub": (
+                        f"{format_display(collected, SUMMARY_COLLECTED_FORMAT)} · 정상 수집 중"
+                        if collected
+                        else "데이터 없음"
+                    ),
                     "tone": "normal" if collected else "danger",
                 },
             ]

@@ -590,6 +590,10 @@ REPORT_SESSION_ID_FORMAT = "motor_{motor_id}_{date}_{time}"  # 예: motor_MTR-00
 DISPLAY_TIMEZONE = "Asia/Seoul"
 DISPLAY_DATETIME_FORMAT = "%y/%m/%d %H:%M"
 SUMMARY_DATE_FORMAT = "%Y-%m-%d"  # 대시보드 상단 요약의 날짜 표기 (05 §3.1)
+# "마지막 수집" 타일 보조줄의 절대 시각 (2026-08-12). 큰 글씨는 "방금 전" 같은 상대 표기라
+# 신선도가 즉시 읽히고, 정확한 시각은 여기로 함께 싣는다. **연도를 포함한다** (사용자 요청) —
+# 데이터가 48시간 창 안이라 연도는 늘 같지만, 시각을 그대로 옮겨 적을 수 있어야 한다.
+SUMMARY_COLLECTED_FORMAT = "%Y-%m-%d %H:%M:%S"
 REPORT_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 REPORT_DATE_FORMAT = "%Y%m%d"
 REPORT_TIME_FORMAT = "%H%M%S"

@@ -234,7 +234,12 @@ def summary_tiles(tiles: list[dict]) -> None:
 
     `tone`은 장식이 아니라 정보다 — 조치 필요가 0대면 초록, 있으면 빨강이 되므로
     숫자를 읽기 전에 색으로 상태를 먼저 안다. 각 타일은 다음 키를 받는다:
-    `label`, `value`, `unit`, `sub`, `tone`(status 소문자 또는 "brand").
+    `label`, `value`, `unit`, `sub`, `tone`(status 소문자 또는 "brand"), 선택 `status_key`.
+
+    **`status_key`는 값 앞에 붙는 영문 상태명이다** (예: `FAULT`, 2026-08-12 사용자 요청).
+    화면 전체가 상태를 영문으로 표시하므로(카드 배지·차트 배지·이벤트 목록·헤더 범례),
+    요약 타일에도 같은 말이 있어야 "바로 조치 필요 4대"와 "FAULT 배지가 붙은 카드 4장"이
+    같은 것임이 이어진다. 숫자보다 작게 두어 값의 무게는 그대로 둔다.
 
     한 덩어리 마크다운으로 그린다. `st.columns`로 나누면 컬럼마다 여백 규칙이 달라
     타일 사이 간격이 화면 폭에 따라 어긋난다. CSS 그리드는 폭이 좁아지면 자동으로
@@ -244,10 +249,12 @@ def summary_tiles(tiles: list[dict]) -> None:
     for tile in tiles:
         unit = tile.get("unit")
         unit_html = f'<span class="sum-unit">{unit}</span>' if unit else ""
+        status_key = tile.get("status_key")
+        key_html = f'<span class="sum-status">{status_key}</span>' if status_key else ""
         cells.append(
             f'<div class="summary-tile tone-{tile["tone"]}">'
             f'<div class="sum-label"><span class="sum-dot"></span>{tile["label"]}</div>'
-            f'<div class="sum-value">{tile["value"]}{unit_html}</div>'
+            f'<div class="sum-value">{key_html}{tile["value"]}{unit_html}</div>'
             f'<div class="sum-sub">{tile["sub"]}</div>'
             "</div>"
         )

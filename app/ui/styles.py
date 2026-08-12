@@ -188,9 +188,15 @@ def inject_global_styles() -> None:
         /* --- 상단 요약 타일 (05 §3.1) --- */
         /* 4열 → (좁으면) 2×2. auto-fit + minmax를 쓰면 중간 폭에서 3열이 되어 4개 타일이
            3+1로 접히고 마지막 타일만 홀로 남는다. 절반씩 접히도록 열 수를 명시한다. */
+        /* 타일 5개(상태 4 + 마지막 수집, 2026-08-12). 1600px 화면에서 칸당 약 310px,
+           1280px에서 246px로 값·보조줄이 들어간다. 그보다 좁아지면 3칸 → 2칸으로 접는다 —
+           5칸을 유지하면 "바로 조치 필요" 같은 라벨이 두 줄로 접힌다. */
         .summary-grid {{
-            display: grid; grid-template-columns: repeat(4, 1fr);
+            display: grid; grid-template-columns: repeat(5, 1fr);
             gap: 12px; margin: 8px 0 16px;
+        }}
+        @media (max-width: 1180px) {{
+            .summary-grid {{ grid-template-columns: repeat(3, 1fr); }}
         }}
         @media (max-width: 820px) {{
             .summary-grid {{ grid-template-columns: repeat(2, 1fr); }}
@@ -217,6 +223,12 @@ def inject_global_styles() -> None:
         }}
         .sum-unit {{
             font-size: 15px; font-weight: 700; color: {p["text_muted"]}; margin-left: 3px;
+        }}
+        /* 값 앞의 영문 상태명(FAULT 등). 타일 액센트와 같은 색을 써서 카드·차트의 상태
+           배지와 같은 말임을 잇는다. 숫자보다 작게 둬 값의 무게는 그대로 둔다. */
+        .sum-status {{
+            font-size: 14px; font-weight: 800; color: var(--tone); margin-right: 6px;
+            letter-spacing: 0.2px;
         }}
         .sum-sub {{ font-size: 11.5px; color: {p["text_muted"]}; }}
 

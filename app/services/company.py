@@ -59,6 +59,18 @@ def build_summary(conn, company_id: str, motors: list[dict]) -> dict | None:
     worsened = sum(
         1 for r in recent if transition_direction(r["previous_status"], r["new_status"]) == WORSE
     )
+    # 상태별 "최근 창 안에 그 상태로 새로 올라온 건수" (2026-08-12).
+    # 요약 타일이 상태 4칸으로 바뀌면서 전부 '지금 이 순간' 스냅샷이 됐다. 그러면 아침에
+    # 출근한 담당자가 "밤사이 몇 대가 나빠졌나"를 볼 수단이 없어지므로, 각 상태 타일의
+    # 보조줄에 붙일 변화량을 함께 낸다. **악화 전이만 센다** — 회복으로 그 상태에 내려온
+    # 것(예: FAULT → DANGER)은 나빠진 일이 아니라 좋아진 일이라 같이 세면 뜻이 흐려진다.
+    worsened_into = {status: 0 for status in ATTENTION_STATUSES}
+    for r in recent:
+        if (
+            r["new_status"] in worsened_into
+            and transition_direction(r["previous_status"], r["new_status"]) == WORSE
+        ):
+            worsened_into[r["new_status"]] += 1
 
     last_collected = conn.execute(
         "SELECT MAX(time) FROM motor_telemetry WHERE company_id = ?", (company_id,)
@@ -77,6 +89,7 @@ def build_summary(conn, company_id: str, motors: list[dict]) -> dict | None:
         "normal_count": len(motors) - sum(counts.values()),
         "recent_event_count": len(recent),
         "recent_worsened": worsened,
-        "recent_recovered": len(recent) - worsened,
+        # 상태별 24시간 악화 유입 — 요약 타일 보조줄. `{"WARNING": n, "DANGER": n, "FAULT": n}`
+        "recent_worsened_into": worsened_into,
         "last_collected_at": parse_utc(last_collected) if last_collected else None,
     }
