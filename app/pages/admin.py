@@ -14,6 +14,11 @@ role 컬럼이 없고, 시연용 MVP라 도입하지 않기로 했다(2026-08-11
 import streamlit as st
 
 from app.config import (
+    ADMIN_BULK_BUTTON_PREFIX,
+    ADMIN_BULK_NOTICE_TAIL,
+    ADMIN_BULK_NOTICES,
+    ADMIN_BULK_SAMPLE_LABEL,
+    ADMIN_BULK_UPLOAD_LABEL,
     ADMIN_THRESHOLD_HISTORY_LIMIT,
     ALLOWED_COLLECTION_INTERVALS_SECONDS,
     format_display,
@@ -70,6 +75,37 @@ st.caption(
 _company_tab, _contact_tab, _motor_tab, _threshold_tab = st.tabs(
     ["고객 회사", "담당자", "모터", "지표 임계값"]
 )
+
+
+def _bulk_actions(target: str) -> None:
+    """엑셀 일괄 등록 버튼 두 개 + 클릭 시 안내 (2026-08-12 사용자 요청).
+
+    **MVP는 소개용이라 파일을 만들지도 읽지도 않는다** — 근거는 `config.ADMIN_BULK_NOTICES`
+    주석. 안내는 `st.info`로 버튼 바로 아래 남긴다(toast는 몇 초 뒤 사라져 시연에서 설명할
+    시간이 없다).
+
+    표 **위**에 둔다. 아래 편집 폼은 한 건짜리이고 이건 그 표를 통째로 채우는 방법이라,
+    "무엇으로 이 표를 채우나"를 표보다 먼저 말하는 편이 순서에 맞는다.
+    """
+    notices = ADMIN_BULK_NOTICES[target]
+    state_key = f"admin_bulk_notice_{target}"
+    sample_col, upload_col, _rest = st.columns([1.2, 1.2, 5.6], vertical_alignment="center")
+
+    if sample_col.button(
+        ADMIN_BULK_SAMPLE_LABEL,
+        key=f"{ADMIN_BULK_BUTTON_PREFIX}{target}-sample",
+        width="stretch",
+    ):
+        st.session_state[state_key] = notices["sample"]
+    if upload_col.button(
+        ADMIN_BULK_UPLOAD_LABEL,
+        key=f"{ADMIN_BULK_BUTTON_PREFIX}{target}-upload",
+        width="stretch",
+    ):
+        st.session_state[state_key] = notices["upload"]
+
+    if notice := st.session_state.get(state_key):
+        st.info(f"{notice}\n\n{ADMIN_BULK_NOTICE_TAIL}")
 
 
 def _run(action, success: str) -> None:
@@ -203,6 +239,7 @@ with _motor_tab:
         _motors = list_motors(conn, company_id)
 
     st.caption(f"등록된 모터 {len(_motors)}대")
+    _bulk_actions("motor")
     st.dataframe(
         [
             {
@@ -382,6 +419,8 @@ with _threshold_tab:
             "전이에 대한 것입니다.",
             icon="🕒",
         )
+
+        _bulk_actions("threshold")
 
         # 항목에 수집 주기를 함께 적는다 — 바꾼 기준이 언제부터 적용되는지 판단하려면
         # 그 모터의 주기를 알아야 하는데, 모터를 고르는 자리에서 바로 보이는 편이 낫다.
