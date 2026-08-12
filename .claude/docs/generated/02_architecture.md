@@ -316,7 +316,7 @@ INFO  [app.agents.diagnosis_agent] 진단 생성 | MTR-227 sound | source=rule (
   | rag_ready=True rag_chunks=44 | 7.27s (schema=0.28s seed=5.71s rag_check=1.29s)
 ```
 
-**23.28초 → 7.27초**(시드 21.74 → 5.71초, 3.8배). 위 §6.1의 저장량 축소가 배포 환경에서 로컬보다 큰 폭으로 나타났다 — 원래 배포 시드가 로컬의 5배 이상 느렸기 때문이다. `openai_key=설정됨 diagnosis_llm=on`으로 **LLM 경로가 켜져 있는 것도 확인**됐다. 다만 리포트를 열었을 때 실제로 `source=llm`이 찍히는지는 **아직 확인하지 않았다**(`remaining_work` #5).
+**23.28초 → 7.27초**(시드 21.74 → 5.71초, 3.8배). 위 §6.1의 저장량 축소가 배포 환경에서 로컬보다 큰 폭으로 나타났다 — 원래 배포 시드가 로컬의 5배 이상 느렸기 때문이다. `openai_key=설정됨 diagnosis_llm=on`으로 **LLM 경로가 켜져 있는 것도 확인**됐고, 배포본에서 리포트를 열어 **`source=llm`도 확인 완료**다(2026-08-12, `remaining_work` #5). 즉 배포본의 "AI 진단"은 실제 GPT-4o 생성물이다.
 
 **배포본도 진단 LLM을 켠다 (2026-08-11 결정 — 2026-08-10 방침을 뒤집음).** Secrets에 `DIAGNOSIS_LLM_ENABLED = "true"`를 둔다(항목을 빼도 기본값이 `true`). 구매 검토 고객에게 보여줄 배포본에서 "AI 진단"이 실제로는 규칙 기반인 것이 시연상 가장 큰 약점이라는 판단이다.
 
