@@ -9,7 +9,7 @@ CSS·레이아웃 수정이 브라우저에서 실제로 어떻게 그려지는�
 
 사용법:
     uv run streamlit run main.py --server.port 8501 --server.headless true   # 먼저 앱 실행
-    uv run python scripts/screenshot.py --out <디렉터리> [--email demo1@example.com]
+    uv run python scripts/screenshot.py --out <디렉터리> [--email demo1@hankuk-motors.co.kr]
     uv run python scripts/screenshot.py --out <디렉터리> --theme dark --detail
 """
 
@@ -65,7 +65,7 @@ def main() -> None:
     parser.add_argument("--url", default="http://localhost:8501")
     parser.add_argument("--out", required=True, help="스크린샷을 저장할 디렉터리")
     parser.add_argument("--theme", default="light", choices=("light", "dark", "system"))
-    parser.add_argument("--email", default="demo1@example.com")
+    parser.add_argument("--email", default="demo1@hankuk-motors.co.kr")
     parser.add_argument("--password", default="demo1234!")
     parser.add_argument("--detail", action="store_true", help="모터 상세 페이지까지 캡처")
     args = parser.parse_args()
