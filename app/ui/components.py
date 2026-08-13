@@ -19,6 +19,7 @@ from app.config import (
     METRIC_NAMES,
     METRIC_UNITS,
     MOTOR_CARD_BUTTON_PREFIX,
+    MOTOR_DAILY_OPERATING_HOURS,
     REFRESH_COUNTDOWN_HEIGHT_PX,
     REFRESH_COUNTDOWN_KEY,
     REFRESH_COUNTDOWN_TICK_MS,
@@ -33,6 +34,7 @@ from app.config import (
     STATUS_CARD_BUTTON_PREFIX,
     STATUS_GROUP_ORDER,
     STATUS_KOREAN_LABELS,
+    SUMMARY_DATE_FORMAT,
     THEME_HINT,
     THEME_HINT_TOOLTIP,
     THEME_LABELS,
@@ -45,7 +47,7 @@ from app.config import (
 from app.db.connection import connection_scope
 from app.reports.service import REPORTABLE_STATUSES, get_report
 from app.services.events import FLAT, RECOVER, WORSE, transition_direction
-from app.services.motors import confirm_maintenance
+from app.services.motors import confirm_maintenance, motor_lifespan_info
 from app.ui.theme import current_theme, palette
 
 _REPORT_VIEW_KEY = "report_view"
@@ -363,13 +365,35 @@ def motor_info_table(motor) -> None:
 
     한 줄에 두 쌍(항목·값·항목·값)을 넣어 종전의 2열 배치가 주던 밀도를 유지한다.
     """
+    # 수명 3항목 (2026-08-13 사용자 요청). 경과율·잔여 수명은 `motor_lifespan_info()`
+    # 한 곳에서만 계산한다 — 화면마다 따로 셈하면 같은 모터에 다른 숫자가 찍힌다(05 §4.1).
+    life = motor_lifespan_info(motor)
+    if life is None:
+        # 관리자 화면에서 수명을 입력하지 않고 등록한 모터. 표를 깨뜨리지 않고 `-`로 둔다.
+        life_pairs = (("구동일자", "-"), ("모터 수명", "-"), ("남은 수명", "-"), ("수명 경과율", "-"))
+    else:
+        remaining = (
+            f"수명 초과 ({life['duration_text']} 지남)"
+            if life["is_over"]
+            else life["duration_text"]
+        )
+        life_pairs = (
+            ("구동일자", format_display(life["started_at"], SUMMARY_DATE_FORMAT)),
+            ("모터 수명", f"{life['lifespan_hours']:,}시간"),
+            ("남은 수명", remaining),
+            ("수명 경과율", life["used_percent_text"]),
+        )
+
     pairs = (
         ("모터 ID", motor["motor_id"]),
         ("설치 위치", motor["installation_location"]),
         ("모델명", motor["model_name"]),
         ("수집 주기", f"{motor['collection_interval_seconds']}초"),
         ("시리얼 번호", motor["serial_number"] or "-"),
+        # 등록일자(모니터링 서비스 등록)와 구동일자(실제 가동 시작)는 다르다. 나란히 두되
+        # 항목명으로 구분되게 하고, 아래 캡션이 그 차이를 한 번 더 밝힌다(04 §3.3).
         ("등록일자", format_display(parse_utc(motor["created_at"]))),
+        *life_pairs,
     )
 
     rows = []
@@ -385,6 +409,14 @@ def motor_info_table(motor) -> None:
         f"{''.join(rows)}</table></div>",
         unsafe_allow_html=True,
     )
+    if life is not None:
+        # 두 가지를 밝혀야 담당자가 숫자를 그대로 믿거나 오해하지 않는다:
+        # ① 구동일자는 등록일자와 다르다 ② 남은 수명은 가동 가정에 딸린 값이다.
+        st.caption(
+            f"구동일자는 설비가 실제로 돌기 시작한 날로, 위 등록일자(모니터링 서비스 등록)와 "
+            f"다릅니다. 남은 수명은 **하루 {MOTOR_DAILY_OPERATING_HOURS}시간 가동** 기준으로 "
+            f"환산한 값이며, 년·개월은 표기용 근사입니다."
+        )
 
 
 def threshold_table(thresholds) -> None:

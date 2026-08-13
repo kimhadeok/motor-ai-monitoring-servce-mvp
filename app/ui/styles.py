@@ -340,8 +340,11 @@ def inject_global_styles() -> None:
             display: flex; align-items: center; justify-content: space-between;
             gap: 8px; margin-top: 2px; height: 22px;
         }}
+        /* 모터명을 상태색으로 (2026-08-13 사용자 요청). 카드가 이미 `--card-color`를 갖고
+           있어 상태별 규칙을 새로 만들 필요가 없다 — 상태 배지·상단 테두리와 같은 색이므로
+           카드 안에서 색이 어긋날 일도 없다. §3-B 모터 현황 카드(`.sc-name`)도 같이 맞춘다. */
         .motor-name {{
-            font-size: 15px; font-weight: 700; color: {p["text_strong"]}; line-height: 22px;
+            font-size: 15px; font-weight: 700; color: var(--card-color); line-height: 22px;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }}
         .motor-head .status-badge {{ flex: 0 0 auto; }}
@@ -541,8 +544,9 @@ def inject_global_styles() -> None:
         .status-card .sc-badge-row .status-badge {{
             padding: 1px 7px; font-size: 9px; border-radius: 9px;
         }}
+        /* 모터명은 상태색이다 — §3.2 대시보드 카드(`.motor-name`)와 같은 규칙 (2026-08-13). */
         .status-card .sc-name {{
-            font-size: 12.5px; font-weight: 700; color: {p["text_strong"]}; margin-top: 0;
+            font-size: 12.5px; font-weight: 700; color: var(--card-color); margin-top: 0;
             line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }}
         .status-card .sc-loc {{

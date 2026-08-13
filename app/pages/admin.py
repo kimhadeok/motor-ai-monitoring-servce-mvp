@@ -11,6 +11,8 @@
 role 컬럼이 없고, 시연용 MVP라 도입하지 않기로 했다(2026-08-11 확정).
 """
 
+from datetime import date
+
 import streamlit as st
 
 from app.config import (
@@ -21,6 +23,8 @@ from app.config import (
     ADMIN_BULK_UPLOAD_LABEL,
     ADMIN_THRESHOLD_HISTORY_LIMIT,
     ALLOWED_COLLECTION_INTERVALS_SECONDS,
+    MOTOR_DEFAULT_LIFESPAN_HOURS,
+    MOTOR_LIFESPAN_HOURS_RANGE,
     format_display,
     parse_utc,
 )
@@ -249,6 +253,8 @@ with _motor_tab:
                 "모델명": m["model_name"],
                 "시리얼": m["serial_number"] or "",
                 "수집 주기(초)": m["collection_interval_seconds"],
+                "수명(시간)": m["lifespan_hours"] or "",
+                "구동일자": (m["operation_started_at"] or "")[:10],
             }
             for m in _motors
         ],
@@ -293,6 +299,31 @@ with _motor_tab:
             ),
         )
 
+        # 수명 관리 (2026-08-13 사용자 요청). 두 값은 한 쌍으로만 뜻이 있으므로 나란히 둔다 —
+        # 하나만 있으면 잔여 수명을 계산할 수 없어 상세 화면이 `-`로 나온다.
+        _life_col, _start_col = st.columns(2)
+        _mlife = _life_col.number_input(
+            "모터 수명(시간)",
+            min_value=MOTOR_LIFESPAN_HOURS_RANGE[0],
+            max_value=MOTOR_LIFESPAN_HOURS_RANGE[1],
+            step=1000,
+            value=int(
+                (_m_target["lifespan_hours"] if _m_target and _m_target["lifespan_hours"] else 0)
+                or MOTOR_DEFAULT_LIFESPAN_HOURS
+            ),
+            help="설계 수명입니다. 사양서의 시간 단위 값을 그대로 넣습니다.",
+        )
+        _mstart = _start_col.date_input(
+            "구동일자",
+            value=(
+                parse_utc(_m_target["operation_started_at"]).date()
+                if _m_target and _m_target["operation_started_at"]
+                else date.today()
+            ),
+            max_value=date.today(),
+            help="설비가 실제로 가동을 시작한 날입니다. 모니터링 서비스 등록일과 다릅니다.",
+        )
+
         _ms_col, _md_col = st.columns([1, 1])
         _m_save = _ms_col.form_submit_button(
             "등록" if _m_target is None else "저장", type="primary", width="stretch"
@@ -305,7 +336,8 @@ with _motor_tab:
         if _m_target is None:
             _run(
                 lambda conn: create_motor(
-                    conn, company_id, _mid, _mname, _mloc, _mmodel, _mserial, _minterval
+                    conn, company_id, _mid, _mname, _mloc, _mmodel, _mserial, _minterval,
+                    _mlife, _mstart,
                 ),
                 f"모터 '{_mname}'을(를) 등록했습니다. 지표 임계값 4건도 기본값으로 만들었습니다.",
             )
@@ -320,6 +352,8 @@ with _motor_tab:
                     _mmodel,
                     _mserial,
                     _minterval,
+                    _mlife,
+                    _mstart,
                 ),
                 f"모터 '{_mname}'을(를) 저장했습니다.",
             )

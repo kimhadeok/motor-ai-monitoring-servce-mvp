@@ -18,6 +18,7 @@
 """
 
 import sqlite3
+from datetime import date, datetime, timezone
 
 import bcrypt
 
@@ -26,6 +27,7 @@ from app.config import (
     METRIC_LABELS,
     METRIC_NAMES,
     METRIC_THRESHOLDS,
+    MOTOR_LIFESPAN_HOURS_RANGE,
 )
 
 
@@ -188,6 +190,33 @@ def _validate_motor(
     return motor_id, name, location, model
 
 
+def _validate_lifespan(lifespan_hours: int, operation_started: date | None) -> str | None:
+    """수명 입력 검증 → DB에 넣을 구동일자 문자열 (2026-08-13).
+
+    수명은 범위를 검사한다 — 0이 들어오면 경과율이 0으로 나눠지고, 자릿수를 잘못 치면
+    남은 수명이 수백 년으로 찍혀 화면이 조용히 거짓말을 한다.
+
+    구동일자는 **미래일 수 없다.** 미래로 두면 경과 시간이 음수가 되어 경과율이 음수로
+    나온다. 시각은 그날 00:00 UTC로 고정한다 — 관리자가 시각까지 입력할 이유가 없고,
+    날짜만으로도 수명 계산(시간 단위)에서 오차가 하루 안이다.
+    """
+    low, high = MOTOR_LIFESPAN_HOURS_RANGE
+    _require(
+        low <= lifespan_hours <= high,
+        f"모터 수명은 {low:,}~{high:,}시간 사이여야 합니다.",
+    )
+    if operation_started is None:
+        return None
+    _require(
+        operation_started <= datetime.now(timezone.utc).date(),
+        "구동일자는 오늘보다 미래일 수 없습니다.",
+    )
+    return datetime(
+        operation_started.year, operation_started.month, operation_started.day,
+        tzinfo=timezone.utc,
+    ).strftime("%Y-%m-%dT%H:%M:%S.") + "000Z"
+
+
 def create_motor(
     conn,
     company_id: str,
@@ -197,6 +226,8 @@ def create_motor(
     model_name: str,
     serial_number: str,
     collection_interval_seconds: int,
+    lifespan_hours: int,
+    operation_started: date | None,
 ) -> None:
     """모터 등록. 지표 임계값 4행을 기본값으로 함께 만든다.
 
@@ -211,11 +242,14 @@ def create_motor(
         motor_id, motor_name, installation_location, model_name, collection_interval_seconds
     )
     serial = serial_number.strip() or None
+    started_at = _validate_lifespan(lifespan_hours, operation_started)
     try:
         conn.execute(
             "INSERT INTO motors (motor_id, company_id, motor_name, installation_location, "
-            "model_name, serial_number, collection_interval_seconds) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (mid, company_id, name, location, model, serial, collection_interval_seconds),
+            "model_name, serial_number, collection_interval_seconds, "
+            "lifespan_hours, operation_started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (mid, company_id, name, location, model, serial, collection_interval_seconds,
+             lifespan_hours, started_at),
         )
     except sqlite3.IntegrityError as exc:
         raise AdminError(f"이미 있는 모터 ID이거나 시리얼 번호입니다: {mid} / {serial}") from exc
@@ -238,18 +272,23 @@ def update_motor(
     model_name: str,
     serial_number: str,
     collection_interval_seconds: int,
+    lifespan_hours: int,
+    operation_started: date | None,
 ) -> None:
     """모터 정보 수정. `motor_id`는 바꾸지 않는다 — 텔레메트리 수만 행이 이 값을 참조한다."""
     _, name, location, model = _validate_motor(
         motor_id, motor_name, installation_location, model_name, collection_interval_seconds
     )
     serial = serial_number.strip() or None
+    started_at = _validate_lifespan(lifespan_hours, operation_started)
     try:
         conn.execute(
             "UPDATE motors SET motor_name = ?, installation_location = ?, model_name = ?, "
-            "serial_number = ?, collection_interval_seconds = ? "
+            "serial_number = ?, collection_interval_seconds = ?, "
+            "lifespan_hours = ?, operation_started_at = ? "
             "WHERE motor_id = ? AND company_id = ?",
-            (name, location, model, serial, collection_interval_seconds, motor_id, company_id),
+            (name, location, model, serial, collection_interval_seconds,
+             lifespan_hours, started_at, motor_id, company_id),
         )
     except sqlite3.IntegrityError as exc:
         raise AdminError(f"이미 쓰이는 시리얼 번호입니다: {serial}") from exc

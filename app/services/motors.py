@@ -7,6 +7,7 @@
 조회 함수는 모두 `company_id`를 함께 받아 다른 회사의 모터가 노출되지 않도록 한다.
 """
 
+import math
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
@@ -15,8 +16,12 @@ from app.config import (
     METRIC_NAMES,
     METRIC_THRESHOLDS,
     METRIC_UNITS,
+    MOTOR_DAILY_OPERATING_HOURS,
+    MOTOR_LIFE_DAYS_PER_MONTH,
+    MOTOR_LIFE_DAYS_PER_YEAR,
     STATUS_SEVERITY_RANK,
     TREND_WINDOW_HOURS,
+    parse_utc,
 )
 
 
@@ -537,3 +542,80 @@ def confirm_maintenance(conn, motor_id: str, metric_name: str, contact_id: int) 
         "VALUES (?, ?, 'FAULT', 'NORMAL', ?, ?)",
         (motor_id, metric_name, MAINTENANCE_CONFIRM_REASON, contact_id),
     )
+
+
+# --- 모터 수명 (05 §4.1, 2026-08-13) ---------------------------------------
+
+
+def _split_duration(hours: float) -> tuple[int, int, int, int]:
+    """시간 수를 (년, 개월, 일, 시간)으로 쪼갠다.
+
+    달력이 아니라 **표기용 근사**다(`MOTOR_LIFE_DAYS_PER_YEAR` / `..._PER_MONTH`).
+    남은 수명은 미래 구간이라 실제 달의 길이를 알 수 없고, 화면도 근사임을 밝힌다.
+    """
+    total = int(hours)
+    per_day = 24
+    per_month = MOTOR_LIFE_DAYS_PER_MONTH * per_day
+    per_year = MOTOR_LIFE_DAYS_PER_YEAR * per_day
+
+    years, total = divmod(total, per_year)
+    months, total = divmod(total, per_month)
+    days, hours_left = divmod(total, per_day)
+    return years, months, days, hours_left
+
+
+def format_life_duration(hours: float) -> str:
+    """`3년 2개월 14일 5시간` 형태. 0인 단위는 앞에서부터 생략한다.
+
+    앞자리 0을 그대로 적으면(`0년 0개월 3일 5시간`) 눈이 의미 없는 0을 먼저 읽는다.
+    다만 중간의 0은 남긴다 — `2년 0개월 3일`을 `2년 3일`로 줄이면 자릿수가 흐려진다.
+    """
+    parts = list(zip(_split_duration(hours), ("년", "개월", "일", "시간")))
+    while len(parts) > 1 and parts[0][0] == 0:
+        parts.pop(0)
+    return " ".join(f"{value}{unit}" for value, unit in parts)
+
+
+def motor_lifespan_info(motor, now: datetime | None = None) -> dict | None:
+    """모터 수명 계산 — **경과율·잔여 수명의 유일한 출처다** (05 §4.1).
+
+    화면마다 따로 계산하면 같은 모터에 다른 숫자가 찍힌다. 임계값에서 이미 겪은 결함이라
+    (`04 §2`) 상세·현황·리포트가 모두 이 함수를 본다.
+
+    가동시간은 구동일자부터 지금까지를 `MOTOR_DAILY_OPERATING_HOURS`(현재 24시간 연속)로
+    환산한다. 가동률을 도입하려면 그 상수만 바꾸면 이 함수의 결과가 전부 따라 바뀐다.
+
+    두 값 중 하나라도 없으면 `None`을 반환한다 — 관리자 화면에서 입력하지 않고 등록한
+    모터가 있을 수 있다(`04 §3.3`). 호출측은 `-`로 표시한다.
+    """
+    lifespan = motor["lifespan_hours"] if "lifespan_hours" in motor.keys() else None
+    started_raw = motor["operation_started_at"] if "operation_started_at" in motor.keys() else None
+    if not lifespan or lifespan <= 0 or not started_raw:
+        return None
+
+    started = parse_utc(started_raw)
+    now = now or datetime.now(timezone.utc)
+    elapsed_days = max((now - started).total_seconds() / 86400, 0)
+    elapsed_hours = elapsed_days * MOTOR_DAILY_OPERATING_HOURS
+    remaining_hours = lifespan - elapsed_hours
+
+    used_percent = elapsed_hours / lifespan * 100
+    return {
+        "lifespan_hours": lifespan,
+        "started_at": started,
+        "elapsed_hours": elapsed_hours,
+        "remaining_hours": remaining_hours,
+        "used_percent": used_percent,
+        "is_over": remaining_hours <= 0,
+        # 초과분도 얼마나 넘겼는지 알아야 교체 우선순위를 정할 수 있다.
+        "duration_text": format_life_duration(abs(remaining_hours)),
+        # **소수점 2자리 + 버림이다** (2026-08-13 사용자 요청·지적으로 두 번 고침).
+        #
+        # 반올림하면 안 되는 이유: 99.77%를 정수로 반올림하면 100%가 되어 **남은 수명이
+        # 5일인데 화면은 다 썼다고 말한다.** 담당자가 교체 시점을 판단하는 숫자라 넘지 않은
+        # 것을 넘었다고 하면 안 된다. 2자리에서도 마찬가지다 — 99.999%는 99.99%로 적는다.
+        #
+        # 2자리인 이유: 수명이 수만 시간이라 1%가 수백 시간이다. 정수로 끊으면 며칠~몇 주가
+        # 같은 숫자에 뭉개져 교체가 임박한 설비들의 순서를 가릴 수 없다.
+        "used_percent_text": f"{math.floor(used_percent * 100) / 100:.2f}%",
+    }
