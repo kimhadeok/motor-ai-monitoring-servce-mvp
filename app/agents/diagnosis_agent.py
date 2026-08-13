@@ -62,6 +62,7 @@ def _prepare(state: _DiagnosisState) -> dict:
         companion_lines=context.companion_lines(),
         characteristic_line=context.characteristic_line() or "- 특성 정보 없음",
         fault_lines=context.fault_lines(),
+        lifespan_lines=context.lifespan_lines(),
     )
     return {"messages": [("system", system), ("user", user)]}
 
@@ -132,6 +133,12 @@ def _measured_values(facts: dict) -> set[float]:
             values.update((window["start_value"], window["end_value"], window["peak"]))
     for companion in facts.get("companions") or []:
         values.add(companion["value"])
+    # 수명 수치도 인용 가능한 값이다 (2026-08-13). 여기에 넣지 않으면 모델이 프롬프트대로
+    # 경과율을 근거로 써도 "측정값 인용 없음"으로 걸려 규칙 기반으로 폴백한다 —
+    # 프롬프트가 시킨 것을 검증 게이트가 벌하는 셈이 된다.
+    life = facts.get("lifespan")
+    if life:
+        values.update((life["lifespan_hours"], round(life["used_percent"], 2)))
     return {float(v) for v in values if isinstance(v, (int, float))}
 
 

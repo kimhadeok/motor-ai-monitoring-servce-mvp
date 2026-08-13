@@ -83,6 +83,24 @@ class DiagnosisContext(BaseModel):
     # 바꾸기만 한다. 측정하지 못한 항목은 줄 자체를 만들지 않는다 — 빈 값을 "없음"으로
     # 채워 보내면 모델이 그것을 사실로 서술한다.
 
+    def lifespan_lines(self) -> str:
+        """모터 수명 근거 (2026-08-13). 값이 없으면 그 사실을 적는다.
+
+        빈 문자열로 두면 모델이 앞 블록에 이어 붙은 것으로 읽어 엉뚱한 근거를 만든다 —
+        측정하지 못한 것은 서술하지 않는다는 원칙(06 §2.3)을 프롬프트에서도 지킨다.
+        """
+        life = self.facts.get("lifespan")
+        if not life:
+            return "- 수명 정보 없음 (등록되지 않은 설비)"
+        state = "수명 초과" if life["is_over"] else "잔여"
+        return "\n".join(
+            (
+                f"- 설계 수명: {life['lifespan_hours']:,}시간",
+                f"- 수명 경과율: {life['used_percent_text']}",
+                f"- {state}: {life['duration_text']}",
+            )
+        )
+
     def metric_lines(self) -> str:
         f = self.facts
         unit = f["unit"]

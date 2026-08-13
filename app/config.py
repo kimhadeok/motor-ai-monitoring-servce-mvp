@@ -343,6 +343,10 @@ MOTOR_LIFESPAN_HOURS_RANGE = (1_000, 200_000)
 MOTOR_DAILY_OPERATING_HOURS = 24
 # 남은 수명을 "N년 N개월 N일 N시간"으로 풀 때 쓰는 환산값. 달력이 아니라 표기용 근사다 —
 # 남은 수명은 미래 구간이라 실제 달의 길이를 알 수 없고, 근사임을 화면에서도 밝힌다.
+# 진단이 "교체도 검토하라"는 문장을 덧붙이기 시작하는 경과율(%). 수명을 넘긴 설비는
+# 무조건 언급하고, 넘기지 않았어도 이 선을 지나면 수리비가 잔여 가치에 근접하므로
+# 담당자가 두 선택지를 함께 저울질할 수 있어야 한다 (06 §2.3).
+LIFESPAN_REPLACEMENT_HINT_PERCENT = 80
 MOTOR_LIFE_DAYS_PER_YEAR = 365
 MOTOR_LIFE_DAYS_PER_MONTH = 30
 

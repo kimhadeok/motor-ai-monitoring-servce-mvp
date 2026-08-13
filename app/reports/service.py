@@ -20,6 +20,7 @@ from app.config import (
     METRIC_STATUS_COLUMNS,
     METRIC_THRESHOLDS,
     METRIC_UNITS,
+    MOTOR_DAILY_OPERATING_HOURS,
     NOTIFICATION_CHANNEL_LABELS,
     NOTIFICATION_CHANNEL_ORDER,
     NOTIFICATION_SKIPPED_REASON,
@@ -27,6 +28,7 @@ from app.config import (
     REPORT_DATETIME_FORMAT,
     REPORT_SESSION_ID_FORMAT,
     REPORT_TIME_FORMAT,
+    SUMMARY_DATE_FORMAT,
     format_display,
     parse_utc,
 )
@@ -35,7 +37,7 @@ from app.rag.ingest import query_sop_steps
 from app.rag.knowledge import lookup_fault_modes
 from app.reports.generator import render_report_html, render_report_pdf
 from app.services.diagnosis import build_diagnosis_facts
-from app.services.motors import get_metric_thresholds
+from app.services.motors import get_metric_thresholds, motor_lifespan_info
 
 _STATUS_LABEL = {"DANGER": "위험 단계 감지", "FAULT": "고장/정지 감지"}
 
@@ -145,6 +147,30 @@ def _lookup_notification(conn, log) -> dict:
     }
 
 
+def _lifespan_rows(motor) -> dict | None:
+    """리포트 §1-A 모터 수명 표에 넣을 값 (06 §2.2-A, 2026-08-13).
+
+    표시 형식은 모터 상세(`05 §4.1`)와 같아야 한다 — 화면에서 "109.05%"를 본 담당자가
+    리포트에서 다른 숫자를 보면 어느 쪽을 믿어야 할지 모른다. 그래서 계산도 표기도
+    `motor_lifespan_info()` 결과를 그대로 쓴다.
+    """
+    life = motor_lifespan_info(motor)
+    if life is None:
+        return None
+    return {
+        "started_at": format_display(life["started_at"], SUMMARY_DATE_FORMAT),
+        "lifespan_hours": f"{life['lifespan_hours']:,}시간",
+        "remaining": (
+            f"수명 초과 ({life['duration_text']} 지남)"
+            if life["is_over"]
+            else life["duration_text"]
+        ),
+        "used_percent": life["used_percent_text"],
+        "is_over": life["is_over"],
+        "daily_hours": MOTOR_DAILY_OPERATING_HOURS,
+    }
+
+
 def build_report_context(conn, log) -> dict | None:
     """상태 로그 1건에 대한 리포트 렌더 컨텍스트. 필요한 참조가 없으면 None."""
     motor = conn.execute(
@@ -194,8 +220,13 @@ def build_report_context(conn, log) -> dict | None:
         )
 
     # 근거를 먼저 측정하고 문장은 그 근거만 서술한다 (services/diagnosis.py 모듈 주석 참조).
+    # 수명을 진단 근거로 함께 넘긴다 (2026-08-13). 같은 지표 이상이라도 수명이 남았으면
+    # 수리, 다 됐으면 교체 검토로 결론이 갈리는데, 진단이 그 축을 모르면 담당자가 리포트
+    # 밖에서 판단해야 한다. §1-A 표와 **같은 계산**(`motor_lifespan_info`)을 쓰므로
+    # 진단 문장의 숫자와 표의 숫자가 어긋날 수 없다.
     facts = build_diagnosis_facts(
-        conn, motor["motor_id"], metric, status, log["created_at"], telemetry, thresholds
+        conn, motor["motor_id"], metric, status, log["created_at"], telemetry, thresholds,
+        lifespan=motor_lifespan_info(motor),
     )
 
     # 참조 지식 기반 결정적 조회 — 벡터 검색과 달리 같은 지표면 항상 같은 근거가 나온다.
@@ -258,6 +289,12 @@ def build_report_context(conn, log) -> dict | None:
         ),
         "sensors": sensors,
         "thresholds": threshold_rows,
+        # 모터 수명 (2026-08-13 사용자 요청). 센서 4지표가 "지금 이 순간의 이상"이라면
+        # 수명은 "누적된 소모"로 같은 질문의 다른 축이다. 담당자가 수리와 교체를 가르는
+        # 근거이므로 리포트 안에 있어야 한다 — 없으면 리포트 밖에서 찾아야 한다(06 §2.2-A).
+        # 계산은 화면과 같은 `motor_lifespan_info()` 한 곳에서 온다. 값이 없으면 None이고
+        # 템플릿이 블록 자체를 그리지 않는다.
+        "lifespan": _lifespan_rows(motor),
         # 생성 경로와 표기를 일치시킨다 (2026-08-10 확정). 호출하지 않은 모델명을 적으면
         # 담당자가 폴백 결과를 LLM 생성물로 오독한다.
         "diagnosis_model_label": (

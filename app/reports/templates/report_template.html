@@ -284,6 +284,13 @@
         .threshold-table .th-warning { color: var(--warning); }
         .threshold-table .th-danger { color: var(--danger); }
         .threshold-table .th-fault { color: var(--fault); font-weight: 600; }
+        /* 모터 수명 표 (06 §2.2-A) — 임계값 표와 같은 틀을 쓰되 항목·값이 두 쌍씩이라
+           머리글 행이 없다. 수명 초과 행에는 **임계값 표의 `is-trigger`를 재활용하지 않고
+           전용 클래스를 쓴다**: 그 규칙은 `.th-metric::before`로 ▶를 붙이는데 이 표는 한
+           행에 항목 칸이 둘이라 ▶가 두 번 찍힌다(실측). 두 번째만 끄려고 `~` 선택자를
+           썼더니 WeasyPrint에서 듣지 않았다 — 선택자와 싸우는 대신 배경만 따로 준다.
+           초과라는 사실은 값 칸의 붉은 글씨(`th-fault`)가 말한다. */
+        .life-table tr.life-over td { background: var(--bg-gray); }
         /* 이번 이벤트를 일으킨 지표 행을 짚어준다 */
         .threshold-table tr.is-trigger td { background: var(--bg-gray); }
         .threshold-table tr.is-trigger .th-metric::before {
@@ -531,6 +538,38 @@
         </tbody>
     </table>
     <div class="threshold-note">이 설비에 설정된 기준값입니다. 모터마다 다르게 설정될 수 있습니다.</div>
+    {% endif %}
+
+    <!-- 모터 수명 (06 §2.2-A, 2026-08-13). 센서 4지표가 "지금 이 순간의 이상"이라면
+         수명은 "누적된 소모"로 같은 질문의 다른 축이다. 수명이 30% 남은 설비의 이상은
+         수리 대상이지만 수명을 넘긴 설비의 같은 이상은 교체 검토 대상이라, 담당자가
+         수리와 교체를 가르려면 이 축이 리포트 안에 있어야 한다.
+         값이 없는 모터(관리자가 입력하지 않고 등록)는 블록 자체를 그리지 않는다. -->
+    {% if lifespan %}
+    <h2>
+        <span class="h2-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        모터 수명
+    </h2>
+    <table class="threshold-table life-table">
+        <tbody>
+            <tr>
+                <td class="th-metric">구동일자</td>
+                <td>{{ lifespan.started_at }}</td>
+                <td class="th-metric">설계 수명</td>
+                <td>{{ lifespan.lifespan_hours }}</td>
+            </tr>
+            <tr{% if lifespan.is_over %} class="life-over"{% endif %}>
+                <td class="th-metric">남은 수명</td>
+                <td{% if lifespan.is_over %} class="th-fault"{% endif %}>{{ lifespan.remaining }}</td>
+                <td class="th-metric">수명 경과율</td>
+                <td{% if lifespan.is_over %} class="th-fault"{% endif %}>{{ lifespan.used_percent }}</td>
+            </tr>
+        </tbody>
+    </table>
+    <div class="threshold-note">
+        구동일자는 설비가 실제로 돌기 시작한 날로, 표지의 감지 시각·등록일자와 다릅니다.
+        남은 수명은 하루 {{ lifespan.daily_hours }}시간 가동 기준으로 환산한 값이며, 년·개월은 표기용 근사입니다.
+    </div>
     {% endif %}
 
 </div>

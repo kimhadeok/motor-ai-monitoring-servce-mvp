@@ -21,6 +21,7 @@ from datetime import timedelta
 from app.agents.schema import DiagnosisResult
 from app.config import (
     FAULT_LEAD_TIME_URGENCY,
+    LIFESPAN_REPLACEMENT_HINT_PERCENT,
     LONG_TERM_TREND_HOURS,
     METRIC_LABELS,
     METRIC_NAMES,
@@ -121,7 +122,7 @@ def _companion_metrics(telemetry, metric: str) -> list[dict]:
 
 def build_diagnosis_facts(
     conn, motor_id: str, metric: str, status: str, event_time, telemetry,
-    thresholds: dict | None = None,
+    thresholds: dict | None = None, lifespan: dict | None = None,
 ) -> dict:
     """리포트 섹션 2가 근거로 삼는 측정값 모음.
 
@@ -149,6 +150,10 @@ def build_diagnosis_facts(
         "companions": _companion_metrics(telemetry, metric),
         "characteristic": metric_characteristic(metric),
         "lead_time_band": most_urgent,
+        # 모터 수명 (2026-08-13). 같은 지표 이상이라도 **수명이 남았으면 수리, 다 됐으면
+        # 교체 검토**로 결론이 갈린다. 진단이 그 축을 모르면 담당자가 리포트 밖에서
+        # 판단해야 한다. 계산은 `services/motors.motor_lifespan_info()` 한 곳에서 온다.
+        "lifespan": lifespan,
     }
 
 
@@ -195,6 +200,7 @@ def build_rule_based_result(status: str, facts: dict) -> DiagnosisResult:
             f"같은 시점의 다른 세 지표는 정상 범위였습니다. {label} 계통에 국한된 이상일 가능성이 높습니다."
         ]
 
+    life = facts.get("lifespan")
     if status == "FAULT":
         if_ignored = "이미 고장/정지 임계를 초과했으므로 즉시 설비를 정지하고 정비를 시행해야 합니다."
     else:
@@ -204,6 +210,22 @@ def build_rule_based_result(status: str, facts: dict) -> DiagnosisResult:
         lead = _OUTLOOK_BY_LEAD_TIME.get(facts["lead_time_band"])
         if lead:
             if_ignored += f" {lead}"
+
+    # **수명이 결론을 가른다** (2026-08-13). 같은 이상이라도 수명이 남았으면 수리 대상이고,
+    # 넘겼으면 수리 비용이 잔여 가치를 넘길 수 있어 교체를 함께 검토해야 한다.
+    # 규칙 기반 폴백도 이 축을 말해야 LLM 경로와 결론이 갈리지 않는다.
+    if life:
+        if life["is_over"]:
+            if_ignored += (
+                f" 이 설비는 설계 수명({life['lifespan_hours']:,}시간)의 "
+                f"{life['used_percent_text']}를 사용해 이미 수명을 넘겼습니다 — "
+                "수리와 교체 중 무엇이 나은지 함께 검토하십시오."
+            )
+        elif life["used_percent"] >= LIFESPAN_REPLACEMENT_HINT_PERCENT:
+            if_ignored += (
+                f" 설계 수명의 {life['used_percent_text']}를 사용한 상태이므로"
+                f"(잔여 {life['duration_text']}) 교체 시기를 함께 검토하십시오."
+            )
 
     return DiagnosisResult(
         summary=summary,
