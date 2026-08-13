@@ -464,20 +464,23 @@
         <div class="flow-arrow">
             <svg width="22" height="14" viewBox="0 0 22 14"><path d="M0 7h18M13 1l7 6-7 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
+        <!-- 알림 노드가 진단 노드보다 앞이다 (03 §4.1, 2026-08-13 순서 변경). 아이콘도 함께
+             옮긴다 — 종(알림)이 2번, 칩(진단)이 3번이다. 라벨은 종전과 같은 길이로 잡아
+             `.flow-node`(110px)의 줄바꿈 수가 늘지 않게 했다. -->
         <div class="flow-node">
             <div class="icon-circle">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>
             </div>
-            <span>AI 에이전트 진단</span>
+            <span>이상 감지 · 알림</span>
         </div>
         <div class="flow-arrow">
             <svg width="22" height="14" viewBox="0 0 22 14"><path d="M0 7h18M13 1l7 6-7 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
         <div class="flow-node">
             <div class="icon-circle">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg>
             </div>
-            <span>리포트 발행 및 알림</span>
+            <span>AI 진단 · 리포트</span>
         </div>
     </div>
 
@@ -679,19 +682,23 @@
                 <div class="timeline-time">{{ event_time }}</div>
                 <div class="timeline-content"><strong>이상 감지</strong> — {{ trigger_reason }}</div>
             </div>
-            <div class="timeline-item diagnose">
-                <div class="icon-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg></div>
-                <div class="timeline-time">{{ report_generated_at }}</div>
-                <div class="timeline-content"><strong>AI 진단 완료</strong> — 단기(2h)+장기(6h) 데이터 및 RAG 매뉴얼 결합 분석 완료, 본 리포트 생성</div>
-            </div>
+            <!-- 알림이 진단·리포트보다 먼저 나간다 (03 §4.1, 2026-08-13). 문자·알림톡은
+                 게이트웨이 왕복 지연이 있고 알림 문구가 진단 결과에 의존하지 않으므로,
+                 진단(실측 4.12초, 첫 건 5~9초)을 기다리지 않는다. 시각도 표시용 오프셋이
+                 아니라 `notification_logs.created_at` 실제 기록을 쓴다 (06 §2.5). -->
             <div class="timeline-item notify">
                 <div class="icon-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/></svg></div>
-                <div class="timeline-time">{{ report_generated_at }}</div>
+                <div class="timeline-time">{{ notification.sent_at }}</div>
                 {% if notification.sent %}
                 <div class="timeline-content"><strong>알림 발송</strong> — 담당자에게 리포트 다운로드 안내 발송 ({{ notification.channel_summary }})</div>
                 {% else %}
                 <div class="timeline-content"><strong>알림 미발송</strong> — {{ notification.skip_reason }}</div>
                 {% endif %}
+            </div>
+            <div class="timeline-item diagnose">
+                <div class="icon-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg></div>
+                <div class="timeline-time">{{ report_generated_at }}</div>
+                <div class="timeline-content"><strong>AI 진단 완료</strong> — 단기(2h)+장기(6h) 데이터 및 RAG 매뉴얼 결합 분석 완료, 본 리포트 생성</div>
             </div>
         </div>
 

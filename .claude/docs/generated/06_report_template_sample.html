@@ -329,20 +329,21 @@
         <div class="flow-arrow">
             <svg width="22" height="14" viewBox="0 0 22 14"><path d="M0 7h18M13 1l7 6-7 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
+        <!-- 알림 노드가 진단 노드보다 앞이다 (03 §4.1, 2026-08-13 순서 변경). -->
         <div class="flow-node">
             <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>
             </div>
-            <span>AI 에이전트 진단</span>
+            <span>이상 감지 · 알림</span>
         </div>
         <div class="flow-arrow">
             <svg width="22" height="14" viewBox="0 0 22 14"><path d="M0 7h18M13 1l7 6-7 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
         <div class="flow-node">
             <div class="icon-circle">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/><path d="M9 20a3 3 0 006 0" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.3" fill="currentColor"/><line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2"/><line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="2"/><line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2"/></svg>
             </div>
-            <span>리포트 발행 및 알림</span>
+            <span>AI 진단 · 리포트</span>
         </div>
     </div>
 
@@ -451,15 +452,17 @@
                 <div class="timeline-time">14:30:00</div>
                 <div class="timeline-content"><strong>이상 감지</strong> — 온도/진동 지표가 DANGER 임계치 초과 (상태 전이 감지)</div>
             </div>
+            <!-- 알림이 진단보다 먼저다 (03 §4.1, 2026-08-13). 감지 즉시 발송이므로 시각이
+                 이상 감지와 같다 — 06 §2.5 참고. -->
+            <div class="timeline-item notify">
+                <div class="icon-dot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/></svg></div>
+                <div class="timeline-time">14:30:00</div>
+                <div class="timeline-content"><strong>알림 발송</strong> — 담당자 SMS/이메일로 리포트 다운로드 링크 발송</div>
+            </div>
             <div class="timeline-item diagnose">
                 <div class="icon-dot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="6" y="6" width="12" height="12" rx="2" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg></div>
                 <div class="timeline-time">14:30:12</div>
                 <div class="timeline-content"><strong>AI 진단 완료</strong> — 단기(2h)+장기(6h) 데이터 및 RAG 매뉴얼 결합 분석 완료, 본 리포트 생성</div>
-            </div>
-            <div class="timeline-item notify">
-                <div class="icon-dot"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6z" fill="currentColor"/></svg></div>
-                <div class="timeline-time">14:30:15</div>
-                <div class="timeline-content"><strong>알림 발송</strong> — 담당자 SMS/이메일로 리포트 다운로드 링크 발송</div>
             </div>
         </div>
 

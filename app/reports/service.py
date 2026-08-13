@@ -39,6 +39,10 @@ from app.services.motors import get_metric_thresholds
 
 _STATUS_LABEL = {"DANGER": "위험 단계 감지", "FAULT": "고장/정지 감지"}
 
+# 리포트 §5 타임라인의 시각 표기. 첫 줄(이상 감지)만 날짜를 포함하고 이후 줄은 시각만
+# 적는다 — 세 항목이 같은 날 몇 초 안에 일어나므로 날짜를 반복하면 읽는 눈만 밀린다.
+_TIMELINE_TIME_FORMAT = "%H:%M:%S"
+
 # 리포트 생성 대상 상태 (03_state_event_logic.md §4.1)
 REPORTABLE_STATUSES = ("DANGER", "FAULT")
 
@@ -81,9 +85,16 @@ def _lookup_notification(conn, log) -> dict:
 
     수신처는 채널에 따라 다르다 — 문자·알림톡은 전화번호, 이메일은 메일 주소이며 둘 다
     마스킹한다(`_mask_phone` / `_mask_email`).
+
+    **발송 시각도 기록에서 그대로 싣는다** (`sent_at`, 2026-08-13). 종전에는 타임라인이
+    리포트 생성 시각(이벤트+12초)을 발송 시각 자리에 찍었다 — 알림이 진단보다 뒤에 나가는
+    순서였기 때문에, 실제 기록(전이 시각)을 그대로 쓰면 "알림 발송"이 "AI 진단 완료"보다
+    앞서는 어긋난 줄이 됐다. `03 §4.1`에서 알림이 진단·리포트보다 먼저 나가도록 바뀌어
+    그 어긋남이 정상 순서가 됐으므로, 표시용 오프셋으로 기록을 덮지 않는다(`06 §2.5`).
     """
     rows = conn.execute(
-        "SELECT n.channel_type, n.message_content, ct.contact_name, ct.phone_number, ct.email "
+        "SELECT n.channel_type, n.message_content, n.created_at, "
+        "ct.contact_name, ct.phone_number, ct.email "
         "FROM notification_logs n "
         "JOIN company_contacts ct ON ct.contact_id = n.contact_id "
         "WHERE n.motor_id = ? AND n.created_at = ? "
@@ -92,7 +103,13 @@ def _lookup_notification(conn, log) -> dict:
     ).fetchall()
 
     if not rows:
-        return {"sent": False, "skip_reason": NOTIFICATION_SKIPPED_REASON}
+        # 발송 기록이 없으니 시각도 없다. 칸을 비우면 타임라인 한 줄이 시각 없이 떠서
+        # 앞뒤 줄과 어긋나 보이므로, 이 줄이 놓인 자리인 감지 시각을 쓴다.
+        return {
+            "sent": False,
+            "skip_reason": NOTIFICATION_SKIPPED_REASON,
+            "sent_at": format_display(parse_utc(log["created_at"]), _TIMELINE_TIME_FORMAT),
+        }
 
     def _target(row) -> str:
         if row["channel_type"] == "EMAIL":
@@ -122,6 +139,8 @@ def _lookup_notification(conn, log) -> dict:
         "channels": channels,
         # 타임라인 한 줄용 — "문자, 이메일"
         "channel_summary": ", ".join(c["label"] for c in channels),
+        # 같은 이벤트의 채널 행들은 `created_at`을 공유하므로 어느 행에서 읽어도 같다 (04 §3.7).
+        "sent_at": format_display(parse_utc(ordered[0]["created_at"]), _TIMELINE_TIME_FORMAT),
         "message": ordered[0]["message_content"],
     }
 
@@ -148,6 +167,8 @@ def build_report_context(conn, log) -> dict | None:
     metric = log["metric_name"]
     status = log["new_status"]
     event_dt = parse_utc(log["created_at"])
+    # 진단 완료(=리포트 생성) 시각. 알림 발송 시각은 여기서 파생하지 않고 실제 기록에서
+    # 읽는다 (`_lookup_notification`의 `sent_at`, 06 §2.5 — 2026-08-13 순서 변경).
     report_dt = event_dt + timedelta(seconds=12)
 
     # 임계값은 모터별이다 (2026-08-11). 종전에는 센서 카드의 '정상 기준'만 전역값을 써서,
@@ -229,7 +250,7 @@ def build_report_context(conn, log) -> dict | None:
         "model_name": motor["model_name"],
         "event_time": format_display(event_dt, REPORT_DATETIME_FORMAT),
         "generated_date": format_display(report_dt, "%Y-%m-%d"),
-        "report_generated_at": format_display(report_dt, "%H:%M:%S"),
+        "report_generated_at": format_display(report_dt, _TIMELINE_TIME_FORMAT),
         "session_id": REPORT_SESSION_ID_FORMAT.format(
             motor_id=motor["motor_id"],
             date=format_display(event_dt, REPORT_DATE_FORMAT),
