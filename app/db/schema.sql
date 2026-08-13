@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS motors (
   -- 구동일자부터 지금까지의 가동시간을 설계 수명과 견줘 잔여 수명을 본다.
   -- created_at(모니터링 서비스 등록일)과 operation_started_at(실제 가동 시작일)은 다르다.
   -- 설비는 서비스 도입 전부터 돌고 있으므로 구동일자가 등록일보다 앞선다.
-  -- 값을 아직 화면에서 입력할 수 없어(수명 관리 기능 미구현, remaining_work #22) NULL을 허용한다.
+  -- NULL을 허용한다 — 관리자 화면에서 입력할 수 있게 되기 전에 등록된 모터와
+  -- 마이그레이션으로 컬럼만 붙은 기존 행이 있다. 읽는 쪽이 NULL을 전제한다(04 §3.3).
   lifespan_hours         INTEGER,               -- 설계 수명(시간)
   operation_started_at   TEXT,                  -- ISO8601, 실제 가동 시작일
   created_at             TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
