@@ -11,8 +11,8 @@ from app.config import (
     CARD_HIGHLIGHT_STATUSES,
     DATA_FLOW_NODES,
     DISPLAY_DATETIME_FORMAT,
-    EVENT_COLUMN_WIDTHS,
-    EVENT_COLUMN_WIDTHS_WITH_MOTOR,
+    EVENT_ROW_SPLIT,
+    EVENT_ROW_SPLIT_WITH_MOTOR,
     EVENT_VALUE_DECIMALS,
     MAINTENANCE_CONFIRM_COLUMNS,
     METRIC_LABELS,
@@ -852,16 +852,24 @@ def render_maintenance_dialog() -> None:
 def event_list_header(show_motor: bool) -> None:
     """이벤트 리스트 헤더 (05 §3.3 / §4.4). 대시보드만 모터명 컬럼을 갖는다.
 
-    `st.caption` 대신 `.event-th` 마크다운을 쓴다 — CSS가 `:has(.event-th)`로 헤더 행을
-    찾아 아래쪽 구분선을 그린다. caption은 잡을 만한 클래스가 없다.
+    **데이터 행과 같은 그리드를 쓴다** (2026-08-13). 헤더도 라벨마다 컬럼을 두던 것을
+    마크다운 한 덩어리로 바꿔, 아래 행과 열이 어긋날 수 없게 했다 — 두 곳이 같은
+    `grid-template-columns`를 공유한다.
+
+    `.event-th`는 CSS가 헤더를 찾는 표식으로도 쓰인다(구분선, 모바일 숨김).
     """
-    labels = ("발생 일시", "모터명", "상태 변화", "값 변화", "발생 사유", "")
-    widths = EVENT_COLUMN_WIDTHS_WITH_MOTOR if show_motor else EVENT_COLUMN_WIDTHS
+    labels = ("발생 일시", "모터명", "상태 변화", "값 변화", "발생 사유")
     if not show_motor:
         labels = tuple(label for label in labels if label != "모터명")
 
-    for column, label in zip(st.columns(widths), labels):
-        column.markdown(f'<div class="event-th">{label}</div>', unsafe_allow_html=True)
+    header_col, _button_col = st.columns(
+        EVENT_ROW_SPLIT_WITH_MOTOR if show_motor else EVENT_ROW_SPLIT
+    )
+    cells = "".join(f'<div class="event-th">{label}</div>' for label in labels)
+    header_col.markdown(
+        f'<div class="event-grid{" with-motor" if show_motor else ""}">{cells}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _value_change_html(event, direction: str) -> str:
@@ -910,41 +918,45 @@ def event_row(event, show_motor: bool) -> None:
     상태값만 보여주면 "DANGER"라는 결과만 알 뿐 원인과 방향을 알 수 없어, 담당자가
     상세 페이지까지 들어가야 상황을 파악할 수 있다.
     """
-    widths = EVENT_COLUMN_WIDTHS_WITH_MOTOR if show_motor else EVENT_COLUMN_WIDTHS
-    columns = list(st.columns(widths))
-
-    occurred_at = columns.pop(0)
-    event_dt = parse_utc(event["created_at"])
-    occurred_at.markdown(
-        f'<div class="event-when"><span class="rel">{format_relative(event_dt)}</span>'
-        f'<span class="abs">{format_display(event_dt, DISPLAY_DATETIME_FORMAT)}</span></div>',
-        unsafe_allow_html=True,
+    info_col, button_col = st.columns(
+        EVENT_ROW_SPLIT_WITH_MOTOR if show_motor else EVENT_ROW_SPLIT
     )
 
-    if show_motor:
-        columns.pop(0).write(event["motor_name"])
-
+    event_dt = parse_utc(event["created_at"])
     direction = transition_direction(event["previous_status"], event["new_status"])
     mark, word = _DIRECTION_MARK[direction]
-    columns.pop(0).markdown(
-        f'<div class="event-change">'
-        f'<span class="metric-tag">{METRIC_LABELS.get(event["metric_name"], event["metric_name"])}</span>'
-        f'<span class="chip status-{event["previous_status"].lower()}">'
-        f'{event["previous_status"]}</span>'
-        f'<span class="arrow {direction}" title="{word}">{mark}</span>'
-        f'<span class="chip status-{event["new_status"].lower()}">{event["new_status"]}</span>'
-        f"</div>",
+
+    cells = [
+        f'<div class="event-when"><span class="rel">{format_relative(event_dt)}</span>'
+        f'<span class="abs">{format_display(event_dt, DISPLAY_DATETIME_FORMAT)}</span></div>',
+    ]
+    if show_motor:
+        cells.append(f'<div class="event-motor">{event["motor_name"]}</div>')
+    cells.extend(
+        [
+            f'<div class="event-change">'
+            f'<span class="metric-tag">'
+            f'{METRIC_LABELS.get(event["metric_name"], event["metric_name"])}</span>'
+            f'<span class="chip status-{event["previous_status"].lower()}">'
+            f'{event["previous_status"]}</span>'
+            f'<span class="arrow {direction}" title="{word}">{mark}</span>'
+            f'<span class="chip status-{event["new_status"].lower()}">'
+            f'{event["new_status"]}</span>'
+            f"</div>",
+            _value_change_html(event, direction),
+            f'<div class="event-reason {direction}">{event["trigger_reason"] or "-"}</div>',
+        ]
+    )
+
+    # **5필드를 마크다운 한 덩어리로 넣는다** (2026-08-13). 필드마다 Streamlit 컬럼을 두면
+    # 각 컬럼의 래퍼 높이를 Streamlit이 실제보다 작게 잡아, 모바일에서 세로로 쌓일 때
+    # 칸끼리 겹쳐 찍힌다(05 §3.3). 래퍼가 하나면 그 문제가 생길 자리가 없다.
+    info_col.markdown(
+        f'<div class="event-grid{" with-motor" if show_motor else ""}">{"".join(cells)}</div>',
         unsafe_allow_html=True,
     )
 
-    columns.pop(0).markdown(_value_change_html(event, direction), unsafe_allow_html=True)
-
-    columns.pop(0).markdown(
-        f'<div class="event-reason {direction}">{event["trigger_reason"] or "-"}</div>',
-        unsafe_allow_html=True,
-    )
-
-    with columns.pop(0):
+    with button_col:
         report_button(event)
 
 

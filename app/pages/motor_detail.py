@@ -190,9 +190,12 @@ def render_live_detail() -> None:
         caption += f" · {page + 1}/{last_page + 1} 페이지"
     st.caption(f"{caption} · 이 모터의 이력만 모아서 보여줍니다.")
 
-    event_list_header(show_motor=True)
+    # 모터명 열을 뺀다 (2026-08-13 사용자 요청 — 2026-08-10 확정을 되돌림). 이 화면은 한
+    # 대의 이력만 보여주므로 모든 행에 같은 이름이 반복될 뿐이고, 제목과 §4.0 배지가 이미
+    # 어느 모터인지 말한다. 모바일에서는 카드마다 한 줄씩 그대로 낭비된다(05 §3.3).
+    event_list_header(show_motor=False)
     for event in events:
-        event_row(event, show_motor=True)
+        event_row(event, show_motor=False)
 
     if last_page > 0:
         prev_col, label_col, next_col = st.columns([1, 2, 1])

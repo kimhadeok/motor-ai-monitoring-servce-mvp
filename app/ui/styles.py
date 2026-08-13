@@ -8,6 +8,8 @@ from app.config import (
     CARD_SPARKLINE_DRAW_MS,
     DATA_FLOW_ANIMATION_SECONDS,
     DETAIL_CHART_REVEAL_MS,
+    EVENT_GRID,
+    EVENT_GRID_WITH_MOTOR,
     GRAPH_DETAIL_BUTTON_PREFIX,
     MOTOR_CARD_BUTTON_PREFIX,
     MOTOR_CARD_ROW_GAP_PX,
@@ -687,35 +689,48 @@ def inject_global_styles() -> None:
         /* 행 구분선 (05 §3.3) — 줄이 많아지면 어느 값이 어느 행인지 눈으로 따라가기
            어렵다. 이벤트 행에만 걸도록 `.event-when`(행)·`.event-th`(헤더)로 범위를 좁힌다.
            대시보드의 다른 컬럼 블록까지 선이 그어지면 화면이 표처럼 보여 버린다. */
-        /* 헤더는 min-height로 잡는다. Streamlit이 이 블록을 실제 글자 높이보다 작게
-           보고해(16px 라벨인데 블록 14px), 그대로 두면 글자가 하단 구분선 아래로 삐져나온다.
-           데이터 행에 쓴 height:auto 방식은 헤더에서 듣지 않았고(stMarkdown이 3px로 무너짐),
-           padding-bottom도 블록 높이에 반영되지 않아 min-height가 유일하게 통했다.
-           값은 라벨 글꼴(16px)에 연동한다 — 글꼴만 키우고 여기를 고정으로 두면 다시 넘친다. */
+        /* **한 행 = Streamlit 컬럼 2개(데이터부 + 보고서 버튼)이고, 데이터 5필드는 이
+           `.event-grid` 안에서 CSS 그리드로 나뉜다** (2026-08-13 재구성).
+
+           종전에는 필드마다 컬럼을 하나씩 줬는데, Streamlit이 각 컬럼 안 커스텀 HTML의
+           래퍼 높이를 실제보다 작게 잡는 문제가 있었다(실측: 내용 17.5px → 래퍼 1.5px).
+           데스크톱에서는 행의 `align-items: stretch`가 컬럼을 행 높이만큼 늘려 그 오류를
+           가렸지만, 640px 이하에서 Streamlit이 컬럼을 세로로 쌓자 **잘못된 높이가 그대로
+           자리 높이가 되어 칸끼리 겹쳐 찍혔다.** 래퍼 체인에 `height: auto !important`를
+           걸어도 컬럼 자체는 풀리지 않았다.
+
+           마크다운 한 덩어리 + 그리드로 바꾸면 그 자리가 사라진다 — 높이를 잘못 잴 래퍼가
+           하나뿐이고, 그 안은 우리 CSS가 온전히 통제한다. 헤더와 행이 **같은 그리드 값**을
+           쓰므로 열이 어긋날 수도 없다. */
+        .event-grid {{
+            display: grid; align-items: center; gap: 16px;
+            grid-template-columns: {EVENT_GRID};
+        }}
+        .event-grid.with-motor {{ grid-template-columns: {EVENT_GRID_WITH_MOTOR}; }}
+        .event-motor {{ font-size: 16px; color: {p["text"]}; }}
+
+        /* **Streamlit의 `margin-bottom: -16px`을 되돌린다 — 화면 폭과 무관하게 적용한다.**
+           Streamlit은 `stMarkdownContainer`에 음수 마진을 걸어 자기가 넣는
+           `p {{ margin-bottom: 1rem }}`을 상쇄한다. 그런데 우리 내용은 `p`가 아니라 `div`라
+           **상쇄할 +16px이 없어 음수 마진만 그대로 남는다.**
+
+           증상이 폭마다 다르게 나타나 원인을 두 번에 걸쳐 잡았다(2026-08-13):
+           - 모바일: 뒤따르는 보고서 버튼을 16px 끌어올려 마지막 줄과 겹쳤다.
+           - 데스크톱: 행의 아래 구분선이 16px 올라와 **헤더 글자와 겹쳤다**(사용자 제보).
+           같은 원인이므로 보정도 한 곳에서 한다 — 미디어쿼리 안에 두면 반쪽만 고쳐진다. */
+        [data-testid="stMarkdownContainer"]:has(> .event-grid) {{
+            margin-bottom: 0 !important;
+        }}
+
         div[data-testid="stHorizontalBlock"]:has(.event-th) {{
             border-bottom: 2px solid {p["border"]};
-            /* center로 두면 Streamlit이 잘못 보고한 작은 상자를 기준으로 정렬해 글자가
-               아래로 쏠리고 구분선에 1px까지 붙는다. 위에서 시작시키고 여백을 직접 준다. */
-            align-items: flex-start; padding-top: 0.5em; min-height: 2.7em;
-            margin-bottom: 2px;
+            align-items: center; padding-bottom: 6px; margin-bottom: 2px;
         }}
         /* border_soft는 다크에서 surface와 거의 같아 선이 보이지 않는다 — border를 쓴다. */
         div[data-testid="stHorizontalBlock"]:has(.event-when) {{
             border-bottom: 1px solid {p["border"]};
             padding: 9px 0;
-            /* stretch여야 컬럼이 행 높이만큼 늘어난다. center로 두면 아래 마크다운 높이
-               문제와 겹쳐 콘텐츠가 행 아래로 밀려 구분선에 달라붙는다. */
-            align-items: stretch;
-        }}
-        /* 데이터 행: Streamlit이 마크다운 래퍼를 한 줄 기준(16px)으로 보고해, 두 줄인
-           "발생 일시"(32px)가 블록을 넘쳐 하단 구분선에 6px까지 달라붙었다.
-           높이를 풀고 컬럼을 늘려 행 높이에 맞춘다. */
-        div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stMarkdown"],
-        div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stMarkdown"] > div {{
-            height: auto !important; min-height: 0 !important;
-        }}
-        div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stColumn"] {{
-            display: flex; align-items: center;
+            align-items: center;
         }}
         /* 컬럼명은 본문(모터명 16px)과 같은 크기로 둔다. 12px일 때는 표의 머리글이 아니라
            작은 주석처럼 읽혀 어느 열이 무엇인지 눈에 들어오지 않았다. */
@@ -741,6 +756,84 @@ def inject_global_styles() -> None:
         .event-reason {{ font-size: 12px; color: {p["text"]}; line-height: 1.4; }}
         .event-reason.worse {{ color: {status_colors["DANGER"]}; font-weight: 600; }}
         .event-reason.recover {{ color: {status_colors["NORMAL"]}; }}
+
+        /* --- 이벤트 리스트: 모바일 (2026-08-13, 사용자 제보) ---
+           **Streamlit이 640px 이하에서 컬럼을 세로로 쌓는다.** 컬럼에
+           `min-width: calc(100% - 1.5rem)`을 걸어 `flex-wrap: wrap`으로 접는 것이며(실측:
+           `@media (max-width: 640px)` 규칙을 스타일시트에서 확인), 우리가 만든 동작이 아니라
+           막을 수도 없다. 아래 폭은 그 규칙과 **정확히 같아야** 한다 — 어긋나면 헤더는
+           가로인데 데이터는 세로인 구간이 생긴다.
+
+           한 행이 컬럼 2개(데이터부 + 버튼)뿐이라, 여기서 접히는 것은 그 둘이다. 데이터
+           5필드는 `.event-grid` 안이므로 Streamlit 레이아웃과 무관하게 우리가 정한다.
+
+           가로 유지는 답이 아니다 — 375px에 5열이면 열당 약 60px라 아무것도 못 읽는다.
+           **헤더를 버리고 각 행을 카드로 만든다.** */
+        @media (max-width: 640px) {{
+            /* 헤더는 숨긴다. 세로로 쌓인 라벨 목록은 아래 카드의 어느 값과도 연결되지
+               않아 화면 한 뭉텅이를 쓰면서 아무것도 알려주지 않는다. 각 값은 칩·단위·
+               상대시각으로 이미 무엇인지 드러난다. */
+            div[data-testid="stHorizontalBlock"]:has(.event-th) {{ display: none; }}
+
+            /* **행을 flex가 아니라 block으로 둔다 (2026-08-13 3차 수정).**
+               `flex-wrap: wrap` 상태로 두면 Streamlit이 잘못 잰 데이터부 컬럼 높이가 그대로
+               자리 높이가 되어, **보고서 버튼이 마지막 줄("발생 사유") 위로 올라붙어
+               겹친다** — 사용자 제보로 확인. 두 컬럼을 일반 블록으로 쌓으면 각자 내용
+               높이를 차지하므로 그 계산 자체가 사라진다. */
+            div[data-testid="stHorizontalBlock"]:has(.event-when) {{
+                display: block;
+                border: 1px solid {p["border"]}; border-radius: 10px;
+                background: {p["surface"]};
+                padding: 12px 14px; margin-bottom: 10px;
+            }}
+            /* **버튼 겹침을 막는 규칙 (2026-08-13 4차 — 사용자 재제보).**
+               Streamlit이 커스텀 HTML을 감싼 래퍼들의 높이를 실제보다 작게 잡아 두는데,
+               그 값이 남아 있으면 데이터부 컬럼이 내용보다 짧아지고 보고서 버튼이 마지막
+               줄("발생 사유") 위로 올라붙는다. 래퍼 체인 전체를 **블록 + auto 높이**로
+               되돌려 각자 내용만큼 차지하게 한다. `display`까지 함께 푸는 것이 핵심이다 —
+               높이만 auto로 두면 flex 컨테이너로 남아 다시 눌린다. */
+            div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stColumn"],
+            div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stVerticalBlock"],
+            div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stElementContainer"],
+            div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stMarkdown"],
+            div[data-testid="stHorizontalBlock"]:has(.event-when) [data-testid="stMarkdown"] > div {{
+                display: block !important;
+                height: auto !important; min-height: 0 !important;
+                width: 100% !important; min-width: 0 !important;
+                float: none !important; position: static !important;
+            }}
+            /* 음수 마진 보정은 위 공통 규칙으로 옮겼다 — 데스크톱에서도 같은 원인으로
+               구분선이 헤더 글자와 겹쳤기 때문이다(2026-08-13 사용자 제보). */
+            /* 보고서 버튼은 카드 맨 아래 한 줄로 떨어뜨린다. */
+            div[data-testid="stHorizontalBlock"]:has(.event-when)
+                [data-testid="stColumn"]:last-child {{ margin-top: 10px; }}
+
+            /* **2열 그리드로 가로 폭을 쓴다 (사용자 제보 — 오른쪽이 비어 있었다).**
+               1열로 쌓으면 값이 짧아 카드 오른쪽 절반이 통째로 남고 카드 높이만 길어진다.
+               시각·모터명·사유는 한 줄 전체를 쓰고, **상태 변화와 값 변화는 나란히** 둔다 —
+               담당자가 "무엇이 어디로" 옆에서 "얼마에서 얼마로"를 바로 읽는다.
+               비율은 **3 : 2** 다 (2026-08-13 사용자 확정). 칸 구분선은 두지 않는다.
+               처음 지정은 2:3이었으나 실측에서 **상태 변화가 2줄로 깨졌다** — 칩 4개
+               (지표·이전상태·화살표·현재상태)라 한 줄에 145px이 필요한데 2/5는 120px뿐이고,
+               값 변화는 108px이면 되는데 181px을 받아 73px이 놀았다. 뒤집으면 181px : 120px이
+               되어 **양쪽 다 한 줄**에 들어가고 카드 높이도 한 줄 줄어든다(가용 폭 313px). */
+            .event-grid, .event-grid.with-motor {{
+                grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+                gap: 6px 12px; align-items: center;
+            }}
+            .event-grid .event-when,
+            .event-grid .event-motor,
+            .event-grid .event-reason {{ grid-column: 1 / -1; }}
+            /* 발생 일시는 카드 머리글 자리다 — 상대시각과 절대시각을 한 줄에 붙인다. */
+            .event-grid .event-when {{ flex-direction: row; align-items: baseline; gap: 8px; }}
+            /* 모터명은 카드에서 제목 노릇을 한다. */
+            .event-motor {{ font-weight: 700; }}
+            /* 값 변화는 오른쪽 끝에 붙여 상태 변화와 시각적으로 갈라 놓는다.
+               nowrap이라 폭을 넘길 수 있는 유일한 줄이므로 줄바꿈도 허용한다. */
+            .event-value {{
+                flex-wrap: wrap; white-space: normal; justify-self: end;
+            }}
+        }}
 
         /* --- 모터 상세 표 (05 §4.1 / §4.2, 2026-08-10) ---
            종전에는 기본 정보가 `st.write`로 흩어진 굵은 글씨 줄이었고 임계값은
