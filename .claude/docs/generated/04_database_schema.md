@@ -97,10 +97,19 @@ CREATE TABLE motors (
   model_name             TEXT NOT NULL,
   serial_number          TEXT UNIQUE,
   collection_interval_seconds INTEGER NOT NULL DEFAULT 20,  -- 보강: 10/20/30초. §4.4 통신 두절 판정 기준
+  lifespan_hours         INTEGER,               -- 보강(2026-08-13): 설계 수명(시간)
+  operation_started_at   TEXT,                  -- 보강(2026-08-13): ISO8601, 실제 가동 시작일
   created_at             TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   -- normal_range 등 임계값 4종은 motor_thresholds 테이블로 분리 (§2)
 );
 ```
+
+> **수명 관리용 두 컬럼 (2026-08-13 사용자 요청 추가).** 한 쌍으로 쓴다 — 구동일자부터 지금까지의 가동시간을 설계 수명과 견줘 경과율·잔여 수명을 본다. 수명을 **시간 단위**로 두는 이유는 산업용 모터 사양서가 시간으로 표기하기 때문이다(2만~6만 시간대).
+>
+> - **`created_at`과 `operation_started_at`을 혼동하면 안 된다.** 전자는 모니터링 서비스에 등록한 날, 후자는 설비가 실제로 돌기 시작한 날이다. 설비는 서비스 도입 전부터 가동 중이므로 **구동일자가 등록일보다 앞선다.** 등록일부터 수명을 세면 오래된 설비가 전부 새것으로 보인다.
+> - **NULL을 허용한다.** 관리자 화면의 모터 등록/수정 폼에 아직 두 필드가 없어(`remaining_work` #22), 지금 등록하는 모터는 값이 비어 들어온다. 값을 읽는 쪽은 NULL을 전제해야 한다.
+> - **기존 DB에는 `ALTER TABLE`로 덧붙인다** (`app/db/init_db.py`의 `_ADDED_COLUMNS`). `CREATE TABLE IF NOT EXISTS`는 이미 있는 테이블을 건드리지 않아, schema.sql만 고치면 살아 있는 DB에는 반영되지 않는다. 마이그레이션은 컬럼만 만들고 값은 채우지 않는다(기존 행은 NULL로 남고 다음 시드에서 채워진다).
+> - **수명을 읽어 판단·표시하는 기능은 아직 없다** — 경과율 계산, 화면 노출, 교체 시기 알림, 관리자 입력 필드 모두 `remaining_work` #22에 남겼다. 지금 있는 것은 컬럼과 시연 데이터뿐이다.
 
 ### 3.4 motor_telemetry (시계열)
 
@@ -276,6 +285,8 @@ WHERE time < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-48 hours');
 > **이 배치는 MVP 범위 밖이다 (2026-08-10 확정).** 정식 서비스 개발 시 적용한다. MVP에서 문제가 되지 않는 이유는 데모 DB가 부팅 때 만들어지고 낡으면 통째로 재생성되기 때문이다(`02_architecture.md` §6.1, `DEMO_DATA_MAX_AGE_HOURS`) — 48시간을 넘겨 쌓이는 구간 자체가 생기지 않는다. `apscheduler` 의존성과 `RETENTION_BATCH_CRON_HOUR` 상수는 정식 서비스를 위해 남겨 둔다. 위 쿼리는 그때 쓸 설계다.
 
 MVP 실행 방식: 별도 스케줄러(APScheduler, `02_architecture.md` §3 참고) 잡으로 1일 1회 실행. 정식 서비스 단계에서 필요 시 별도 아카이브 테이블/파일로 이관 검토.
+
+6. **motors.lifespan_hours / operation_started_at 추가 (§3.3, 2026-08-13 사용자 요청)**: 모터 수명 관리용. 설계 수명(시간)과 실제 가동 시작일을 한 쌍으로 둔다. **컬럼과 시연 데이터까지만 반영했고, 수명을 읽어 판단·표시하는 기능은 미구현이다** — 가동시간 산출 규칙 확정, 경과율·잔여 수명 계산, 화면 노출, 교체 시기 알림, 관리자 입력 필드가 모두 남아 있다(`remaining_work` #22).
 
 ---
 

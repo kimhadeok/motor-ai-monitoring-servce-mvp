@@ -197,5 +197,6 @@ scripts/        # 수동 CLI — seed_data.py(데모 데이터), build_knowledge
 - 알림 실제 발송(KAKAO/SMS/EMAIL 어댑터) — MVP는 시연용 `notification_logs` 샘플까지 (2026-08-10 확정)
 - 48시간 보관 배치 — 데모 DB는 부팅 때 재생성되어 넘칠 구간이 없다 (2026-08-10 확정)
 - **실시간 상태 전이 감지 · 통신 두절 판정** — 상시 실행 경로가 필요한데 Streamlit Community Cloud에는 백그라운드 프로세스가 없어 설계 결정이 선행돼야 한다 (2026-08-11 확정)
+- **모터 수명 관리** — `motors` 테이블에 `lifespan_hours`(설계 수명, 시간)와 `operation_started_at`(실제 가동 시작일) 컬럼을 넣고 시연 데이터 210대를 채워 뒀지만(2026-08-13), **수명을 읽어 판단·표시하는 기능은 아직 없다.** 가동시간 산출 규칙(24시간 연속으로 볼지 가동률을 둘지)이 정해져야 경과율 계산·화면 노출·교체 시기 알림·관리자 입력 필드가 따라온다. 지금 관리자 화면에서 모터를 등록하면 두 값이 비어 들어간다. 상세는 `remaining_work` #22
 
 상세 추적은 [`.claude/docs/plan/remaining_work.md`](.claude/docs/plan/remaining_work.md).

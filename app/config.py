@@ -299,6 +299,20 @@ STATUS_CARD_BUTTON_PREFIX = "statusclick-"
 # --- 수집 주기 (02_architecture.md §2.1) ---
 ALLOWED_COLLECTION_INTERVALS_SECONDS = (10, 20, 30)
 
+# --- 모터 수명 (2026-08-13 추가, 04_database_schema.md §3.3) ---
+# 설계 수명은 **시간(h) 단위**다. 산업용 모터 사양서가 시간으로 표기하고, 구동일자와
+# 조합해야 누적 가동시간·잔여 수명을 계산할 수 있다.
+#
+# **수명 관리 기능 자체는 아직 없다** (remaining_work #22). 지금은 컬럼과 시드값만 있고,
+# 경과율 계산·화면 노출·교체 시기 알림·관리자 입력 필드는 만들어지지 않았다.
+# 아래 값들은 그 기능이 붙을 때 그대로 쓰도록 미리 한곳에 모아둔 것이다.
+MOTOR_DEFAULT_LIFESPAN_HOURS = 40_000
+# 시드가 고르는 설계 수명 풀. 산업용 모터 사양서에서 흔한 2만~6만 시간대로 잡는다.
+SEED_MOTOR_LIFESPAN_HOURS_POOL = (20_000, 30_000, 40_000, 50_000, 60_000)
+# 구동일자는 등록일보다 이만큼(일) 앞선다. 폭을 넓게 둬야 시연 데이터에 갓 도입한 설비부터
+# 수명을 넘긴 노후 설비까지 섞인다 — 한쪽으로 몰리면 수명 화면에서 보여줄 것이 없다.
+SEED_OPERATION_START_DAYS_BEFORE_REGISTRATION = (30, 2200)
+
 # --- 통신 두절 판정 (03_state_event_logic.md §4.4 확정) ---
 MISSED_CYCLES_THRESHOLD = 3
 

@@ -27,6 +27,13 @@ CREATE TABLE IF NOT EXISTS motors (
   model_name             TEXT NOT NULL,
   serial_number          TEXT UNIQUE,
   collection_interval_seconds INTEGER NOT NULL DEFAULT 20,  -- 10/20/30초
+  -- 수명 관리 (2026-08-13 추가, 04 §3.3). 두 값이 한 쌍으로 쓰인다 —
+  -- 구동일자부터 지금까지의 가동시간을 설계 수명과 견줘 잔여 수명을 본다.
+  -- created_at(모니터링 서비스 등록일)과 operation_started_at(실제 가동 시작일)은 다르다.
+  -- 설비는 서비스 도입 전부터 돌고 있으므로 구동일자가 등록일보다 앞선다.
+  -- 값을 아직 화면에서 입력할 수 없어(수명 관리 기능 미구현, remaining_work #22) NULL을 허용한다.
+  lifespan_hours         INTEGER,               -- 설계 수명(시간)
+  operation_started_at   TEXT,                  -- ISO8601, 실제 가동 시작일
   created_at             TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   -- normal_range 등 임계값 4종은 motor_thresholds 테이블로 분리
 );

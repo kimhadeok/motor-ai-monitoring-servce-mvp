@@ -32,6 +32,8 @@ from app.config import (
     SEED_EQUIPMENT_POOL,
     SEED_LOCATION_POOL,
     SEED_MODEL_POOL,
+    SEED_MOTOR_LIFESPAN_HOURS_POOL,
+    SEED_OPERATION_START_DAYS_BEFORE_REGISTRATION,
     SEED_RNG_SEED,
     SEED_SPARSE_INTERVAL_SECONDS,
     SEED_TELEMETRY_HOURS,
@@ -232,13 +234,31 @@ def _seed_contacts(conn) -> list[dict]:
     return created
 
 
+def _motor_lifespan(motor_id: str, registered_at: datetime) -> tuple[int, str]:
+    """설계 수명(h)과 구동일자 (2026-08-13 추가, 04 §3.3).
+
+    **구동일자는 등록일보다 앞선다.** 설비는 모니터링 서비스를 도입하기 전부터 돌고 있었고,
+    수명을 이 서비스 등록 시점부터 세면 노후 설비가 전부 새것으로 보인다.
+
+    난수를 `motor_id`로 시드해 같은 모터에는 늘 같은 값이 나오게 한다 — 시연 중 재시드로
+    "137호기 수명"이 달라지면 앞서 말한 숫자와 어긋난다.
+    """
+    rng = random.Random(f"lifespan|{motor_id}")
+    low, high = SEED_OPERATION_START_DAYS_BEFORE_REGISTRATION
+    started = registered_at - timedelta(days=rng.randint(low, high))
+    return rng.choice(SEED_MOTOR_LIFESPAN_HOURS_POOL), _iso(started)
+
+
 def _seed_motors(conn, now: datetime, motor_rows: list[tuple]) -> list[dict]:
     motors = []
     for motor_id, company_id, name, location, model, interval, days_ago in motor_rows:
+        registered_at = now - timedelta(days=days_ago)
+        lifespan_hours, operation_started_at = _motor_lifespan(motor_id, registered_at)
         conn.execute(
             "INSERT INTO motors (motor_id, company_id, motor_name, installation_location, "
-            "model_name, serial_number, collection_interval_seconds, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "model_name, serial_number, collection_interval_seconds, "
+            "lifespan_hours, operation_started_at, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 motor_id,
                 company_id,
@@ -247,7 +267,9 @@ def _seed_motors(conn, now: datetime, motor_rows: list[tuple]) -> list[dict]:
                 model,
                 f"SN-{motor_id}",
                 interval,
-                _iso(now - timedelta(days=days_ago)),
+                lifespan_hours,
+                operation_started_at,
+                _iso(registered_at),
             ),
         )
         for metric in METRIC_NAMES:
@@ -265,6 +287,8 @@ def _seed_motors(conn, now: datetime, motor_rows: list[tuple]) -> list[dict]:
                 "installation_location": location,
                 "model_name": model,
                 "collection_interval_seconds": interval,
+                "lifespan_hours": lifespan_hours,
+                "operation_started_at": operation_started_at,
             }
         )
     return motors
